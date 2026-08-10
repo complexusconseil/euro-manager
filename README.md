@@ -21,9 +21,17 @@ La partie est **sauvegardée automatiquement** dans le navigateur (localStorage)
 - **Mode Master League** (esprit PES 5/6) — créez votre propre club, choisissez ses couleurs, démarrez avec un effectif « maison » modeste et un petit budget (à la place du club le plus faible du championnat choisi), puis bâtissez une grande équipe au fil des saisons.
 - **Mode International** — disputez le **Championnat d'Europe** (16 nations) ou la **Coupe du Monde** (32 nations) avec la sélection de votre choix, en élimination directe.
 
+## 🌍 Championnats (11 pays)
+
+Compositions réelles 2026-27, ~195 clubs : Ligue 1 🇫🇷, Premier League 🏴, La Liga 🇪🇸, Serie A 🇮🇹, Bundesliga 🇩🇪, Primeira Liga 🇵🇹, Eredivisie 🇳🇱, Pro League 🇧🇪, Süper Lig 🇹🇷, Scottish Premiership 🏴, **Premier Liga russe 🇷🇺**.
+
 ## 🏆 Compétitions européennes (mode Carrière & Master League)
 
-Onglet **Europe** : selon votre classement, votre club se qualifie en **Ligue des Champions** (top 4), **Ligue Europa** (5-6) ou **Ligue Conférence** (7-8). Brackets à élimination directe avec les vrais clubs des 5 championnats, vous jouez vos tours (matchs animés, prolongation/tirs au but), et le parcours européen rapporte des recettes. Qualification recalculée chaque saison selon les résultats.
+Onglet **Europe** : qualification par **coefficient UEFA** — chaque pays reçoit un nombre de places selon son rang (les grands championnats 4 en C1, les intermédiaires 2, etc.), attribuées d'après le classement final. **Ligue des Champions** (32), **Ligue Europa** (32), **Ligue Conférence** (16), brackets multi-pays avec les vrais clubs. Confrontations en **matchs aller-retour** (score cumulé, tirs au but si égalité ; finale sèche) — vous jouez l'aller puis le retour, animés. Recettes européennes selon le parcours.
+
+## 🌐 Sélections nationales réelles
+
+En mode International, les sélections **UEFA + Russie** utilisent de **vrais effectifs**, qui **évoluent à chaque rassemblement** (forme du moment ±, absences pour blessure/choix du sélectionneur, joueurs rappelés). Les sélections hors-Europe utilisent pour l'instant des effectifs représentatifs.
 
 ## ✨ Fonctionnalités
 

@@ -106,6 +106,7 @@ select,input[type=text],input[type=number]{
 .live-head{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:15px}
 .live-score{font-size:40px;font-weight:800;letter-spacing:2px}
 .live-min{color:var(--accent);font-weight:700;margin:8px 0}
+.leg-label{text-align:center;color:var(--blue);font-weight:800;text-transform:uppercase;letter-spacing:1px;font-size:12px;margin-top:4px}
 .live-feed{text-align:left;max-height:230px;overflow-y:auto;margin:10px 0}
 .feed-line{padding:7px 10px;border-radius:8px;margin-bottom:5px;background:var(--card2);font-size:14px}
 .feed-line.right{text-align:right}

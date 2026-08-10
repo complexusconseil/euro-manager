@@ -24,19 +24,38 @@ const NATIONS = [
   ["Cameroun",75,"CAF","FRA"],["Ghana",75,"CAF","ENG"],["Tunisie",74,"CAF","FRA"],
   ["Japon",79,"AFC","POR"],["Corée du Sud",78,"AFC","POR"],["Iran",76,"AFC","POR"],
   ["Australie",75,"AFC","ENG"],["Arabie Saoudite",73,"AFC","POR"],
-  ["Mexique",76,"CONCACAF","ESP"],["États-Unis",76,"CONCACAF","ENG"],["Canada",75,"CONCACAF","ENG"]
+  ["Mexique",76,"CONCACAF","ESP"],["États-Unis",76,"CONCACAF","ENG"],["Canada",75,"CONCACAF","ENG"],
+  ["Russie",76,"UEFA","RUS"]
 ];
 
-/* Génère un onze/effectif représentatif pour une sélection (noms générés) */
+/* Effectif d'une sélection pour un tournoi.
+   Si des données réelles existent, on applique une VARIATION de rassemblement :
+   forme (±2), 1 à 3 absents (blessure / choix du sélectionneur), et des
+   remplaçants appelés (retours de forme, jeunes). Sinon, effectif généré.   */
 FM.makeNationSquad = function(nat){
   const pool = (window.FM.__NAMES && window.FM.__NAMES[nat.pool]) ? nat.pool : "FRA";
-  const plan = ["GB","DD","DC","DC","DG","MDC","MC","MO","AD","AG","BU",  // onze
-                "GB","DC","DD","MC","MO","AG","BU"];                        // banc
+  const real = window.FM.NATION_SQUADS && window.FM.NATION_SQUADS[nat.nom];
+  if (real && real.length >= 14){
+    const nOut = FM._ri(1,3), out = new Set();
+    while (out.size < nOut && out.size < real.length-11) out.add(FM._ri(0, real.length-1));
+    const squad = [];
+    real.forEach((p,i)=>{
+      if (out.has(i)) return;                                   // absent ce rassemblement
+      const note = Math.max(58, Math.min(93, p[3] + FM._ri(-2,2)));  // forme du moment
+      squad.push({ id:100000+nat.note*100+i, nom:p[0], pos:p[1], groupe:FM.POS_GROUP[p[1]], note, buts:0 });
+    });
+    const need = Math.max(0, 18 - squad.length), fillPos = ["MC","DC","BU","AD","DG","GB"];
+    for (let k=0;k<need;k++){
+      const pos = fillPos[k%fillPos.length];
+      const note = Math.max(60, nat.note - FM._ri(4,10));
+      squad.push({ id:100000+nat.note*100+50+k, nom:FM._nameFrom(pool), pos, groupe:FM.POS_GROUP[pos], note, buts:0 });
+    }
+    return squad;
+  }
+  const plan = ["GB","DD","DC","DC","DG","MDC","MC","MO","AD","AG","BU","GB","DC","DD","MC","MO","AG","BU"];
   return plan.map((pos,i)=>{
-    const base = nat.note + FM._ri(-8, 6);
-    const note = Math.max(60, Math.min(93, base));
-    return { id:100000+nat.note*100+i, nom: FM._nameFrom(pool), pos, groupe:FM.POS_GROUP[pos],
-             note, buts:0 };
+    const note = Math.max(60, Math.min(93, nat.note + FM._ri(-8, 6)));
+    return { id:100000+nat.note*100+i, nom: FM._nameFrom(pool), pos, groupe:FM.POS_GROUP[pos], note, buts:0 };
   });
 };
 
@@ -133,6 +152,45 @@ FM.simCupMatch = function(comp, ai, bi, forcedResult){
   return { as, es, pen, events, winner };
 };
 
+/* Un match "brut" (buts domicile/extérieur + événements orientés dom/ext) */
+function rawMatch(comp, homeIdx, awayIdx){
+  const H = comp.teams[homeIdx], A = comp.teams[awayIdx];
+  if (comp.kind==="club"){
+    const r = FM.simulateMatch(FM.clubById(H.ref), FM.clubById(A.ref));
+    return { hs:r.domScore, as:r.extScore, events:r.events.map(e=>({min:e.min, joueur:e.joueur, home:e.clubId===FM.clubById(H.ref).id})) };
+  }
+  const r = simByRating(H, A);
+  return { hs:r.as, as:r.es, events:r.events.map(e=>({min:e.min, joueur:e.joueur, home:e.side==="a"})) };
+}
+
+/* Confrontation. Coupes de clubs = ALLER-RETOUR (sauf finale, sec).
+   Sélections = match sec. Renvoie un objet orienté sur (a,b) :
+   {as,es}=score cumulé, pen, winner, twoLeg, leg1/leg2 {as,es} orientés a/b. */
+FM.simCupTie = function(comp, ai, bi){
+  const twoLeg = comp.kind==="club" && comp.alive.length > 2;   // finale (2 restants) = sec
+  if (!twoLeg){
+    const m = FM.simCupMatch(comp, ai, bi);
+    return { as:m.as, es:m.es, pen:m.pen, winner:m.winner, twoLeg:false, ev1:m.events };
+  }
+  // Aller : a reçoit. Retour : b reçoit.
+  const l1 = rawMatch(comp, ai, bi);            // hs=a, as=b
+  const l2 = rawMatch(comp, bi, ai);            // hs=b, as=a
+  const aggA = l1.hs + l2.as, aggB = l1.as + l2.hs;
+  let pen = null;
+  if (aggA === aggB){
+    const pA = 0.5 + (comp.teams[ai].note - comp.teams[bi].note) * 0.012;
+    const aWin = FM._rnd() < Math.max(0.2, Math.min(0.8, pA));
+    pen = aWin ? [FM._ri(4,5), FM._ri(2,4)] : [FM._ri(2,4), FM._ri(4,5)];
+    if (pen[0]===pen[1]) pen[aWin?0:1]++;
+  }
+  const winner = aggA>aggB ? ai : aggB>aggA ? bi : (pen[0]>pen[1] ? ai : bi);
+  return {
+    as:aggA, es:aggB, pen, winner, twoLeg:true,
+    leg1:{ as:l1.hs, es:l1.as, ev:l1.events },     // aller (a domicile)
+    leg2:{ as:l2.as, es:l2.hs, ev:l2.events }      // retour (b domicile) -> orienté a/b
+  };
+};
+
 /* Simulation par note (sélections) */
 function simByRating(A, B){
   const diff = A.note - B.note;
@@ -166,8 +224,10 @@ FM.resolveTournamentRound = function(comp, playerRes){
   const ties=[], winners=[];
   for (const [a,b] of pairs){
     const isPlayer = comp.playerAlive && (a===comp.playerSeed || b===comp.playerSeed);
-    const res = (isPlayer && playerRes) ? playerRes : FM.simCupMatch(comp, a, b);
-    ties.push({ a, b, as:res.as, es:res.es, pen:res.pen, winner:res.winner });
+    const res = (isPlayer && playerRes) ? playerRes : FM.simCupTie(comp, a, b);
+    ties.push({ a, b, as:res.as, es:res.es, pen:res.pen, winner:res.winner,
+                twoLeg:res.twoLeg, leg1:res.leg1?{as:res.leg1.as,es:res.leg1.es}:null,
+                leg2:res.leg2?{as:res.leg2.as,es:res.leg2.es}:null });
     winners.push(res.winner);
     if (isPlayer && res.winner!==comp.playerSeed) comp.playerAlive = false;
   }
@@ -182,38 +242,43 @@ FM.resolveTournamentRound = function(comp, playerRes){
 };
 
 /* ---------------- COUPES D'EUROPE (clubs) ----------------
-   Qualification selon le classement final (ou réputation en saison 1).   */
+   Qualification selon le CLASSEMENT de chaque championnat et le
+   COEFFICIENT UEFA du pays (nombre de places allouées par rang).          */
+FM.LEAGUE_COEFF = { LL:1, PL:2, SA:3, BL:4, L1:5, POR:6, NER:7, BEL:8, TUR:9, SCO:10, RUS:11 };
+function coeffSlots(rank){
+  if (rank<=5)  return { cl:4, el:2, ecl:1 };   // grands championnats
+  if (rank<=8)  return { cl:2, el:2, ecl:2 };   // championnats intermédiaires
+  if (rank<=12) return { cl:1, el:1, ecl:2 };   // championnats plus modestes
+  return { cl:1, el:1, ecl:1 };
+}
+
 FM.setupEuropeanCups = function(){
   const st = FM.state;
-  const leagues = FM.LEAGUES.map(l=>l.id);
-  const uclPool=[], uelPool=[], ueclPool=[], rest=[];
-
-  for (const lid of leagues){
+  const cl=[], el=[], ecl=[], rest=[];
+  for (const lg of FM.LEAGUES){
+    const lid = lg.id;
     let ordered;
     const fin = st._finalOrder && st._finalOrder[lid];
-    if (fin && fin.length){
-      ordered = fin.map(id=>FM.clubById(id)).filter(Boolean);
-    } else {
-      ordered = FM.state.db.clubs.filter(c=>c.ligue===lid)
+    if (fin && fin.length) ordered = fin.map(id=>FM.clubById(id)).filter(Boolean);
+    else ordered = FM.state.db.clubs.filter(c=>c.ligue===lid)
         .sort((a,b)=> b.rep-a.rep || FM.squadRating(b)-FM.squadRating(a));
-    }
+    const s = coeffSlots(FM.LEAGUE_COEFF[lid] || 20);
     ordered.forEach((c,pos)=>{
-      if (pos<4) uclPool.push(c.id);
-      else if (pos<6) uelPool.push(c.id);
-      else if (pos<8) ueclPool.push(c.id);
+      if (pos < s.cl) cl.push(c.id);
+      else if (pos < s.cl+s.el) el.push(c.id);
+      else if (pos < s.cl+s.el+s.ecl) ecl.push(c.id);
       else rest.push(c.id);
     });
   }
-  // Complète chaque coupe à sa taille cible avec les meilleurs restants
   const byRating = ids => ids.slice().sort((a,b)=>FM.squadRating(FM.clubById(b))-FM.squadRating(FM.clubById(a)));
-  let leftover = byRating(rest.concat());
+  let leftover = byRating(rest);
   function fill(pool, size){
     let arr = byRating(pool);
-    while (arr.length<size && leftover.length){ arr.push(leftover.shift()); }
+    while (arr.length<size && leftover.length) arr.push(leftover.shift());
     if (arr.length>size){ leftover = byRating(leftover.concat(arr.slice(size))); arr = arr.slice(0,size); }
     return arr;
   }
-  const ucl = fill(uclPool,32), uel = fill(uelPool,16), uecl = fill(ueclPool,16);
+  const ucl = fill(cl,32), uel = fill(el,32), uecl = fill(ecl,16);
 
   const toTeam = id => { const c=FM.clubById(id); return { key:id, ref:id, nom:c.nom, pays:c.pays, couleurs:c.couleurs, note:FM.squadRating(c) }; };
   const myId = st.managedClubId;

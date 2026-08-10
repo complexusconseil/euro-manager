@@ -570,8 +570,9 @@ function renderCupHistory(body, comp){
       const A=comp.teams[t.a], B=comp.teams[t.b];
       const mine = (t.a===comp.playerSeed||t.b===comp.playerSeed);
       const row = el("div","cup-tie"+(mine?" mine":""));
+      const legs = t.twoLeg && t.leg1 && t.leg2 ? ` <em>(${t.leg1.as}-${t.leg1.es}, ${t.leg2.as}-${t.leg2.es})</em>` : '';
       row.innerHTML = `<span class="ct-a ${t.winner===t.a?'w':''}">${A.nom}</span>
-        <span class="ct-s">${t.as}-${t.es}${t.pen?` <em>tab ${t.pen[0]}-${t.pen[1]}</em>`:''}</span>
+        <span class="ct-s">${t.as}-${t.es}${t.pen?` <em>tab ${t.pen[0]}-${t.pen[1]}</em>`:''}${legs}</span>
         <span class="ct-b ${t.winner===t.b?'w':''}">${B.nom}</span>`;
       list.appendChild(row);
     });
@@ -590,30 +591,39 @@ function advanceAllCups(othersOnly){
   FM.save();
 }
 
-/* Match de coupe du joueur, avec animation, puis résolution du tour */
+/* Match de coupe du joueur, avec animation (aller-retour si applicable) */
 function playCupTie(comp){
   const tie = FM.playerTie(comp);
   if (!tie){ renderGame(); return; }
   const [a,b] = tie;
-  const res = FM.simCupMatch(comp, a, b);          // calculé une fois
+  const res = FM.simCupTie(comp, a, b);
   const playerA = (a===comp.playerSeed);
   const me = FM.myClub();
   const oppTeam = comp.teams[playerA?b:a];
-  const opp = { nom:oppTeam.nom, couleurs:oppTeam.couleurs, pays:oppTeam.pays };
-  const selfScore = playerA?res.as:res.es, oppScore = playerA?res.es:res.as;
-  // events -> côté 'me'/'opp'
-  const evs = res.events.map(ev=>({ min:ev.min, joueur:ev.joueur, me: (ev.side==="a")===playerA }));
+  const opp = { nom:oppTeam.nom, couleurs:oppTeam.couleurs };
+  const finish = ()=>{ FM.resolveTournamentRound(comp, res); advanceAllCups(true); FM.save(); renderGame(); };
 
-  animateTie(me, opp, selfScore, oppScore, res.pen, playerA, evs, ()=>{
-    FM.resolveTournamentRound(comp, res);          // même résultat que l'animation
-    advanceAllCups(true);
-    FM.save();
-    renderGame();
+  if (!res.twoLeg){
+    const selfScore = playerA?res.as:res.es, oppScore = playerA?res.es:res.as;
+    const evs = (res.ev1||[]).map(ev=>({ min:ev.min, joueur:ev.joueur, me:(ev.side==="a")===playerA }));
+    animateMatch(me, opp, selfScore, oppScore, res.pen, playerA, evs, {label:""}, finish);
+    return;
+  }
+  // ALLER puis RETOUR, verdict au cumul
+  const l1s = playerA?res.leg1.as:res.leg1.es, l1o = playerA?res.leg1.es:res.leg1.as;
+  const l1ev = (res.leg1.ev||[]).map(ev=>({ min:ev.min, joueur:ev.joueur, me:(ev.home===playerA) }));
+  const l2s = playerA?res.leg2.as:res.leg2.es, l2o = playerA?res.leg2.es:res.leg2.as;
+  const l2ev = (res.leg2.ev||[]).map(ev=>({ min:ev.min, joueur:ev.joueur, me:(ev.home!==playerA) }));
+  animateMatch(me, opp, l1s, l1o, null, playerA, l1ev, {label:"Aller"}, ()=>{
+    animateMatch(me, opp, l2s, l2o, res.pen, playerA, l2ev,
+      { label:"Retour", agg:{ self:l1s+l2s, opp:l1o+l2o, pen:res.pen, playerA } }, finish);
   });
 }
 
-/* Overlay animé d'un match de coupe (équipe du joueur à gauche) */
-function animateTie(me, opp, selfScore, oppScore, pen, playerA, evs, onDone){
+/* Overlay animé d'un match (équipe du joueur à gauche). opts.label = manche,
+   opts.agg = cumul (affiche le verdict de qualification au retour).          */
+function animateMatch(me, opp, selfScore, oppScore, pen, playerA, evs, opts, onDone){
+  opts = opts || {};
   const overlay = el("div","overlay");
   const box = el("div","match-live card");
   box.innerHTML = `<div class="live-head">
@@ -621,6 +631,7 @@ function animateTie(me, opp, selfScore, oppScore, pen, playerA, evs, onDone){
       <div class="live-score" id="cScore">0 - 0</div>
       <div class="lh-team">${opp.nom} ${clubCrest({nom:opp.nom,couleurs:opp.couleurs},34)}</div>
     </div>
+    ${opts.label?`<div class="leg-label">${opts.label}</div>`:''}
     <div class="live-min" id="cMin">Coup d'envoi…</div>
     <div class="live-feed" id="cFeed"></div>`;
   overlay.appendChild(box);
@@ -635,12 +646,23 @@ function animateTie(me, opp, selfScore, oppScore, pen, playerA, evs, onDone){
     clearInterval(timer);
     s=selfScore; o=oppScore;
     scoreEl.textContent = `${s} - ${o}`;
-    let txt = "Coup de sifflet final ⏱";
-    if (pen){ const pS=playerA?pen[0]:pen[1], pO=playerA?pen[1]:pen[0]; txt = `Tirs au but : ${pS}-${pO}`; }
+    let txt = "Coup de sifflet final ⏱", verdict=null, cont="✔ Continuer";
+    if (opts.label==="Aller"){
+      txt = "Fin de l'aller — place au retour"; cont="▶ Jouer le retour";
+    } else {
+      const ag = opts.agg;
+      if (ag){
+        txt = `Cumul : ${ag.self}-${ag.opp}` + (ag.pen?` · tab ${ag.playerA?ag.pen[0]:ag.pen[1]}-${ag.playerA?ag.pen[1]:ag.pen[0]}`:"");
+        const won = ag.self>ag.opp || (ag.self===ag.opp && ag.pen && ((ag.playerA?ag.pen[0]:ag.pen[1])>(ag.playerA?ag.pen[1]:ag.pen[0])));
+        verdict = won;
+      } else {
+        if (pen){ txt = `Tirs au but : ${playerA?pen[0]:pen[1]}-${playerA?pen[1]:pen[0]}`; }
+        verdict = selfScore>oppScore || (selfScore===oppScore && pen && ((playerA?pen[0]:pen[1])>(playerA?pen[1]:pen[0])));
+      }
+    }
     minEl.textContent = txt;
-    const won = selfScore>oppScore || (selfScore===oppScore && pen && ((playerA?pen[0]:pen[1])>(playerA?pen[1]:pen[0])));
-    feed.innerHTML = `<div class="tie-verdict ${won?'win':'lose'}">${won?'✅ Qualifié !':'❌ Éliminé'}</div>` + feed.innerHTML;
-    skip.textContent="✔ Continuer"; skip.className="btn primary";
+    if (verdict!==null) feed.innerHTML = `<div class="tie-verdict ${verdict?'win':'lose'}">${verdict?'✅ Qualifié !':'❌ Éliminé'}</div>` + feed.innerHTML;
+    skip.textContent=cont; skip.className="btn primary";
     skip.onclick=()=>{ overlay.remove(); onDone(); };
   }
   skip.onclick = finish;
@@ -718,8 +740,8 @@ function playIntlTie(){
   const meN = comp.teams[comp.playerSeed], oppN = comp.teams[playerA?b:a];
   const selfScore = playerA?res.as:res.es, oppScore = playerA?res.es:res.as;
   const evs = res.events.map(ev=>({min:ev.min, joueur:ev.joueur, me:(ev.side==="a")===playerA}));
-  animateTie({nom:meN.nom,couleurs:meN.couleurs}, {nom:oppN.nom,couleurs:oppN.couleurs},
-    selfScore, oppScore, res.pen, playerA, evs, ()=>{ FM.resolveTournamentRound(comp,res); renderTournament(); });
+  animateMatch({nom:meN.nom,couleurs:meN.couleurs}, {nom:oppN.nom,couleurs:oppN.couleurs},
+    selfScore, oppScore, res.pen, playerA, evs, {label:""}, ()=>{ FM.resolveTournamentRound(comp,res); renderTournament(); });
 }
 
 /* ============= MERCATO ============= */

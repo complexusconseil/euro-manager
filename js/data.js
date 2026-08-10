@@ -113,6 +113,52 @@ const LEAGUES = [
     ["Werder Brême",2,38],    ["Mayence",2,30],    ["Augsbourg",2,28],
     ["Union Berlin",2,32],    ["Hambourg",3,60],    ["Cologne",3,60],
     ["Schalke 04",3,60],    ["Elversberg",1,16],    ["Paderborn",1,16]
+  ]},
+  { id:"POR", nom:"Primeira Liga", pays:"POR", clubs:[
+    ["Benfica",4,100],    ["Porto",4,100],    ["Sporting CP",4,100],
+    ["Braga",4,100],    ["Vitoria de Guimaraes",3,45],    ["Famalicao",2,22],
+    ["Santa Clara",2,22],    ["Gil Vicente",2,22],    ["Estoril",2,22],
+    ["Casa Pia",2,22],    ["Arouca",2,22],    ["Estrela da Amadora",2,22],
+    ["Nacional",2,22],    ["Rio Ave",2,22],    ["Alverca",2,22],
+    ["Maritimo",1,12],    ["Academico de Viseu",1,12]
+  ]},
+  { id:"NER", nom:"Eredivisie", pays:"NED", clubs:[
+    ["Ajax",4,100],    ["PSV",4,100],    ["Feyenoord",4,100],
+    ["AZ",3,45],    ["FC Twente",3,45],    ["FC Utrecht",3,45],
+    ["Go Ahead Eagles",2,22],    ["Sparta Rotterdam",2,22],    ["FC Groningen",2,22],
+    ["NEC",2,22],    ["Fortuna Sittard",2,22],    ["PEC Zwolle",2,22],
+    ["SC Heerenveen",2,22],    ["Telstar",1,12],    ["Excelsior",2,22],
+    ["ADO Den Haag",2,22],    ["SC Cambuur",1,12],    ["Willem II",2,22]
+  ]},
+  { id:"BEL", nom:"Pro League", pays:"BEL", clubs:[
+    ["Club Bruges",3,45],    ["Union SG",3,45],    ["Anderlecht",3,45],
+    ["Genk",3,45],    ["Antwerp",3,45],    ["La Gantoise",3,45],
+    ["Standard",3,45],    ["Cercle Bruges",2,22],    ["Westerlo",2,22],
+    ["Malines",2,22],    ["OH Louvain",2,22],    ["Saint-Trond",2,22],
+    ["Charleroi",2,22],    ["Zulte Waregem",2,22],    ["Beveren",2,22],
+    ["Courtrai",2,22],    ["RAAL La Louviere",1,12],    ["Lommel",1,12]
+  ]},
+  { id:"TUR", nom:"Super Lig", pays:"TUR", clubs:[
+    ["Galatasaray",4,100],    ["Fenerbahce",4,100],    ["Besiktas",3,45],
+    ["Trabzonspor",3,45],    ["Istanbul Basaksehir",3,45],    ["Samsunspor",2,22],
+    ["Konyaspor",2,22],    ["Kasimpasa",2,22],    ["Caykur Rizespor",2,22],
+    ["Alanyaspor",2,22],    ["Gaziantep FK",2,22],    ["Eyupspor",2,22],
+    ["Goztepe",2,22],    ["Kocaelispor",2,22],    ["Genclerbirligi",1,12],
+    ["Erzurumspor",1,12],    ["Amed SK",1,12],    ["Corum FK",1,12]
+  ]},
+  { id:"SCO", nom:"Scottish Premiership", pays:"SCO", clubs:[
+    ["Celtic",3,45],    ["Rangers",3,45],    ["Aberdeen",2,22],
+    ["Heart of Midlothian",2,22],    ["Hibernian",2,22],    ["Dundee United",2,22],
+    ["Dundee",1,12],    ["Falkirk",1,12],    ["Kilmarnock",1,12],
+    ["Motherwell",1,12],    ["St Johnstone",1,12],    ["St Mirren",1,12]
+  ]},
+  { id:"RUS", nom:"Premier Liga (Russie)", pays:"RUS", clubs:[
+    ["Zenit",3,45],    ["Spartak",3,45],    ["CSKA",3,45],
+    ["Krasnodar",3,45],    ["Dynamo Moscou",3,45],    ["Lokomotiv Moscou",3,45],
+    ["Krylya Sovetov",2,22],    ["Rostov",2,22],    ["Rubin Kazan",2,22],
+    ["Akhmat Grozny",2,22],    ["Akron Togliatti",2,22],    ["Baltika Kaliningrad",2,22],
+    ["Dynamo Makhachkala",2,22],    ["Orenburg",2,22],    ["Rodina Moskva",1,12],
+    ["Fakel Voronezh",1,12]
   ]}
 ];
 
