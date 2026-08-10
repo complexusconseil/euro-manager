@@ -33,8 +33,16 @@ FM.newGame = function(managerName, clubId, seed){
   FM.setupEuropeanCups();
   const pc0 = FM.state.europe.playerComp;
   if (pc0) addNews(`🏆 ${club.nom} est engagé en ${FM.state.europe[pc0].nom} cette saison !`);
+  FM.setupDomesticCup();
+  addNews(`${FM.state.coupe.emoji} ${FM.state.coupe.nom} : le tirage est fait, à vous de jouer !`);
   FM.save();
   return FM.state;
+};
+
+/* Coupe nationale du championnat du joueur (élimination directe, match sec) */
+FM.setupDomesticCup = function(){
+  FM.state.coupe = FM.makeDomesticCup(FM.state.ligueJoueur, FM.state.managedClubId);
+  return FM.state.coupe;
 };
 
 /* ---------- Nouvelle partie : MODE MASTER LEAGUE ----------
@@ -82,6 +90,8 @@ FM.newMasterLeague = function(managerName, clubName, leagueId, seed, kitColors){
   };
   addNews(`⚽ Master League — ${FM.state.managerName} fonde ${mlClub.nom} et intègre la ${lgMeta.nom} (à la place de ${removed.nom}). Budget de départ : ${mlClub.budget.toFixed(1)} M€. Bâtissez une équipe compétitive !`);
   FM.setupEuropeanCups();                     // (un promu n'est en général pas qualifié)
+  FM.setupDomesticCup();                       // engagé en coupe nationale dès la 1re saison
+  addNews(`${FM.state.coupe.emoji} Engagé en ${FM.state.coupe.nom} : une chance de titre dès cette saison !`);
   FM.save();
   return FM.state;
 };
@@ -417,6 +427,9 @@ FM.endSeason = function(){
   // --- Supercoupe d'Europe : vainqueur C1 vs vainqueur C3 (saison écoulée) ---
   const superCup = playSuperCup();
 
+  // --- Coupe nationale : clôture (simulée jusqu'au bout si non terminée) ---
+  const cupResult = finishDomesticCup();
+
   FM.state.historique.push({
     saison: FM.state.saison,
     classement: rank,
@@ -424,7 +437,8 @@ FM.endSeason = function(){
     pts: FM.myClub().pts,
     europe: euroSum,
     trophies,
-    superCup
+    superCup,
+    coupe: cupResult
   });
   addNews(`🏁 Fin de saison ${FM.state.saison} : ${champ.nom} champion. ${FM.myClub().nom} termine ${rank}${rank===1?"er":"e"}.`);
 
@@ -432,6 +446,7 @@ FM.endSeason = function(){
   const my = FM.myClub();
   let bonus = (rank<=3 ? 30 : rank<=6 ? 15 : rank<=10 ? 5 : 0) + euroPrize;
   if (superCup && superCup.playerWon) bonus += 8;
+  if (cupResult){ bonus += cupResult.playerReward; if (cupResult.playerReward>0) addNews(`💶 Parcours en ${cupResult.nom} : +${cupResult.playerReward} M€.`); }
   if (euroPrize>0) addNews(`💶 Recettes des coupes d'Europe : +${euroPrize.toFixed(0)} M€.`);
   for (const c of FM.state.db.clubs){
     c.pts=c.j=c.g=c.n=c.p=c.bp=c.bc=0;
@@ -456,11 +471,30 @@ FM.endSeason = function(){
   FM.state.offres=[];
   FM.state.calendrier = FM.makeSchedule(FM.clubsInMyLeague().map(c=>c.id));
   FM.setupEuropeanCups();                    // coupes de la nouvelle saison (selon classement final)
+  FM.setupDomesticCup();                      // nouveau tirage de la coupe nationale
   const pc = FM.state.europe.playerComp;
   addNews(`Saison ${FM.state.saison} : nouvel objectif — ${FM.state.objectif}. Budget mercato : ${my.budget.toFixed(1)} M€.` +
     (pc ? ` Qualifié en ${FM.state.europe[pc].nom} !` : ` (Non qualifié en coupe d'Europe.)`));
   FM.save();
 };
+
+/* Clôture de la coupe nationale en fin de saison : simule les tours restants,
+   annonce le vainqueur, calcule la prime du parcours du joueur. */
+function finishDomesticCup(){
+  const cup = FM.state.coupe;
+  if (!cup) return null;
+  if (!cup.finished) FM.autoCompleteCup(cup);
+  // Prime selon le nombre de tours réellement franchis par le joueur (hors exempts)
+  const playerRoundsWon = cup.history.filter(h=>
+    h.ties.some(t=>(t.a===cup.playerSeed||t.b===cup.playerSeed) && !t.bye && t.winner===cup.playerSeed)
+  ).length;
+  const champTeam = cup.champion!=null ? cup.teams[cup.champion] : null;
+  const playerWon = cup.champion===cup.playerSeed && cup.playerSeed>=0;
+  const playerReward = (playerWon ? 15 : 0) + playerRoundsWon*2;
+  addNews(`${cup.emoji} ${cup.nom} : ${champTeam?champTeam.nom:'—'} remporte le trophée.` +
+    (playerWon ? " 🏆 Bravo, c'est VOTRE club !" : ""));
+  return { nom:cup.nom, emoji:cup.emoji, vainqueur:champTeam?champTeam.nom:'—', playerWon, playerReward };
+}
 
 /* ---------- Supercoupe d'Europe ----------
    Oppose le vainqueur de la Ligue des Champions au vainqueur de la Ligue Europa

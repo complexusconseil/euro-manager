@@ -205,7 +205,7 @@ function renderGame(){
   // Onglets
   const tabs = el("div","tabs");
   const T = [["accueil","🏠 Accueil"],["effectif","👥 Effectif"],["tactique","📋 Tactique"],
-             ["mercato","💱 Mercato"],["europe","🏆 Europe"],["classement","📊 Classement"],
+             ["mercato","💱 Mercato"],["europe","🏆 Europe"],["coupe","🏅 Coupe"],["classement","📊 Classement"],
              ["calendrier","📅 Calendrier"],["actus","📰 Actus"]];
   T.forEach(([k,lbl])=>{
     const b = el("button","tab"+(currentTab===k?" active":""),lbl);
@@ -223,6 +223,7 @@ function renderGame(){
     case "tactique": renderTactics(body); break;
     case "mercato": renderMarket(body); break;
     case "europe": renderEurope(body); break;
+    case "coupe": renderDomesticCup(body); break;
     case "classement": renderTable(body); break;
     case "calendrier": renderCalendar(body); break;
     case "actus": renderNews(body); break;
@@ -564,6 +565,52 @@ function renderEurope(body){
   renderCupHistory(body, ko);
 }
 
+/* ============= COUPE NATIONALE ============= */
+function renderDomesticCup(body){
+  const cup = FM.state.coupe;
+  if (!cup){ body.appendChild(el("div","card",`<p class="hint">La coupe nationale se met en place en début de saison.</p>`)); return; }
+  const me = FM.myClub();
+  const card = el("div","card");
+  card.appendChild(el("h3",null,`${cup.emoji} ${cup.nom} — ${me.nom}`));
+
+  if (cup.finished){
+    const won = cup.champion===cup.playerSeed;
+    card.innerHTML += `<p class="euro-final ${won?'win':''}">${won?'🏆 VAINQUEUR DE LA COUPE ! Félicitations !':'Vainqueur : <b>'+(cup.teams[cup.champion]?cup.teams[cup.champion].nom:'—')+'</b>'}</p>`;
+  } else if (cup.playerAlive){
+    const tie = FM.playerTie(cup);
+    const oppIdx = tie[0]===cup.playerSeed?tie[1]:tie[0];
+    const opp = cup.teams[oppIdx];
+    card.appendChild(el("p","round-name",`${FM.roundName(cup.alive.length)} · match sec`));
+    if (opp.bye){
+      // Exempt ce tour : qualification d'office
+      card.appendChild(el("p","hint",`Votre club est <b>exempt</b> ce tour : qualifié d'office pour le tour suivant.`));
+      const go = el("button","btn primary big","⏭ Tour suivant");
+      go.onclick=()=>{ FM.resolveTournamentRound(cup); FM.save(); renderGame(); };
+      card.appendChild(go);
+    } else {
+      const tieBox = el("div","tie-box");
+      tieBox.innerHTML = `
+        <div class="tie-side">${clubCrest(me,52)}<b>${me.nom}</b><small>${FM.squadRating(me)}</small></div>
+        <div class="vs">VS</div>
+        <div class="tie-side">${clubCrest({nom:opp.nom,couleurs:opp.couleurs},52)}<b>${opp.nom}</b><small>${opp.note}</small></div>`;
+      card.appendChild(tieBox);
+      const play = el("button","btn primary big","▶ Jouer le match");
+      play.onclick=()=> playCupTie(cup, {noEuropeAdvance:true});
+      card.appendChild(play);
+      const sim = el("button","btn ghost","⏩ Simuler ce tour");
+      sim.onclick=()=>{ FM.resolveTournamentRound(cup); FM.save(); renderGame(); };
+      card.appendChild(sim);
+    }
+  } else {
+    card.appendChild(el("p","round-name","Vous avez été éliminé de la coupe."));
+    const b = el("button","btn ghost","⏩ Voir le vainqueur");
+    b.onclick=()=>{ FM.autoCompleteCup(cup); FM.save(); renderGame(); };
+    card.appendChild(b);
+  }
+  body.appendChild(card);
+  renderCupHistory(body, cup);
+}
+
 /* Phase de ligue : classement + match du joueur */
 function renderLeaguePhase(body, comp){
   const card = el("div","card");
@@ -639,6 +686,12 @@ function renderCupHistory(body, comp){
       const A=comp.teams[t.a], B=comp.teams[t.b];
       const mine = (t.a===comp.playerSeed||t.b===comp.playerSeed);
       const row = el("div","cup-tie"+(mine?" mine":""));
+      if (t.bye){
+        const real = A.bye ? B : A;
+        row.innerHTML = `<span class="ct-a w">${real.nom}</span>
+          <span class="ct-s"><em>exempt</em></span><span class="ct-b">—</span>`;
+        list.appendChild(row); return;
+      }
       const legs = t.twoLeg && t.leg1 && t.leg2 ? ` <em>(${t.leg1.as}-${t.leg1.es}, ${t.leg2.as}-${t.leg2.es})</em>` : '';
       row.innerHTML = `<span class="ct-a ${t.winner===t.a?'w':''}">${A.nom}</span>
         <span class="ct-s">${t.as}-${t.es}${t.pen?` <em>tab ${t.pen[0]}-${t.pen[1]}</em>`:''}${legs}</span>
@@ -660,8 +713,10 @@ function advanceAllCups(othersOnly){
   FM.save();
 }
 
-/* Match de coupe du joueur, avec animation (aller-retour si applicable) */
-function playCupTie(comp){
+/* Match de coupe du joueur, avec animation (aller-retour si applicable).
+   opts.noEuropeAdvance : ne pas faire avancer les coupes d'Europe (coupe nationale). */
+function playCupTie(comp, opts){
+  opts = opts || {};
   const tie = FM.playerTie(comp);
   if (!tie){ renderGame(); return; }
   const [a,b] = tie;
@@ -670,7 +725,7 @@ function playCupTie(comp){
   const me = FM.myClub();
   const oppTeam = comp.teams[playerA?b:a];
   const opp = { nom:oppTeam.nom, couleurs:oppTeam.couleurs };
-  const finish = ()=>{ FM.resolveTournamentRound(comp, res); advanceAllCups(true); FM.save(); renderGame(); };
+  const finish = ()=>{ FM.resolveTournamentRound(comp, res); if(!opts.noEuropeAdvance) advanceAllCups(true); FM.save(); renderGame(); };
 
   const meInfo = {nom:me.nom, couleurs:me.couleurs};
   if (!res.twoLeg){

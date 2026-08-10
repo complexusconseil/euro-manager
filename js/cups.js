@@ -167,7 +167,14 @@ function rawMatch(comp, homeIdx, awayIdx){
    Sélections = match sec. Renvoie un objet orienté sur (a,b) :
    {as,es}=score cumulé, pen, winner, twoLeg, leg1/leg2 {as,es} orientés a/b. */
 FM.simCupTie = function(comp, ai, bi){
-  const twoLeg = comp.kind==="club" && comp.alive.length > 2;   // finale (2 restants) = sec
+  const A = comp.teams[ai], B = comp.teams[bi];
+  // Exempt (bye) : l'équipe réelle passe sans jouer
+  if (A.bye || B.bye){
+    const winner = A.bye ? bi : ai;
+    return { as:0, es:0, pen:null, winner, twoLeg:false, ev1:[], bye:true };
+  }
+  // Coupe nationale = match sec (singleLeg) ; coupes d'Europe = aller-retour sauf finale
+  const twoLeg = comp.kind==="club" && !comp.singleLeg && comp.alive.length > 2;
   if (!twoLeg){
     const m = FM.simCupMatch(comp, ai, bi);
     return { as:m.as, es:m.es, pen:m.pen, winner:m.winner, twoLeg:false, ev1:m.events };
@@ -225,7 +232,7 @@ FM.resolveTournamentRound = function(comp, playerRes){
   for (const [a,b] of pairs){
     const isPlayer = comp.playerAlive && (a===comp.playerSeed || b===comp.playerSeed);
     const res = (isPlayer && playerRes) ? playerRes : FM.simCupTie(comp, a, b);
-    ties.push({ a, b, as:res.as, es:res.es, pen:res.pen, winner:res.winner,
+    ties.push({ a, b, as:res.as, es:res.es, pen:res.pen, winner:res.winner, bye:res.bye,
                 twoLeg:res.twoLeg, leg1:res.leg1?{as:res.leg1.as,es:res.leg1.es}:null,
                 leg2:res.leg2?{as:res.leg2.as,es:res.leg2.es}:null });
     winners.push(res.winner);
@@ -359,6 +366,41 @@ FM.autoCompleteClubComp = function(comp){
 /* Helpers d'état (une coupe de clubs) */
 FM.compFinished = comp => !!(comp.ko && comp.ko.finished);
 FM.compChampionTeam = comp => (comp.ko && comp.ko.finished) ? comp.ko.teams[comp.ko.champion] : null;
+
+/* ---------------- COUPE NATIONALE (par championnat) ----------------
+   Élimination directe en MATCH SEC entre tous les clubs du championnat.
+   L'effectif est complété par des « exempts » (byes) pour atteindre une
+   puissance de 2 : les têtes de série entrent en jouant un premier tour
+   contre un exempt (elles se qualifient d'office).                        */
+FM.CUP_NAMES = {
+  L1:["Coupe de France","🇫🇷"], PL:["FA Cup","🏴󠁧󠁢󠁥󠁮󠁧󠁿"], LL:["Copa del Rey","🇪🇸"],
+  SA:["Coppa Italia","🇮🇹"], BL:["DFB-Pokal","🇩🇪"], POR:["Taça de Portugal","🇵🇹"],
+  NER:["KNVB Beker","🇳🇱"], BEL:["Coupe de Belgique","🇧🇪"], TUR:["Türkiye Kupası","🇹🇷"],
+  SCO:["Scottish Cup","🏴󠁧󠁢󠁳󠁣󠁴󠁿"], RUS:["Coupe de Russie","🇷🇺"], GRE:["Coupe de Grèce","🇬🇷"],
+  SUI:["Coupe de Suisse","🇨🇭"], AUT:["ÖFB-Cup","🇦🇹"], UKR:["Coupe d'Ukraine","🇺🇦"]
+};
+
+FM.makeDomesticCup = function(leagueId, playerClubId){
+  const clubs = FM.state.db.clubs.filter(c=>c.ligue===leagueId);
+  const teams = clubs.map(c=>({ key:c.id, ref:c.id, nom:c.nom, pays:c.pays,
+                                couleurs:c.couleurs, note:FM.squadRating(c) }));
+  teams.sort((a,b)=>b.note-a.note);                 // seeding
+  let size=1; while(size < teams.length) size*=2;   // puissance de 2 supérieure
+  const need = size - teams.length;                 // nombre d'exempts à ajouter
+  for(let i=0;i<need;i++){
+    teams.push({ key:"BYE"+i, ref:null, nom:"Exempt", couleurs:["#2a3342","#4b5563"], note:-1, bye:true });
+  }
+  const meta = FM.CUP_NAMES[leagueId] || ["Coupe nationale","🏆"];
+  const playerKey = clubs.some(c=>c.id===playerClubId) ? playerClubId : null;
+  const comp = FM.makeTournament("CUP", meta[0], meta[1], "club", teams, playerKey);
+  comp.singleLeg = true;      // match sec à chaque tour (y compris la finale)
+  return comp;
+};
+
+/* Simule entièrement la coupe nationale (tours restants) */
+FM.autoCompleteCup = function(comp){
+  let g=0; while(comp && !comp.finished && g++<10) FM.resolveTournamentRound(comp);
+};
 
 /* ---------------- COUPES D'EUROPE (clubs) ----------------
    Qualification selon le CLASSEMENT de chaque championnat et le
