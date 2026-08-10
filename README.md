@@ -1,6 +1,6 @@
-# ⚽ Euro Manager — Mode Carrière
+# ⚽ Euro Manager
 
-Jeu de gestion football (à mi-chemin entre FIFA et Football Manager), **centré uniquement sur le mode carrière manager**. Jouable **100 % en local** dans un navigateur, sans installation ni connexion internet.
+Jeu de gestion football (à mi-chemin entre FIFA et Football Manager). Jouable **100 % en local** dans un navigateur, sans installation ni connexion internet. **Deux modes de jeu** : Carrière et Master League.
 
 ## 🎮 Comment jouer en local
 
@@ -15,9 +15,14 @@ Jeu de gestion football (à mi-chemin entre FIFA et Football Manager), **centré
 
 La partie est **sauvegardée automatiquement** dans le navigateur (localStorage). Vous pouvez fermer et reprendre plus tard.
 
+## 🎯 Modes de jeu
+
+- **Mode Carrière** — prenez les rênes d'un vrai club et menez-le vers ses objectifs, saison après saison.
+- **Mode Master League** (esprit PES 5/6) — créez votre propre club, choisissez ses couleurs, démarrez avec un effectif « maison » modeste et un petit budget (à la place du club le plus faible du championnat choisi), puis bâtissez une grande équipe au fil des saisons.
+
 ## ✨ Fonctionnalités
 
-- **Base de données de clubs européens** — 80 clubs réels répartis dans 5 grands championnats : Ligue 1 🇫🇷, Premier League 🏴, La Liga 🇪🇸, Serie A 🇮🇹, Bundesliga 🇩🇪. Chaque club a un effectif complet (~23 joueurs générés avec nationalités, âges, notes, potentiels et valeurs cohérents avec le niveau du club).
+- **Base de données de clubs européens** — les 5 grands championnats aux **compositions réelles 2026-27** : Ligue 1 🇫🇷 (18), Premier League 🏴 (20), La Liga 🇪🇸 (20), Serie A 🇮🇹 (20), Bundesliga 🇩🇪 (18) — soit 96 clubs, promotions/relégations incluses. Effectifs réels à jour au 10/08/2026 (mercato d'été inclus).
 - **Gestion de l'effectif** — consultez notes, potentiel, forme, moral, valeur marchande et statistiques de chaque joueur.
 - **Mercato (acheter / vendre)** — recherchez des joueurs dans toute l'Europe avec filtres (poste, note, âge), faites des offres, négociez selon votre budget. Placez vos joueurs sur la liste des transferts et recevez des offres des clubs IA.
 - **Tactique avant match** — choisissez votre formation (4-4-2, 4-3-3, 4-2-3-1, 3-5-2, 5-3-2, 4-5-1), composez votre onze sur un terrain visuel, et réglez vos consignes (mentalité, tempo, pressing) qui influencent réellement la simulation.

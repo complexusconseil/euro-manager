@@ -16,6 +16,7 @@ FM.newGame = function(managerName, clubId, seed){
 
   FM.state = {
     db,
+    mode: "career",
     managedClubId: clubId,
     managerName: managerName || "Manager",
     ligueJoueur: ligue,
@@ -29,6 +30,54 @@ FM.newGame = function(managerName, clubId, seed){
     objectif: objectifFor(club)
   };
   addNews(`Bienvenue ${FM.state.managerName} ! Vous prenez les rênes de ${club.nom}. Objectif : ${FM.state.objectif}.`);
+  FM.save();
+  return FM.state;
+};
+
+/* ---------- Nouvelle partie : MODE MASTER LEAGUE ----------
+   Vous créez votre club (effectif "maison" faible + petit budget) qui
+   prend la place du club le plus modeste du championnat choisi.          */
+FM.newMasterLeague = function(managerName, clubName, leagueId, seed, kitColors){
+  FM.setSeed(seed || 20260810);
+  const db = FM.buildDatabase();
+  const lgMeta = FM.LEAGUES.find(l => l.id === leagueId);
+  const lgClubs = db.clubs.filter(c => c.ligue === leagueId);
+
+  // Le club le plus faible cède sa place à votre club
+  lgClubs.sort((a,b) => a.rep - b.rep || a.budgetTotal - b.budgetTotal);
+  const removed = lgClubs[0];
+  db.clubs = db.clubs.filter(c => c.id !== removed.id);
+
+  const newId = Math.max(...db.clubs.map(c => c.id)) + 1;
+  const mlClub = {
+    id: newId, nom: clubName || "FC Master", ligue: leagueId,
+    ligueNom: lgMeta.nom, pays: lgMeta.pays,
+    couleurs: (kitColors && kitColors.length>=2) ? kitColors : ["#111827","#e5e7eb"],
+    rep: 1, budget: 12, budgetTotal: 20,
+    joueurs: FM.makeMasterSquad(lgMeta.pays),
+    formation: "4-4-2",
+    tactique: { mentalite:1, tempo:1, pressing:1, largeur:1 },
+    onze: [], pts:0, j:0, g:0, n:0, p:0, bp:0, bc:0
+  };
+  mlClub.onze = FM.autoPickXI(mlClub);
+  db.clubs.push(mlClub);
+
+  FM.state = {
+    db,
+    mode: "master",
+    managedClubId: newId,
+    managerName: managerName || "Manager",
+    ligueJoueur: leagueId,
+    saison: 1,
+    journee: 0,
+    calendrier: FM.makeSchedule(db.clubs.filter(c=>c.ligue===leagueId).map(c=>c.id)),
+    resultats: [],
+    news: [],
+    offres: [],
+    historique: [],
+    objectif: "assurer le maintien et bâtir votre club"
+  };
+  addNews(`⚽ Master League — ${FM.state.managerName} fonde ${mlClub.nom} et intègre la ${lgMeta.nom} (à la place de ${removed.nom}). Budget de départ : ${mlClub.budget.toFixed(1)} M€. Bâtissez une équipe compétitive !`);
   FM.save();
   return FM.state;
 };

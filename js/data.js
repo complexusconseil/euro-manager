@@ -72,34 +72,47 @@ const FORMATIONS = {
    rep: 1 (modeste) → 5 (élite continentale) ; budget en M€           */
 const LEAGUES = [
   { id:"L1", nom:"Ligue 1", pays:"FRA", clubs:[
-    ["Paris SG",5,220],["Marseille",4,90],["Monaco",4,85],["Lille",3,55],
-    ["Lyon",3,60],["Nice",3,50],["Rennes",3,48],["Lens",3,45],
-    ["Strasbourg",2,28],["Reims",2,25],["Nantes",2,24],["Toulouse",2,26],
-    ["Brest",2,22],["Montpellier",2,23],["Le Havre",1,15],["Auxerre",1,14]
+    ["Paris SG",5,220],    ["Marseille",4,90],    ["Monaco",4,85],
+    ["Lille",3,55],    ["Lyon",3,60],    ["Nice",3,50],
+    ["Rennes",3,48],    ["Lens",3,45],    ["Strasbourg",2,28],
+    ["Toulouse",2,26],    ["Brest",2,22],    ["Le Havre",1,15],
+    ["Auxerre",1,14],    ["Angers",2,30],    ["Lorient",2,30],
+    ["Paris FC",2,30],    ["Troyes",2,30],    ["Le Mans",1,16]
   ]},
   { id:"PL", nom:"Premier League", pays:"ENG", clubs:[
-    ["Manchester City",5,250],["Arsenal",5,180],["Liverpool",5,190],["Chelsea",4,160],
-    ["Manchester Utd",4,150],["Tottenham",4,120],["Newcastle",4,110],["Aston Villa",3,80],
-    ["Brighton",3,70],["West Ham",3,72],["Everton",2,40],["Crystal Palace",2,42],
-    ["Fulham",2,44],["Brentford",2,38],["Wolves",2,45],["Nottingham",2,36]
+    ["Manchester City",5,250],    ["Arsenal",5,180],    ["Liverpool",5,190],
+    ["Chelsea",4,160],    ["Manchester Utd",4,150],    ["Tottenham",4,120],
+    ["Newcastle",4,110],    ["Aston Villa",3,80],    ["Brighton",3,70],
+    ["Everton",2,40],    ["Crystal Palace",2,42],    ["Fulham",2,44],
+    ["Brentford",2,38],    ["Nottingham",2,36],    ["Bournemouth",2,30],
+    ["Leeds",2,30],    ["Sunderland",2,30],    ["Coventry",1,16],
+    ["Ipswich",1,16],    ["Hull",1,16]
   ]},
   { id:"LL", nom:"La Liga", pays:"ESP", clubs:[
-    ["Real Madrid",5,240],["Barcelone",5,180],["Atlético",4,130],["Athletic Bilbao",3,55],
-    ["Real Sociedad",3,60],["Villarreal",3,58],["Betis",3,50],["Valence",3,48],
-    ["Séville",3,52],["Girona",2,35],["Getafe",2,26],["Osasuna",2,24],
-    ["Celta Vigo",2,28],["Rayo Vallecano",1,18],["Mallorca",2,22],["Las Palmas",1,16]
+    ["Real Madrid",5,240],    ["Barcelone",5,180],    ["Atlético",4,130],
+    ["Athletic Bilbao",3,55],    ["Real Sociedad",3,60],    ["Villarreal",3,58],
+    ["Betis",3,50],    ["Valence",3,48],    ["Séville",3,52],
+    ["Getafe",2,26],    ["Osasuna",2,24],    ["Celta Vigo",2,28],
+    ["Rayo Vallecano",1,18],    ["Espanyol",2,30],    ["Alavés",2,30],
+    ["Levante",2,30],    ["Elche",2,30],    ["Racing Santander",1,16],
+    ["Deportivo La Corogne",1,16],    ["Malaga",1,16]
   ]},
   { id:"SA", nom:"Serie A", pays:"ITA", clubs:[
-    ["Inter",5,170],["Juventus",4,150],["Milan",4,140],["Napoli",4,130],
-    ["Roma",4,100],["Atalanta",4,95],["Lazio",3,80],["Fiorentina",3,65],
-    ["Bologna",3,55],["Torino",2,40],["Udinese",2,32],["Monza",2,28],
-    ["Genoa",2,26],["Lecce",1,18],["Cagliari",1,17],["Empoli",1,16]
+    ["Inter",5,170],    ["Juventus",4,150],    ["Milan",4,140],
+    ["Napoli",4,130],    ["Roma",4,100],    ["Atalanta",4,95],
+    ["Lazio",3,80],    ["Fiorentina",3,65],    ["Bologna",3,55],
+    ["Torino",2,40],    ["Udinese",2,32],    ["Monza",2,28],
+    ["Genoa",2,26],    ["Lecce",1,18],    ["Cagliari",1,17],
+    ["Como",3,60],    ["Parma",2,30],    ["Sassuolo",2,30],
+    ["Venezia",1,16],    ["Frosinone",1,16]
   ]},
   { id:"BL", nom:"Bundesliga", pays:"GER", clubs:[
-    ["Bayern Munich",5,230],["Leverkusen",5,150],["Dortmund",4,140],["RB Leipzig",4,130],
-    ["Stuttgart",3,70],["Francfort",3,68],["Wolfsburg",3,60],["Fribourg",3,50],
-    ["Hoffenheim",2,45],["Mönchengladbach",2,44],["Werder Brême",2,38],["Mayence",2,30],
-    ["Augsbourg",2,28],["Union Berlin",2,32],["Bochum",1,16],["Heidenheim",1,15]
+    ["Bayern Munich",5,230],    ["Leverkusen",5,150],    ["Dortmund",4,140],
+    ["RB Leipzig",4,130],    ["Stuttgart",3,70],    ["Francfort",3,68],
+    ["Fribourg",3,50],    ["Hoffenheim",2,45],    ["Mönchengladbach",2,44],
+    ["Werder Brême",2,38],    ["Mayence",2,30],    ["Augsbourg",2,28],
+    ["Union Berlin",2,32],    ["Hambourg",3,60],    ["Cologne",3,60],
+    ["Schalke 04",3,60],    ["Elversberg",1,16],    ["Paderborn",1,16]
   ]}
 ];
 
@@ -208,6 +221,28 @@ function clubColors(nom){
   if (d && d.c && d.c.length>=2) return [d.c[0], d.c[1]];
   return ["#3a4557", "#e6edf3"];
 }
+
+/* ---------- Effectif de départ Mode Master League ----------
+   Joueurs "maison" inconnus, faibles (esprit ML PES 5/6) : notes 60-70,
+   quelques jeunes à potentiel. Noms génériques issus des pools.        */
+FM.makeMasterSquad = function(country){
+  const plan = ["GB","GB","DD","DD","DG","DG","DC","DC","DC","DC",
+                "MDC","MDC","MC","MC","MC","MO","MO","AD","AG","AD","BU","BU","BU"];
+  return plan.map((pos,i) => {
+    const p = makePlayer(1, pos, country || "FRA");
+    // Note volontairement basse ; un ou deux "espoirs" avec du potentiel
+    const jeune = i % 5 === 0;
+    p.age = jeune ? ri(17,20) : ri(21,31);
+    p.note = jeune ? ri(60,66) : ri(62,70);
+    p.potentiel = jeune ? Math.min(84, p.note + ri(6,16)) : Math.min(76, p.note + ri(1,6));
+    p.forme = ri(-1,1);
+    p.moral = ri(60,80);
+    p.contrat = ri(1,3);
+    p.valeur = playerValue(p.note, p.potentiel, p.age);
+    p.salaire = Math.round((p.valeur*2.2 + p.note*0.3) * 10) / 10;
+    return p;
+  });
+};
 
 /* ---------- Construction de la base complète ---------- */
 FM.buildDatabase = function(){

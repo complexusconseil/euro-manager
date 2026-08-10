@@ -36,12 +36,29 @@ function clubCrest(club, size){
 let currentTab = "accueil";
 
 /* ============= ÉCRAN DE DÉMARRAGE ============= */
+let startMode = "career";                 // "career" | "master"
+const KITS = [
+  ["#111827","#e5e7eb"],["#d90429","#ffffff"],["#0353a4","#ffd500"],
+  ["#006400","#ffffff"],["#6a040f","#e0aaff"],["#ff6d00","#111827"],
+  ["#00b4d8","#03045e"],["#212529","#ffd166"]
+];
+let kitChoice = 0;
+
 function renderStart(){
   const app = $("#app");
   app.innerHTML = "";
   const wrap = el("div","start");
   wrap.appendChild(el("h1","logo","⚽ Euro Manager"));
-  wrap.appendChild(el("p","tagline","Mode Carrière Manager — gérez un club européen, du mercato au terrain."));
+  wrap.appendChild(el("p","tagline","Gérez un club européen — du mercato au terrain."));
+
+  // Sélecteur de mode
+  const modeSwitch = el("div","mode-switch");
+  const bC = el("button","mode-btn"+(startMode==="career"?" active":""),"🏅 Mode Carrière");
+  const bM = el("button","mode-btn"+(startMode==="master"?" active":""),"🏆 Master League");
+  bC.onclick=()=>{ startMode="career"; renderStart(); };
+  bM.onclick=()=>{ startMode="master"; renderStart(); };
+  modeSwitch.appendChild(bC); modeSwitch.appendChild(bM);
+  wrap.appendChild(modeSwitch);
 
   const card = el("div","card start-card");
   card.appendChild(el("label",null,"Nom du manager"));
@@ -53,31 +70,62 @@ function renderStart(){
   FM.LEAGUES.forEach(l=> ligueSel.appendChild(new Option(`${l.nom}`, l.id)));
   card.appendChild(ligueSel);
 
-  card.appendChild(el("label",null,"Choisissez votre club"));
-  const clubSel = el("select"); clubSel.id="clubSel";
-  card.appendChild(clubSel);
+  if (startMode === "career"){
+    /* ---- MODE CARRIÈRE : choisir un vrai club ---- */
+    card.appendChild(el("label",null,"Choisissez votre club"));
+    const clubSel = el("select"); clubSel.id="clubSel";
+    card.appendChild(clubSel);
+    const fillClubs = ()=>{
+      clubSel.innerHTML="";
+      const lg = FM.LEAGUES.find(l=>l.id===ligueSel.value);
+      lg.clubs.forEach((c,i)=> clubSel.appendChild(new Option(`${c[0]}  ${"★".repeat(c[1])}`, i)));
+    };
+    ligueSel.onchange = fillClubs; fillClubs();
 
-  const fillClubs = ()=>{
-    clubSel.innerHTML="";
-    const lg = FM.LEAGUES.find(l=>l.id===ligueSel.value);
-    lg.clubs.forEach((c,i)=> clubSel.appendChild(new Option(`${c[0]}  ${"★".repeat(c[1])}`, i)));
-  };
-  ligueSel.onchange = fillClubs; fillClubs();
+    const btn = el("button","btn primary big","🚀 Démarrer la carrière");
+    btn.onclick = ()=>{
+      FM.setSeed(20260810);
+      const tmp = FM.buildDatabase();
+      const lgId = ligueSel.value;
+      const idx = parseInt(clubSel.value,10);
+      const chosen = tmp.clubs.filter(c=>c.ligue===lgId)[idx];
+      FM.newGame(nameIn.value.trim()||"Manager", chosen.id, 20260810);
+      currentTab="accueil"; renderGame();
+    };
+    card.appendChild(btn);
 
-  const btn = el("button","btn primary big","🚀 Démarrer la carrière");
-  btn.onclick = ()=>{
-    // Construire la base pour retrouver l'id du club choisi
-    FM.setSeed(20260810);
-    const tmp = FM.buildDatabase();
-    const lgId = ligueSel.value;
-    const idx = parseInt(clubSel.value,10);
-    const clubsLg = tmp.clubs.filter(c=>c.ligue===lgId);
-    const chosen = clubsLg[idx];
-    FM.newGame(nameIn.value.trim()||"Manager", chosen.id, 20260810);
-    currentTab="accueil";
-    renderGame();
-  };
-  card.appendChild(btn);
+  } else {
+    /* ---- MODE MASTER LEAGUE : créer son club ---- */
+    card.appendChild(el("label",null,"Nom de votre club"));
+    const clubName = el("input"); clubName.type="text"; clubName.value="FC Master"; clubName.id="mlName";
+    card.appendChild(clubName);
+
+    card.appendChild(el("label",null,"Couleurs du maillot (écusson)"));
+    const kitRow = el("div","kit-row");
+    KITS.forEach((k,i)=>{
+      const sw = el("button","kit-swatch"+(kitChoice===i?" active":""));
+      sw.style.background = `linear-gradient(135deg, ${k[0]} 55%, ${k[1]} 55%)`;
+      sw.title = "Kit "+(i+1);
+      sw.onclick = (e)=>{
+        e.preventDefault(); kitChoice=i;
+        // mise à jour visuelle sans re-render (préserve les champs saisis)
+        kitRow.querySelectorAll(".kit-swatch").forEach((s,j)=>s.classList.toggle("active", j===i));
+      };
+      kitRow.appendChild(sw);
+    });
+    card.appendChild(kitRow);
+
+    const info = el("p","ml-info","🎮 Vous démarrez avec un effectif « maison » modeste et un petit budget, à la place du club le plus faible du championnat. Recrutez, progressez et bâtissez une grande équipe au fil des saisons — comme la Ligue des Masters d'antan.");
+    card.appendChild(info);
+
+    const btn = el("button","btn primary big","🏆 Lancer la Master League");
+    btn.onclick = ()=>{
+      FM.newMasterLeague(nameIn.value.trim()||"Manager", clubName.value.trim()||"FC Master",
+        ligueSel.value, 20260810, KITS[kitChoice]);
+      currentTab="accueil"; renderGame();
+    };
+    card.appendChild(btn);
+  }
 
   if (FM.hasSave()){
     const cont = el("button","btn ghost","▶ Reprendre la partie sauvegardée");
@@ -103,7 +151,7 @@ function renderGame(){
   top.innerHTML = `
     <div class="club-id">
       ${clubCrest(my,46)}
-      <div><b>${my.nom}</b><small>${my.ligueNom} · ${FM.state.managerName}</small></div>
+      <div><b>${my.nom}${FM.state.mode==="master"?' <span class="ml-badge">Master League</span>':''}</b><small>${my.ligueNom} · ${FM.state.managerName}</small></div>
     </div>
     <div class="stats">
       <div><small>Saison</small><b>${FM.state.saison}</b></div>
