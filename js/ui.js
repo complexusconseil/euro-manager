@@ -5,7 +5,18 @@ var FM = window.FM;
 var $ = sel => document.querySelector(sel);
 const el = (tag, cls, html) => { const e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e; };
 const money = m => (m>=0? "" : "-") + Math.abs(m).toFixed(1) + " M€";
-const FLAG = { FRA:"🇫🇷",ENG:"🏴",ESP:"🇪🇸",ITA:"🇮🇹",GER:"🇩🇪",POR:"🇵🇹",BRA:"🇧🇷",ARG:"🇦🇷",NED:"🇳🇱",BEL:"🇧🇪" };
+const FLAG = {
+  FRA:"🇫🇷",ENG:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",ESP:"🇪🇸",ITA:"🇮🇹",GER:"🇩🇪",POR:"🇵🇹",BRA:"🇧🇷",ARG:"🇦🇷",NED:"🇳🇱",BEL:"🇧🇪",
+  GRE:"🇬🇷",CRO:"🇭🇷",NOR:"🇳🇴",DEN:"🇩🇰",SUI:"🇨🇭",AUT:"🇦🇹",TUR:"🇹🇷",UKR:"🇺🇦",SRB:"🇷🇸",POL:"🇵🇱",
+  SWE:"🇸🇪",SCO:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",HUN:"🇭🇺",CZE:"🇨🇿",WAL:"🏴󠁧󠁢󠁷󠁬󠁳󠁿",ROU:"🇷🇴",URU:"🇺🇾",COL:"🇨🇴",ECU:"🇪🇨",CHI:"🇨🇱",
+  PER:"🇵🇪",PAR:"🇵🇾",MAR:"🇲🇦",SEN:"🇸🇳",NGA:"🇳🇬",EGY:"🇪🇬",ALG:"🇩🇿",CIV:"🇨🇮",CMR:"🇨🇲",GHA:"🇬🇭",
+  TUN:"🇹🇳",JPN:"🇯🇵",KOR:"🇰🇷",IRN:"🇮🇷",AUS:"🇦🇺",KSA:"🇸🇦",MEX:"🇲🇽",USA:"🇺🇸",CAN:"🇨🇦",RUS:"🇷🇺",
+  SVK:"🇸🇰",SVN:"🇸🇮",IRL:"🇮🇪",NIR:"🇬🇧",ISL:"🇮🇸",FIN:"🇫🇮",BIH:"🇧🇦",ALB:"🇦🇱",MKD:"🇲🇰",BUL:"🇧🇬",
+  GEO:"🇬🇪",ISR:"🇮🇱",MNE:"🇲🇪",KOS:"🇽🇰",BLR:"🇧🇾",KAZ:"🇰🇿",VEN:"🇻🇪",BOL:"🇧🇴",RSA:"🇿🇦",MLI:"🇲🇱",
+  BFA:"🇧🇫",COD:"🇨🇩",GUI:"🇬🇳",CPV:"🇨🇻",GAB:"🇬🇦",ZAM:"🇿🇲",ANG:"🇦🇴",QAT:"🇶🇦",IRQ:"🇮🇶",UAE:"🇦🇪",
+  UZB:"🇺🇿",JOR:"🇯🇴",CHN:"🇨🇳",OMA:"🇴🇲",VIE:"🇻🇳",THA:"🇹🇭",CRC:"🇨🇷",PAN:"🇵🇦",JAM:"🇯🇲",HON:"🇭🇳",
+  SLV:"🇸🇻",TRI:"🇹🇹",NZL:"🇳🇿"
+};
 
 /* ---- Écussons (crests) générés aux couleurs du club ---- */
 function clubMonogram(nom){

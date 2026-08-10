@@ -25,7 +25,24 @@ const NATIONS = [
   ["Japon",79,"AFC","JPN"],["Corée du Sud",78,"AFC","KOR"],["Iran",76,"AFC","IRN"],
   ["Australie",75,"AFC","AUS"],["Arabie Saoudite",73,"AFC","KSA"],
   ["Mexique",76,"CONCACAF","MEX"],["États-Unis",76,"CONCACAF","USA"],["Canada",75,"CONCACAF","CAN"],
-  ["Russie",76,"UEFA","RUS"]
+  ["Russie",76,"UEFA","RUS"],
+  /* --- Autres sélections (chaque nationalité a son vivier de noms) --- */
+  ["Slovaquie",72,"UEFA","SVK"],["Slovénie",71,"UEFA","SVN"],["Rép. d'Irlande",71,"UEFA","IRL"],
+  ["Irlande du Nord",68,"UEFA","NIR"],["Islande",70,"UEFA","ISL"],["Finlande",70,"UEFA","FIN"],
+  ["Bosnie-Herzégovine",72,"UEFA","BIH"],["Albanie",71,"UEFA","ALB"],["Macédoine du Nord",69,"UEFA","MKD"],
+  ["Bulgarie",69,"UEFA","BUL"],["Géorgie",72,"UEFA","GEO"],["Israël",70,"UEFA","ISR"],
+  ["Monténégro",69,"UEFA","MNE"],["Kosovo",68,"UEFA","KOS"],["Biélorussie",67,"UEFA","BLR"],
+  ["Kazakhstan",66,"UEFA","KAZ"],
+  ["Venezuela",74,"CONMEBOL","VEN"],["Bolivie",68,"CONMEBOL","BOL"],
+  ["Afrique du Sud",72,"CAF","RSA"],["Mali",74,"CAF","MLI"],["Burkina Faso",72,"CAF","BFA"],
+  ["RD Congo",73,"CAF","COD"],["Guinée",72,"CAF","GUI"],["Cap-Vert",71,"CAF","CPV"],
+  ["Gabon",71,"CAF","GAB"],["Zambie",69,"CAF","ZAM"],["Angola",69,"CAF","ANG"],
+  ["Qatar",72,"AFC","QAT"],["Irak",71,"AFC","IRQ"],["Émirats A. U.",70,"AFC","UAE"],
+  ["Ouzbékistan",71,"AFC","UZB"],["Jordanie",70,"AFC","JOR"],["Chine",68,"AFC","CHN"],
+  ["Oman",68,"AFC","OMA"],["Vietnam",66,"AFC","VIE"],["Thaïlande",66,"AFC","THA"],
+  ["Costa Rica",73,"CONCACAF","CRC"],["Panama",72,"CONCACAF","PAN"],["Jamaïque",72,"CONCACAF","JAM"],
+  ["Honduras",70,"CONCACAF","HON"],["Salvador",67,"CONCACAF","SLV"],["Trinité-et-Tobago",67,"CONCACAF","TRI"],
+  ["Nouvelle-Zélande",68,"OFC","NZL"]
 ];
 
 /* Effectif d'une sélection pour un tournoi.
