@@ -467,25 +467,38 @@ FM.snapshotFinalTables = function(){
 };
 
 /* ---------------- TOURNOIS DE SÉLECTIONS (Euro / Coupe du Monde) ---------------- */
-/* Vivier COMPLET de joueurs sélectionnables pour une nation (sans absence
-   aléatoire) — sert à l'écran de composition d'équipe. */
-FM.nationPool = function(nationName){
+/* Vivier COMPLET de joueurs sélectionnables pour une nation (~500 joueurs) —
+   sert à l'écran de composition d'équipe (titulaires + banc). Les vrais
+   internationaux figurent en tête ; le vivier est complété par des compatriotes
+   générés (noms cohérents avec le pays) de niveau décroissant, pour la
+   profondeur d'effectif.                                                        */
+FM.nationPool = function(nationName, size){
+  size = size || 500;
   const meta = NATIONS.find(n=>n[0]===nationName);
   const nat = meta ? {nom:meta[0],note:meta[1],confed:meta[2],pool:meta[3]}
                    : {nom:nationName,note:75,confed:"UEFA",pool:"FRA"};
   const real = FM.NATION_SQUADS && FM.NATION_SQUADS[nationName];
-  const out=[];
+  const out=[]; let id=200000;
+  const seen=new Set();
   if (real && real.length){
-    real.forEach((p,i)=> out.push({ id:200000+i, nom:p[0], pos:p[1], groupe:FM.POS_GROUP[p[1]], note:p[3], buts:0 }));
+    real.forEach(p=>{ out.push({ id:id++, nom:p[0], pos:p[1], groupe:FM.POS_GROUP[p[1]], note:p[3], real:true, buts:0 }); seen.add(p[0]); });
   }
-  const need=Math.max(0, 24-out.length);
-  const fillPos=["GB","DC","DG","DD","MDC","MC","MO","AG","AD","BU"];
-  for(let k=0;k<need;k++){
-    const pos=fillPos[k%fillPos.length];
-    const note=Math.max(58, Math.min(90, nat.note - FM._ri(5,14)));
-    out.push({ id:200000+100+k, nom:FM._nameFrom(nat.pool), pos, groupe:FM.POS_GROUP[pos], note, buts:0 });
+  // Répartition réaliste des postes dans la profondeur
+  const posCycle=["GB","DC","DC","DG","DD","MDC","MC","MC","MO","AG","AD","BU","BU","DC","MC","BU","GB","DD"];
+  const base = nat.note - 3;
+  let k=0;
+  while (out.length < size){
+    const pos = posCycle[k % posCycle.length];
+    // niveau décroissant à mesure que le vivier s'élargit (avec un peu d'aléa)
+    const note = Math.max(50, Math.min(90, Math.round(base - k*0.07 + FM._ri(-3,3))));
+    let nom = FM._nameFrom(nat.pool), guard=0;
+    while (seen.has(nom) && guard++<6) nom = FM._nameFrom(nat.pool);
+    seen.add(nom);
+    out.push({ id:id++, nom, pos, groupe:FM.POS_GROUP[pos], note, real:false, buts:0 });
+    k++;
   }
-  return { nat, players: out.sort((a,b)=>b.note-a.note) };
+  out.sort((a,b)=> b.note-a.note);
+  return { nat, players: out.slice(0,size) };
 };
 
 /* kind, nom de la sélection du joueur, et (optionnel) override {squad, note}

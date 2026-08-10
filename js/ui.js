@@ -936,54 +936,119 @@ function startCareerIntl(kind, nation){
   });
 }
 
-/* Écran de composition d'équipe nationale : choisir son onze parmi le vivier */
+/* Écran de composition d'équipe nationale : 23 joueurs (titulaires + banc)
+   choisis dans un vivier de ~500 joueurs de la nation (recherche + filtres). */
+const MAX_SQUAD=23, MAX_START=11;
 function openSquadPicker(kind, nation, cb){
-  const pool = FM.nationPool(nation);
+  const pool = FM.nationPool(nation, 500);
   const players = pool.players;
-  const selected = new Set();
-  const GROUPS = [["G","🧤 Gardiens"],["D","🛡 Défenseurs"],["M","⚙ Milieux"],["A","🎯 Attaquants"]];
+  const byId = new Map(players.map(p=>[p.id,p]));
+  const sel = new Map();            // id -> player (effectif)
+  const starters = new Set();       // sous-ensemble titulaire
+  let fPos = "", fQ = "";           // filtres du vivier
+  const GROUP_LBL={G:"🧤",D:"🛡",M:"⚙",A:"🎯"};
+
+  function byG(g){ return players.filter(p=>p.groupe===g).sort((a,b)=>b.note-a.note); }
   function autoPick(){
-    selected.clear();
-    const byG=g=>players.filter(p=>p.groupe===g).sort((a,b)=>b.note-a.note);
-    [byG("G").slice(0,1),byG("D").slice(0,4),byG("M").slice(0,3),byG("A").slice(0,3)]
-      .forEach(arr=>arr.forEach(p=>selected.add(p.id)));
+    sel.clear(); starters.clear();
+    const g=byG("G"),d=byG("D"),m=byG("M"),a=byG("A");
+    [...g.slice(0,1),...d.slice(0,4),...m.slice(0,3),...a.slice(0,3)].forEach(p=>{ sel.set(p.id,p); starters.add(p.id); });
+    [...g.slice(1,2),...d.slice(4,8),...m.slice(3,7),...a.slice(3,6)].forEach(p=>{ if(sel.size<MAX_SQUAD) sel.set(p.id,p); });
   }
-  function counts(){ const c={G:0,D:0,M:0,A:0}; players.forEach(p=>{ if(selected.has(p.id)) c[p.groupe]++; }); return c; }
-  function total(){ const c=counts(); return c.G+c.D+c.M+c.A; }
-  function valid(){ const c=counts(); return total()===11 && c.G>=1 && c.D>=3 && c.M>=2 && c.A>=1; }
-  function teamNote(){ const sel=players.filter(p=>selected.has(p.id)); return Math.round(sel.reduce((s,p)=>s+p.note,0)/(sel.length||1)); }
+  function starterCounts(){ const c={G:0,D:0,M:0,A:0}; starters.forEach(id=>{ const p=byId.get(id); if(p)c[p.groupe]++; }); return c; }
+  function validXI(){ const c=starterCounts(); return starters.size===MAX_START && c.G>=1 && c.D>=3 && c.M>=2 && c.A>=1; }
+  function teamNote(){ let s=0,n=0; starters.forEach(id=>{ const p=byId.get(id); if(p){s+=p.note;n++;} }); return n?Math.round(s/n):0; }
+  function add(p){
+    if(sel.has(p.id)) return;
+    if(sel.size>=MAX_SQUAD){ toast("Effectif complet (23)."); return; }
+    sel.set(p.id,p);
+    if(starters.size<MAX_START) starters.add(p.id);   // complète d'abord le onze
+    render();
+  }
+  function remove(id){ sel.delete(id); starters.delete(id); render(); }
+  function toggleStar(id){
+    if(starters.has(id)) starters.delete(id);
+    else { if(starters.size>=MAX_START){ toast("Déjà 11 titulaires."); return; } starters.add(id); }
+    render();
+  }
   autoPick();
 
   const overlay = el("div","overlay");
-  const box = el("div","card squad-picker");
+  const box = el("div","card squad-picker wide");
   overlay.appendChild(box); document.body.appendChild(overlay);
+
+  function poolRows(){
+    let list = players.filter(p=>!sel.has(p.id));
+    if(fPos) list=list.filter(p=>p.groupe===fPos);
+    if(fQ){ const q=fQ.toLowerCase(); list=list.filter(p=>p.nom.toLowerCase().includes(q)); }
+    const shown=list.slice(0,60);
+    const wrap=el("div","sp-poollist");
+    shown.forEach(p=>{
+      const row=el("button","sp-prow"+(p.real?" real":""),
+        `<span class="pos-badge ${p.groupe}">${p.pos}</span><span class="pn">${p.nom}</span><b class="note ${noteClass(p.note)}">${p.note}</b>`);
+      row.onclick=()=>add(p);
+      wrap.appendChild(row);
+    });
+    if(!shown.length) wrap.appendChild(el("p","hint","Aucun joueur ne correspond."));
+    else if(list.length>shown.length) wrap.appendChild(el("p","hint",`${shown.length} affichés sur ${list.length} — affinez la recherche.`));
+    return wrap;
+  }
+  function squadSide(){
+    const side=el("div","sp-squad");
+    const mk=(id)=>{
+      const p=byId.get(id); const st=starters.has(id);
+      const row=el("div","sp-srow"+(st?" starter":""));
+      row.innerHTML=`<span class="pos-badge ${p.groupe}">${p.pos}</span><span class="pn">${p.nom}</span><b class="note ${noteClass(p.note)}">${p.note}</b>`;
+      const star=el("button","sp-mini"+(st?" on":""), st?"★":"☆"); star.title="Titulaire";
+      star.onclick=()=>toggleStar(id);
+      const rm=el("button","sp-mini danger","✕"); rm.onclick=()=>remove(id);
+      row.appendChild(star); row.appendChild(rm);
+      return row;
+    };
+    const ids=[...sel.keys()].sort((a,b)=>{ const A=byId.get(a),B=byId.get(b);
+      const oa=({G:0,D:1,M:2,A:3})[A.groupe], ob=({G:0,D:1,M:2,A:3})[B.groupe];
+      return (starters.has(b)?1:0)-(starters.has(a)?1:0) || oa-ob || B.note-A.note; });
+    const stIds=ids.filter(id=>starters.has(id)), bIds=ids.filter(id=>!starters.has(id));
+    side.appendChild(el("h4",null,`⭐ Titulaires (${stIds.length}/11)`));
+    stIds.forEach(id=>side.appendChild(mk(id)));
+    side.appendChild(el("h4",null,`🔁 Remplaçants (${bIds.length})`));
+    if(!bIds.length) side.appendChild(el("p","hint","Ajoutez des remplaçants pour la profondeur de banc."));
+    bIds.forEach(id=>side.appendChild(mk(id)));
+    return side;
+  }
 
   function render(){
     box.innerHTML="";
     box.appendChild(el("h3",null,`${kind==="WC"?"🌍 Coupe du Monde":"🇪🇺 Euro"} — Composez votre ${nation}`));
-    box.appendChild(el("p","hint","Sélectionnez votre onze de départ (1 GB, ≥3 déf, ≥2 mil, ≥1 att). Cliquez pour (dé)sélectionner."));
-    GROUPS.forEach(([g,lbl])=>{
-      const sec=el("div","sp-group");
-      sec.appendChild(el("h4",null,lbl));
-      const grid=el("div","sp-grid");
-      players.filter(p=>p.groupe===g).forEach(p=>{
-        const on=selected.has(p.id);
-        const chip=el("button","sp-chip"+(on?" on":""),
-          `<span class="pos-badge ${p.groupe}">${p.pos}</span> ${p.nom} <b class="note ${noteClass(p.note)}">${p.note}</b>`);
-        chip.onclick=()=>{ if(on) selected.delete(p.id); else { if(total()>=11){ toast("Onze complet — retirez un joueur d'abord."); return; } selected.add(p.id); } render(); };
-        grid.appendChild(chip);
-      });
-      sec.appendChild(grid); box.appendChild(sec);
+    box.appendChild(el("p","hint","Choisissez 11 titulaires + des remplaçants (23 max) parmi ~500 joueurs. ★ = titulaire, ✕ = retirer."));
+    const cols=el("div","sp-cols");
+    // --- Vivier (gauche) ---
+    const left=el("div","sp-pool");
+    const bar=el("div","sp-filters");
+    const q=el("input"); q.type="text"; q.placeholder="Rechercher un joueur…"; q.value=fQ;
+    q.oninput=()=>{ fQ=q.value; refreshPool(); };
+    bar.appendChild(q);
+    [["","Tous"],["G","🧤"],["D","🛡"],["M","⚙"],["A","🎯"]].forEach(([v,l])=>{
+      const b=el("button","sp-fbtn"+(fPos===v?" on":""),l); b.onclick=()=>{ fPos=v; render(); }; bar.appendChild(b);
     });
-    const c=counts();
-    const bar=el("div","sp-bar");
-    bar.innerHTML=`<span>Sélection : <b>${total()}/11</b> · GB ${c.G} · Déf ${c.D} · Mil ${c.M} · Att ${c.A}</span>
-      <span>Force de l'équipe : <b class="note ${noteClass(teamNote())}">${teamNote()}</b></span>`;
-    box.appendChild(bar);
+    left.appendChild(el("h4",null,`Vivier ${nation} (~500)`));
+    left.appendChild(bar);
+    const poolBox=el("div"); poolBox.id="spPoolBox"; poolBox.appendChild(poolRows()); left.appendChild(poolBox);
+    function refreshPool(){ poolBox.innerHTML=""; poolBox.appendChild(poolRows()); }
+    // --- Effectif (droite) ---
+    const right=squadSide();
+    cols.appendChild(left); cols.appendChild(right);
+    box.appendChild(cols);
+
+    const c=starterCounts();
+    const sb=el("div","sp-bar");
+    sb.innerHTML=`<span>Effectif : <b>${sel.size}/23</b> · Titulaires <b>${starters.size}/11</b> (GB ${c.G} · Déf ${c.D} · Mil ${c.M} · Att ${c.A})</span>
+      <span>Force du onze : <b class="note ${noteClass(teamNote())}">${teamNote()}</b></span>`;
+    box.appendChild(sb);
     const actions=el("div","sp-actions");
-    const auto=el("button","btn ghost","↻ Meilleur onze"); auto.onclick=()=>{ autoPick(); render(); };
-    const go=el("button","btn primary big",(kind==="WC"?"🌍":"🇪🇺")+" Valider et jouer"); go.disabled=!valid();
-    go.onclick=()=>{ if(!valid())return; const squad=players.filter(p=>selected.has(p.id)); overlay.remove(); cb(squad, teamNote()); };
+    const auto=el("button","btn ghost","↻ Sélection auto"); auto.onclick=()=>{ autoPick(); render(); };
+    const go=el("button","btn primary big",(kind==="WC"?"🌍":"🇪🇺")+" Valider et jouer"); go.disabled=!validXI();
+    go.onclick=()=>{ if(!validXI())return; const squad=[...sel.values()]; overlay.remove(); cb(squad, teamNote(), [...starters]); };
     const cancel=el("button","btn ghost","Annuler"); cancel.onclick=()=>{ overlay.remove(); if(FM.state){ currentTab="accueil"; renderGame(); } else renderStart(); };
     actions.appendChild(auto); actions.appendChild(go); actions.appendChild(cancel);
     box.appendChild(actions);

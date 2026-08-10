@@ -33,7 +33,7 @@ Chaque pays a sa **coupe nationale** en élimination directe (match sec) : Coupe
 
 ## 🌍 Coupe du Monde & Euro en carrière
 
-Chaque **été**, un tournoi international (alterné **Coupe du Monde** / **Championnat d'Europe**) s'invite dans votre carrière **et** en Master League : **facultatif**, il apparaît dans le **Calendrier** comme rendez-vous à suivre. Depuis l'Accueil, prenez en main la **sélection de votre choix** (par défaut celle de votre pays) : à chaque édition, **composez votre onze** parmi le vivier de joueurs de la nation (vrais internationaux, par poste), puis disputez l'élimination directe et revenez à votre club. Palmarès international conservé.
+Chaque **été**, un tournoi international (alterné **Coupe du Monde** / **Championnat d'Europe**) s'invite dans votre carrière **et** en Master League : **facultatif**, il apparaît dans le **Calendrier** comme rendez-vous à suivre. Depuis l'Accueil, prenez en main la **sélection de votre choix** (par défaut celle de votre pays) : à chaque édition, **composez votre effectif de 23** — **11 titulaires + banc (profondeur)** — en piochant dans un **vivier d'environ 500 joueurs de la nation** (vrais internationaux en tête, compatriotes en profondeur), avec **recherche et filtres par poste**. La force de l'équipe dépend de vos titulaires. Puis disputez l'élimination directe et revenez à votre club. Palmarès international conservé.
 
 ## 🎥 Vue tactique 3D + tableau de bord en direct
 
