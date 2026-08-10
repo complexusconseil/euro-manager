@@ -33,11 +33,11 @@ Chaque pays a sa **coupe nationale** en élimination directe (match sec) : Coupe
 
 ## 🌍 Coupe du Monde & Euro en carrière
 
-Chaque **été**, un tournoi international (alterné **Coupe du Monde** / **Championnat d'Europe**) s'invite dans votre carrière **et** en Master League : **facultatif**, il apparaît dans le **Calendrier** comme rendez-vous à suivre. Depuis l'Accueil, prenez en main la **sélection de votre choix** (par défaut celle de votre pays) et disputez l'élimination directe avec de vrais effectifs, puis revenez à votre club. Palmarès international conservé.
+Chaque **été**, un tournoi international (alterné **Coupe du Monde** / **Championnat d'Europe**) s'invite dans votre carrière **et** en Master League : **facultatif**, il apparaît dans le **Calendrier** comme rendez-vous à suivre. Depuis l'Accueil, prenez en main la **sélection de votre choix** (par défaut celle de votre pays) : à chaque édition, **composez votre onze** parmi le vivier de joueurs de la nation (vrais internationaux, par poste), puis disputez l'élimination directe et revenez à votre club. Palmarès international conservé.
 
 ## 🎥 Vue tactique 3D + tableau de bord en direct
 
-Les matchs se jouent en **vue tactique 3D** (moteur Three.js embarqué, 100 % hors-ligne) façon banc de touche : **terrain 3D visible** (pelouse tondue, surfaces, arcs, stade et tribunes), **pions colorés qui se déplacent** aux couleurs des deux clubs, **ballon suivi** avec anneau du porteur, ombres portées, caméra tactique. Le tout piloté par un vrai **tableau de bord en continu** : score/minute, **barre de possession**, **tirs / cadrés / corners / fautes**, **momentum**, et un **fil de commentaire live**. Bascule possible vers un rendu 2D léger via la case **« Rendu 3D »** de l'écran d'accueil (utile sur machines modestes).
+Les matchs se jouent en **vue tactique 3D** (moteur Three.js embarqué, 100 % hors-ligne) façon banc de touche : **terrain 3D visible** (pelouse tondue, surfaces, arcs, stade et tribunes), **pions colorés qui se déplacent** aux couleurs des deux clubs, **ballon qui circule de pion en pion** (jeu de passes) avec anneau du porteur et traînée, mouvements **fluides** et caméra tactique. **Commandes de lecture** (⏸ pause, vitesse 1×/2×/3×) pour suivre le match à votre rythme. Le tout piloté par un vrai **tableau de bord en continu** : score/minute, **barre de possession**, **tirs / cadrés / corners / fautes**, **momentum**, et un **fil de commentaire live**. Bascule possible vers un rendu 2D léger via la case **« Rendu 3D »** de l'écran d'accueil (utile sur machines modestes).
 
 ## 🏆 Compétitions européennes (mode Carrière & Master League)
 

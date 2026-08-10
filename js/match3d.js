@@ -107,6 +107,16 @@
     wrap.appendChild(dash);
 
     const btn=document.createElement("button"); btn.className="btn ghost m3d-skip"; btn.textContent="⏭ Passer"; wrap.appendChild(btn);
+
+    // Contrôles de lecture (pause / vitesse) — rend le match agréable à suivre
+    let speedMul=1;
+    const ctrl=document.createElement("div"); ctrl.className="m3d-ctrl";
+    const bPause=document.createElement("button"); bPause.className="m3d-cbtn"; bPause.textContent="⏸";
+    const bSpeed=document.createElement("button"); bSpeed.className="m3d-cbtn"; bSpeed.textContent="1×";
+    bPause.onclick=()=>{ if(speedMul>0){ speedMul=0; bPause.textContent="▶"; bPause.classList.add("on"); } else { speedMul=1; bSpeed.textContent="1×"; bPause.textContent="⏸"; bPause.classList.remove("on"); } };
+    bSpeed.onclick=()=>{ speedMul = speedMul>=3?1 : (speedMul<=0?1:speedMul+1); bSpeed.textContent=speedMul+"×"; bPause.textContent="⏸"; bPause.classList.remove("on"); };
+    ctrl.appendChild(bPause); ctrl.appendChild(bSpeed); wrap.appendChild(ctrl);
+
     document.body.appendChild(overlay);
 
     // ---- Rendu 3D ----
@@ -159,25 +169,40 @@
     homePos.forEach(p=>{ const m=makeToken(homeCol); m.position.copy(p); scene.add(m); tokens.push({m,base:p.clone(),team:0}); });
     awayPos.forEach(p=>{ const m=makeToken(awayCol); m.position.copy(p); scene.add(m); tokens.push({m,base:p.clone(),team:1}); });
 
-    const ball=new THREE.Mesh(new THREE.SphereGeometry(0.85,18,14),
-      new THREE.MeshStandardMaterial({color:0xffffff,roughness:.3,emissive:0x222222})); ball.castShadow=true; scene.add(ball);
+    const ball=new THREE.Mesh(new THREE.SphereGeometry(0.95,20,16),
+      new THREE.MeshStandardMaterial({color:0xffffff,roughness:.25,emissive:0x333333})); ball.castShadow=true; scene.add(ball);
     // Anneau de mise en avant du porteur du ballon
     const ring=new THREE.Mesh(new THREE.TorusGeometry(2.7,0.28,8,28),
       new THREE.MeshBasicMaterial({color:0xffe066})); ring.rotation.x=-Math.PI/2; ring.position.y=0.7; scene.add(ring);
+    // Traînée du ballon (petites sphères qui s'estompent)
+    const trail=[]; for(let i=0;i<6;i++){ const s=new THREE.Mesh(new THREE.SphereGeometry(0.55,10,8),
+      new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.12})); s.visible=false; scene.add(s); trail.push(s); }
+    let trailI=0;
 
     // ---- Simulation + statistiques ----
     const evs=(cfg.events||[]).slice().sort((a,b)=>a.min-b.min);
     let ei=0, hs=0, as=0;
-    let poss=Math.random()<0.5?0:1, target=new THREE.Vector3(0,0.85,0), retargetAt=0;
-    let goalActive=false, goalEvent=null, celebrateUntil=0, kickoffAt=0, phaseAt=0;
+    let poss=Math.random()<0.5?0:1;
+    const target=new THREE.Vector3(0,0.95,0);
+    let goalActive=false, goalEvent=null, celebrateUntil=0, kickoffAt=0, phaseAt=0, passAt=0;
+    let carrier=null;
     let possAcc=[0.1,0.1], momentum=0;         // momentum: -1 (away) .. +1 (home)
     const stat={h:{t:0,c:0,k:0,f:0}, a:{t:0,c:0,k:0,f:0}};
     const scoreEl=hud.querySelector("#m3dScore"), minEl=hud.querySelector("#m3dMin");
     const el=id=>document.getElementById(id);
-    const MIN_RATE=2.1; const clock=new THREE.Clock(); let raf=0, ended=false;
+    const MIN_RATE=2.0; let simT=0; const clock=new THREE.Clock(); let raf=0, ended=false;
 
     function attackSign(t){ return t===0?1:-1; }
-    function newTarget(){ const s=attackSign(poss); target.set(s*(6+Math.random()*40),0.85,(Math.random()*2-1)*26); }
+    // Passe : le ballon va vers un coéquipier (biais vers l'avant), avec risque d'interception
+    function passBall(){
+      if (Math.random()<0.16) poss = poss?0:1;                // interception / récupération
+      const s=attackSign(poss);
+      const team=tokens.filter(tk=>tk.team===poss && tk!==carrier && tk.base.x!==(poss===0?-50:50));
+      team.sort((a,b)=> (b.m.position.x*s) - (a.m.position.x*s));   // les plus avancés d'abord
+      const idx = Math.min(team.length-1, Math.floor(Math.random()*Math.random()*team.length)); // biais vers l'avant
+      const rec = team[idx] || tokens.find(tk=>tk.team===poss);
+      if (rec){ target.copy(rec.m.position); target.y=0.95; }
+    }
 
     function feedLine(txt, side){
       const line=document.createElement("div");
@@ -231,65 +256,84 @@
     function onResize(){ renderer.setSize(W(),H()); cam.aspect=W()/H(); cam.updateProjectionMatrix(); }
     window.addEventListener("resize",onResize);
 
+    // lissage image-indépendant : facteur = 1 - e^(-k·dt)
+    const smooth=(k,dt)=>1-Math.exp(-k*dt);
+
     function loop(){
       raf=requestAnimationFrame(loop);
-      const dt=Math.min(clock.getDelta(),0.05), t=clock.getElapsedTime();
-      const minute=Math.min(90, t*MIN_RATE);
+      const rdt=Math.min(clock.getDelta(),0.05);       // temps réel écoulé (rendu)
+      const dt=rdt*speedMul;                            // temps simulé (0 si pause)
+      simT+=dt;
+      const minute=Math.min(90, simT*MIN_RATE);
       minEl.textContent=`${cfg.label?cfg.label+" · ":""}${Math.floor(minute)}'`;
 
-      // possession + momentum continus
-      possAcc[poss]+=dt;
-      momentum += ((poss===0?1:-1)*0.15 - momentum)*Math.min(1,dt*0.6) + (Math.random()-0.5)*dt*0.3;
-      momentum=Math.max(-1,Math.min(1,momentum));
+      if(dt>0){
+        possAcc[poss]+=dt;
+        momentum += ((poss===0?1:-1)*0.15 - momentum)*smooth(0.6,dt) + (Math.random()-0.5)*dt*0.3;
+        momentum=Math.max(-1,Math.min(1,momentum));
 
-      // phases de jeu (commentaire + stats) hors action de but
-      if(!goalActive && t>phaseAt && t>celebrateUntil){
-        phaseAt=t+1.4+Math.random()*1.8;
-        // l'équipe dominante a plus de chances d'initier la phase
-        const s = Math.random() < (0.5 + momentum*0.35) ? 0 : 1;
-        phase(s);
-        if(Math.random()<0.4){ poss=poss?0:1; } newTarget();
+        // phases de jeu (commentaire + stats)
+        if(!goalActive && simT>phaseAt && simT>celebrateUntil){
+          phaseAt=simT+1.5+Math.random()*1.9;
+          const s = Math.random() < (0.5 + momentum*0.35) ? 0 : 1;
+          phase(s);
+        }
+        // passes régulières : le ballon circule entre les pions
+        if(!goalActive && simT>passAt && simT>celebrateUntil){
+          passAt=simT+0.55+Math.random()*0.7; passBall();
+        }
+        // buts synchronisés sur les évènements réels
+        if(!goalActive && ei<evs.length && minute>=evs[ei].min && simT>kickoffAt){
+          goalActive=true; goalEvent=evs[ei]; ei++; poss=goalEvent.home?0:1;
+          target.set(attackSign(poss)*HALF_X,0.95,(Math.random()*2-1)*3);
+        }
+        if(goalActive && Math.abs(ball.position.x)>=HALF_X-3){
+          registerGoal(goalEvent); goalActive=false; celebrateUntil=simT+1.1; kickoffAt=simT+1.1; phaseAt=simT+1.3; passAt=simT+1.2;
+          target.set(0,0.95,0); poss=goalEvent.home?1:0;
+        }
       }
 
-      // buts synchronisés sur les évènements réels
-      if(!goalActive && ei<evs.length && minute>=evs[ei].min && t>kickoffAt){
-        goalActive=true; goalEvent=evs[ei]; ei++; poss=goalEvent.home?0:1;
-        target.set(attackSign(poss)*HALF_X,0.85,(Math.random()*2-1)*3);
-      }
-      if(goalActive && Math.abs(ball.position.x)>=HALF_X-3){
-        registerGoal(goalEvent); goalActive=false; celebrateUntil=t+1.0; kickoffAt=t+1.0; phaseAt=t+1.2;
-        target.set(0,0.85,0); poss=goalEvent.home?1:0;
-      }
+      // ballon : déplacement souple (plus vif sur une frappe au but)
+      const k = goalActive?7.5:5.5;
+      ball.position.lerp(target, smooth(k,rdt));
+      ball.position.y=0.95+Math.abs(Math.sin(simT*8))*0.35*(goalActive?1:0.22);
+      ball.rotation.x-=rdt*6; ball.rotation.z+=rdt*3;
+      // traînée
+      if(dt>0){ const s=trail[trailI]; s.visible=true; s.position.copy(ball.position); trailI=(trailI+1)%trail.length;
+        trail.forEach((sp,i)=>{ if(sp.visible){ const age=(trailI-i+trail.length)%trail.length; sp.material.opacity=0.10*(1-age/trail.length); } }); }
 
-      // ballon
-      const spd=goalActive?0.11:0.05;
-      ball.position.lerp(target, Math.min(1, spd+dt));
-      ball.position.y=0.85+Math.abs(Math.sin(t*7))*0.35*(goalActive?1:0.25);
-      ball.rotation.y+=dt*4;
-
-      // pions : suivent le ballon selon leur poste
-      let carrier=null, nd=1e9;
+      // pions : convergent souplement vers le ballon en gardant leur poste
+      let best=null, nd=1e9;
+      const bx=ball.position.x, bz=ball.position.z;
       tokens.forEach(tk=>{
         const isGK = tk.base.x===(tk.team===0?-50:50);
-        const attr = isGK?0.04:0.24;
-        const tgt=tk.base.clone().lerp(new THREE.Vector3(ball.position.x,0,ball.position.z), attr);
-        const d=tk.m.position.distanceTo(ball.position);
-        if(!isGK && d<nd){ nd=d; carrier=tk; }
-        tk.m.position.lerp(tgt, Math.min(1,dt*1.6));
+        const attr = isGK?0.05:0.26;
+        tk._tx = tk.base.x + (bx-tk.base.x)*attr;
+        tk._tz = tk.base.z + (bz-tk.base.z)*attr;
+        const dx=tk.m.position.x-bx, dz=tk.m.position.z-bz, d=dx*dx+dz*dz;
+        if(!isGK && d<nd){ nd=d; best=tk; }
+      });
+      // le porteur = pion le plus proche du ballon de l'équipe en possession
+      if(best){ carrier=best;
+        best._tx += (bx-best._tx)*0.6; best._tz += (bz-best._tz)*0.6; }
+      const fSlow=smooth(4,rdt);
+      tokens.forEach(tk=>{
+        tk.m.position.x += (tk._tx-tk.m.position.x)*fSlow;
+        tk.m.position.z += (tk._tz-tk.m.position.z)*fSlow;
         tk.m.position.x=Math.max(-HALF_X-2,Math.min(HALF_X+2,tk.m.position.x));
         tk.m.position.z=Math.max(-HALF_Z-2,Math.min(HALF_Z+2,tk.m.position.z));
       });
-      if(carrier){ carrier.m.position.lerp(new THREE.Vector3(ball.position.x,0,ball.position.z), Math.min(1,dt*2.6));
-        ring.position.x += (carrier.m.position.x-ring.position.x)*Math.min(1,dt*8);
-        ring.position.z += (carrier.m.position.z-ring.position.z)*Math.min(1,dt*8);
-        poss=carrier.team; }
+      // anneau du porteur (suit le ballon de près)
+      ring.position.x += (bx-ring.position.x)*smooth(12,rdt);
+      ring.position.z += (bz-ring.position.z)*smooth(12,rdt);
 
-      // caméra tactique (haute, léger suivi latéral)
-      cam.position.x += (ball.position.x*0.35-cam.position.x)*Math.min(1,dt*1.5);
-      cam.position.y += (66-cam.position.y)*Math.min(1,dt*1.5);
-      cam.position.z += (70-cam.position.z)*Math.min(1,dt*1.5);
-      cam.lookAt(ball.position.x*0.3, 0, ball.position.z*0.15);
-      sun.target.position.set(ball.position.x*0.3,0,ball.position.z*0.3);
+      // caméra tactique fluide
+      const fc=smooth(2.2,rdt);
+      cam.position.x += (bx*0.32-cam.position.x)*fc;
+      cam.position.y += (66-cam.position.y)*fc;
+      cam.position.z += (72-cam.position.z)*fc;
+      cam.lookAt(bx*0.28, 0, bz*0.14);
+      sun.target.position.set(bx*0.3,0,bz*0.3);
 
       renderer.render(scene,cam);
       if(minute>=90 && !ended){ while(ei<evs.length){ registerGoal(evs[ei]); ei++; } end(); }

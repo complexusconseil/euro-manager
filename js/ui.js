@@ -920,16 +920,75 @@ let intlCareer = false;                 // tournoi disputé depuis une carrière
 let intlKind = null, intlNation = null;
 
 function startInternational(kind, nation){
-  intlComp = FM.makeNationTournament(kind, nation);
-  intlCareer = false;
-  renderTournament();
+  openSquadPicker(kind, nation, (squad, note)=>{
+    intlComp = FM.makeNationTournament(kind, nation, {squad, note});
+    intlCareer = false;
+    renderTournament();
+  });
 }
 
 /* Lance le tournoi international depuis une carrière (retour à la carrière ensuite) */
 function startCareerIntl(kind, nation){
-  intlComp = FM.makeNationTournament(kind, nation);
-  intlCareer = true; intlKind = kind; intlNation = nation;
-  renderTournament();
+  openSquadPicker(kind, nation, (squad, note)=>{
+    intlComp = FM.makeNationTournament(kind, nation, {squad, note});
+    intlCareer = true; intlKind = kind; intlNation = nation;
+    renderTournament();
+  });
+}
+
+/* Écran de composition d'équipe nationale : choisir son onze parmi le vivier */
+function openSquadPicker(kind, nation, cb){
+  const pool = FM.nationPool(nation);
+  const players = pool.players;
+  const selected = new Set();
+  const GROUPS = [["G","🧤 Gardiens"],["D","🛡 Défenseurs"],["M","⚙ Milieux"],["A","🎯 Attaquants"]];
+  function autoPick(){
+    selected.clear();
+    const byG=g=>players.filter(p=>p.groupe===g).sort((a,b)=>b.note-a.note);
+    [byG("G").slice(0,1),byG("D").slice(0,4),byG("M").slice(0,3),byG("A").slice(0,3)]
+      .forEach(arr=>arr.forEach(p=>selected.add(p.id)));
+  }
+  function counts(){ const c={G:0,D:0,M:0,A:0}; players.forEach(p=>{ if(selected.has(p.id)) c[p.groupe]++; }); return c; }
+  function total(){ const c=counts(); return c.G+c.D+c.M+c.A; }
+  function valid(){ const c=counts(); return total()===11 && c.G>=1 && c.D>=3 && c.M>=2 && c.A>=1; }
+  function teamNote(){ const sel=players.filter(p=>selected.has(p.id)); return Math.round(sel.reduce((s,p)=>s+p.note,0)/(sel.length||1)); }
+  autoPick();
+
+  const overlay = el("div","overlay");
+  const box = el("div","card squad-picker");
+  overlay.appendChild(box); document.body.appendChild(overlay);
+
+  function render(){
+    box.innerHTML="";
+    box.appendChild(el("h3",null,`${kind==="WC"?"🌍 Coupe du Monde":"🇪🇺 Euro"} — Composez votre ${nation}`));
+    box.appendChild(el("p","hint","Sélectionnez votre onze de départ (1 GB, ≥3 déf, ≥2 mil, ≥1 att). Cliquez pour (dé)sélectionner."));
+    GROUPS.forEach(([g,lbl])=>{
+      const sec=el("div","sp-group");
+      sec.appendChild(el("h4",null,lbl));
+      const grid=el("div","sp-grid");
+      players.filter(p=>p.groupe===g).forEach(p=>{
+        const on=selected.has(p.id);
+        const chip=el("button","sp-chip"+(on?" on":""),
+          `<span class="pos-badge ${p.groupe}">${p.pos}</span> ${p.nom} <b class="note ${noteClass(p.note)}">${p.note}</b>`);
+        chip.onclick=()=>{ if(on) selected.delete(p.id); else { if(total()>=11){ toast("Onze complet — retirez un joueur d'abord."); return; } selected.add(p.id); } render(); };
+        grid.appendChild(chip);
+      });
+      sec.appendChild(grid); box.appendChild(sec);
+    });
+    const c=counts();
+    const bar=el("div","sp-bar");
+    bar.innerHTML=`<span>Sélection : <b>${total()}/11</b> · GB ${c.G} · Déf ${c.D} · Mil ${c.M} · Att ${c.A}</span>
+      <span>Force de l'équipe : <b class="note ${noteClass(teamNote())}">${teamNote()}</b></span>`;
+    box.appendChild(bar);
+    const actions=el("div","sp-actions");
+    const auto=el("button","btn ghost","↻ Meilleur onze"); auto.onclick=()=>{ autoPick(); render(); };
+    const go=el("button","btn primary big",(kind==="WC"?"🌍":"🇪🇺")+" Valider et jouer"); go.disabled=!valid();
+    go.onclick=()=>{ if(!valid())return; const squad=players.filter(p=>selected.has(p.id)); overlay.remove(); cb(squad, teamNote()); };
+    const cancel=el("button","btn ghost","Annuler"); cancel.onclick=()=>{ overlay.remove(); if(FM.state){ currentTab="accueil"; renderGame(); } else renderStart(); };
+    actions.appendChild(auto); actions.appendChild(go); actions.appendChild(cancel);
+    box.appendChild(actions);
+  }
+  render();
 }
 
 function renderTournament(){
@@ -1094,10 +1153,11 @@ function openBid(p){
   const my = FM.myClub();
   const overlay = el("div","overlay");
   const box = el("div","card picker");
-  const suggested = Math.round(p.valeur*(p.libre?0.25:(p.dispo?1.0:1.2))*10)/10;
+  const prime = p.libre ? FM.freeAgentPrime(p, my.rep) : 0;
+  const suggested = p.libre ? prime : Math.round(p.valeur*(p.dispo?1.0:1.2)*10)/10;
   box.innerHTML = `<h3>${p.libre?'Signer '+p.nom+' (libre)':'Offre pour '+p.nom}</h3>
     <p><span class="pos-badge ${p.groupe}">${p.pos}</span> ${FM.POS_LABEL[p.pos]} · ${p.clubNom} · ${p.age} ans · Note <b>${p.note}</b></p>
-    <p>Valeur estimée : <b>${p.valeur.toFixed(1)} M€</b> · Votre budget : <b>${my.budget.toFixed(1)} M€</b>${p.libre?' · <b>aucune indemnité de transfert</b>':''}</p>`;
+    <p>Valeur estimée : <b>${p.valeur.toFixed(1)} M€</b> · Votre budget : <b>${my.budget.toFixed(1)} M€</b>${p.libre?` · <b>prime demandée ≈ ${prime.toFixed(1)} M€</b> (aucune indemnité de transfert)`:''}</p>`;
   const inp = el("input"); inp.type="number"; inp.step="0.5"; inp.min="0"; inp.value=suggested;
   box.appendChild(el("label",null,p.libre?"Prime à la signature (M€)":"Montant de l'offre (M€)"));
   box.appendChild(inp);

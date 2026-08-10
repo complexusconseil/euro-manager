@@ -467,7 +467,30 @@ FM.snapshotFinalTables = function(){
 };
 
 /* ---------------- TOURNOIS DE SÉLECTIONS (Euro / Coupe du Monde) ---------------- */
-FM.makeNationTournament = function(kind, playerNationName){
+/* Vivier COMPLET de joueurs sélectionnables pour une nation (sans absence
+   aléatoire) — sert à l'écran de composition d'équipe. */
+FM.nationPool = function(nationName){
+  const meta = NATIONS.find(n=>n[0]===nationName);
+  const nat = meta ? {nom:meta[0],note:meta[1],confed:meta[2],pool:meta[3]}
+                   : {nom:nationName,note:75,confed:"UEFA",pool:"FRA"};
+  const real = FM.NATION_SQUADS && FM.NATION_SQUADS[nationName];
+  const out=[];
+  if (real && real.length){
+    real.forEach((p,i)=> out.push({ id:200000+i, nom:p[0], pos:p[1], groupe:FM.POS_GROUP[p[1]], note:p[3], buts:0 }));
+  }
+  const need=Math.max(0, 24-out.length);
+  const fillPos=["GB","DC","DG","DD","MDC","MC","MO","AG","AD","BU"];
+  for(let k=0;k<need;k++){
+    const pos=fillPos[k%fillPos.length];
+    const note=Math.max(58, Math.min(90, nat.note - FM._ri(5,14)));
+    out.push({ id:200000+100+k, nom:FM._nameFrom(nat.pool), pos, groupe:FM.POS_GROUP[pos], note, buts:0 });
+  }
+  return { nat, players: out.sort((a,b)=>b.note-a.note) };
+};
+
+/* kind, nom de la sélection du joueur, et (optionnel) override {squad, note}
+   pour utiliser l'effectif que le joueur a composé lui-même. */
+FM.makeNationTournament = function(kind, playerNationName, playerOverride){
   const all = NATIONS.map(([nom,note,confed,pool])=>({nom,note,confed,pool}));
   let pool;
   if (kind==="EURO") pool = all.filter(n=>n.confed==="UEFA").sort((a,b)=>b.note-a.note).slice(0,16);
@@ -476,8 +499,13 @@ FM.makeNationTournament = function(kind, playerNationName){
   if (playerNationName && !pool.find(n=>n.nom===playerNationName)){
     const pn = all.find(n=>n.nom===playerNationName);
     if (pn){ pool[pool.length-1]=pn; }
+    else pool[pool.length-1] = { nom:playerNationName, note:75, confed:"UEFA", pool:"FRA" };
   }
   const teams = pool.map(n=>{
+    if (playerOverride && n.nom===playerNationName){
+      return { key:n.nom, ref:n.nom, nom:n.nom, pays:n.pool, couleurs:natColors(n.nom),
+               note:playerOverride.note, squad:playerOverride.squad };
+    }
     const squad = FM.makeNationSquad(n);
     return { key:n.nom, ref:n.nom, nom:n.nom, pays:n.pool, couleurs:natColors(n.nom), note:n.note, squad };
   });

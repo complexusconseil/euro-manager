@@ -148,6 +148,19 @@ tbody tr:hover{background:var(--card2)}
 .intl-pick select{padding:8px 10px;border-radius:8px}
 .tag.free{background:#134e2b;color:#7ee2a8;border-color:#1c6b3d}
 .tag.loan-tag{background:#3a2d5c;color:#c9b6ff;border-color:#4c3c7a}
+/* Composition d'équipe nationale */
+.squad-picker{max-width:820px;width:96%;max-height:88vh;overflow:auto}
+.sp-group{margin:10px 0}
+.sp-group h4{margin:0 0 6px;color:var(--mut)}
+.sp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:7px}
+.sp-chip{display:flex;align-items:center;gap:7px;text-align:left;background:rgba(255,255,255,.04);
+  border:1px solid var(--line);border-radius:9px;padding:7px 9px;cursor:pointer;color:#e6edf3;font-size:13px}
+.sp-chip:hover{border-color:var(--accent)}
+.sp-chip.on{background:rgba(46,160,67,.16);border-color:var(--accent)}
+.sp-chip b.note{margin-left:auto}
+.sp-bar{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:12px 0;padding:10px 12px;
+  background:rgba(255,255,255,.04);border-radius:9px;font-size:14px}
+.sp-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 /* Rendez-vous internationaux dans le calendrier */
 .intl-fixture{display:grid;grid-template-columns:56px 1fr auto;gap:6px 12px;align-items:center;padding:8px 10px;border-radius:8px;margin:6px 0;background:rgba(255,255,255,.03)}
 .intl-fixture .if-note{grid-column:1/-1;font-size:.8em;color:#9aa4b2}
@@ -300,6 +313,10 @@ tbody tr:hover{background:var(--card2)}
 .m3d-goal small{opacity:.85;font-weight:600}
 @keyframes m3dpop{0%{transform:scale(.8) translateY(10px);opacity:0}100%{transform:none;opacity:1}}
 .m3d-skip{position:absolute!important;top:14px;left:14px;pointer-events:auto;z-index:3}
+.m3d-ctrl{position:absolute;top:14px;left:118px;display:flex;gap:6px;pointer-events:auto;z-index:3}
+.m3d-cbtn{background:rgba(13,17,23,.82);border:1px solid var(--line);color:#e6edf3;font-weight:800;
+  border-radius:9px;padding:7px 12px;cursor:pointer;min-width:42px;font-size:14px;backdrop-filter:blur(3px)}
+.m3d-cbtn:hover{border-color:var(--accent)} .m3d-cbtn.on{color:var(--accent);border-color:var(--accent)}
 @media(max-width:640px){ .m3d-dash{grid-template-columns:1fr} .m3d-feed{width:52vw} }
 .overlay3d.goal-flash .m3d-wrap::after{content:"BUT !";position:absolute;inset:0;display:flex;align-items:center;
   justify-content:center;font-size:64px;font-weight:900;color:#fff;text-shadow:0 4px 20px rgba(0,0,0,.6);

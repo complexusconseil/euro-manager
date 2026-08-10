@@ -332,13 +332,20 @@ FM.transferMarket = function(filter={}){
 
 /* Réputation de club attendue par un joueur selon son niveau */
 function expectedRepFor(note){ return note>=85?5:note>=80?4:note>=75?3:note>=70?2:1; }
-/* Un joueur accepte-t-il de rejoindre un club de réputation buyerRep ?
-   Renvoie {ok, mult, note} : mult = surcoût exigé si le club est un cran en dessous. */
+/* Un joueur SOUS CONTRAT accepte-t-il de rejoindre un club de réputation buyerRep ?
+   Renvoie {ok, mult} : mult = surcoût exigé si le club est un cran en dessous. */
 FM.playerWillingness = function(note, buyerRep){
   const exp = expectedRepFor(note);
   if (buyerRep >= exp) return { ok:true, mult:1 };
   if (buyerRep === exp-1) return { ok:true, mult:1.3, note:"il faudra le convaincre financièrement" };
   return { ok:false, reason:`vise un club plus huppé (niveau ${"★".repeat(exp)})` };
+};
+/* Prime de signature d'un AGENT LIBRE : il accepte tout club, mais réclame une
+   prime d'autant plus élevée que le club est loin de son niveau (pas de refus). */
+FM.freeAgentPrime = function(fa, buyerRep){
+  const gap = Math.max(0, expectedRepFor(fa.note) - (buyerRep||1));
+  const mult = 1 + 0.3*gap;                        // écart de 2 crans → ×1.6
+  return Math.max(0.1, Math.round(fa.valeur * 0.2 * mult * 10)/10);
 };
 
 /* Acheter : renvoie {ok, msg} */
@@ -349,11 +356,9 @@ FM.buyPlayer = function(playerId, offreM){
   const fa = (FM.state.freeAgents || []).find(x=>x.id===playerId);
   if (fa){
     if (my.joueurs.length >= 30) return { ok:false, msg:"Effectif complet (30 max). Vendez d'abord." };
-    if (offreM > my.budget) return { ok:false, msg:`Budget insuffisant (${my.budget.toFixed(1)} M€ dispo).` };
-    const will = FM.playerWillingness(fa.note, my.rep);
-    if (!will.ok) return { ok:false, msg:`${fa.nom} décline : il ${will.reason}.` };
-    const prime = fa.valeur * 0.2 * will.mult;             // prime à la signature attendue
-    if (offreM < prime) return { ok:false, msg:`${fa.nom} attend une prime d'environ ${prime.toFixed(1)} M€ pour signer${will.mult>1?" (club ambitieux)":""}.` };
+    const prime = FM.freeAgentPrime(fa, my.rep);           // prime à la signature (jamais de refus)
+    if (offreM+1e-9 < prime) return { ok:false, msg:`${fa.nom} demande une prime d'environ ${prime.toFixed(1)} M€ pour signer.` };
+    if (offreM > my.budget) return { ok:false, msg:`Budget insuffisant : ${offreM.toFixed(1)} M€ demandé, ${my.budget.toFixed(1)} M€ dispo.` };
     FM.state.freeAgents = FM.state.freeAgents.filter(x=>x.id!==playerId);
     FM.state.usedFreeAgents = FM.state.usedFreeAgents || [];
     if (!FM.state.usedFreeAgents.includes(fa.nom)) FM.state.usedFreeAgents.push(fa.nom);
