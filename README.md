@@ -18,7 +18,7 @@ La partie est **sauvegardée automatiquement** dans le navigateur (localStorage)
 ## 🎯 Modes de jeu
 
 - **Mode Carrière** — prenez les rênes d'un vrai club et menez-le vers ses objectifs, saison après saison.
-- **Mode Master League** (esprit PES 5/6) — créez votre propre club, choisissez ses couleurs, démarrez avec un effectif « maison » modeste et un petit budget (à la place du club le plus faible du championnat choisi), puis bâtissez une grande équipe au fil des saisons.
+- **Mode Master League** (esprit PES 5/6) — créez votre propre club **dans le championnat de votre choix**, choisissez ses couleurs, démarrez avec l'effectif « maison » aux **noms iconiques (Castolo, Espimas, Minanda, Valeny, Hamsun…)** et un petit budget (à la place du club le plus faible), puis bâtissez une grande équipe au fil des saisons via le mercato et les agents libres.
 - **Mode International** — disputez le **Championnat d'Europe** (16 nations) ou la **Coupe du Monde** (32 nations) avec la sélection de votre choix, en élimination directe.
 
 ## 🌍 Championnats (15 pays)
@@ -33,7 +33,7 @@ Chaque pays a sa **coupe nationale** en élimination directe (match sec) : Coupe
 
 ## 🌍 Coupe du Monde & Euro en carrière
 
-Chaque **été**, un tournoi international (alterné **Coupe du Monde** / **Championnat d'Europe**) s'invite dans votre carrière **et** en Master League : depuis l'Accueil, prenez en main la **sélection de votre choix** (par défaut celle de votre pays) et disputez l'élimination directe avec de vrais effectifs, puis revenez à votre club. Palmarès international conservé.
+Chaque **été**, un tournoi international (alterné **Coupe du Monde** / **Championnat d'Europe**) s'invite dans votre carrière **et** en Master League : **facultatif**, il apparaît dans le **Calendrier** comme rendez-vous à suivre. Depuis l'Accueil, prenez en main la **sélection de votre choix** (par défaut celle de votre pays) et disputez l'élimination directe avec de vrais effectifs, puis revenez à votre club. Palmarès international conservé.
 
 ## 🎥 Moteur 3D immersif
 
@@ -55,9 +55,12 @@ En mode International, **toutes les sélections** (Europe, Amériques, Afrique, 
 ## ✨ Fonctionnalités
 
 - **Base de données de clubs européens** — les 5 grands championnats aux **compositions réelles 2026-27** : Ligue 1 🇫🇷 (18), Premier League 🏴 (20), La Liga 🇪🇸 (20), Serie A 🇮🇹 (20), Bundesliga 🇩🇪 (18) — soit 96 clubs, promotions/relégations incluses. Effectifs réels à jour au 10/08/2026 (mercato d'été inclus).
+- **Fiche joueur & carrière** — cliquez sur un nom (effectif ou mercato) pour ouvrir sa **fiche** : attributs (note, potentiel, valeur, salaire, forme, moral, contrat), stats de la saison et **historique de carrière saison par saison** (matchs, buts, passes, note moyenne, sélections de jeunes) qui **évolue au fil des saisons**.
+- **Progression réaliste** — en fin de saison, chaque joueur reçoit un **boost ou un malus** selon sa saison (note moyenne, temps de jeu), en plus de la courbe d'âge. Une grande saison peut faire éclore un jeune ; une saison ratée fait reculer.
+- **Sélections de jeunes** — les jeunes talents sont **convoqués en U17 / U19 / U21** de leur nation (annonces, expérience gagnée, trace sur leur fiche).
 - **Gestion de l'effectif** — consultez notes, potentiel, forme, moral, valeur marchande et **statistiques détaillées** de chaque joueur : matchs, **buts**, **passes décisives** et **note moyenne** de match.
 - **Statistiques & trophées** — classements du championnat en direct : **meilleurs buteurs**, **meilleurs passeurs**, **meilleures notes moyennes**. En fin de saison : Meilleur buteur, Meilleur passeur et **Joueur de la saison** (meilleure note moyenne).
-- **Mercato (acheter / vendre / agents libres)** — recherchez des joueurs dans toute l'Europe avec filtres (poste, note, âge), faites des offres, négociez selon votre budget. Un **vivier d'agents libres** (sans club) est signable sans indemnité de transfert, juste contre une prime — idéal en **Master League** pour bâtir l'équipe avec un budget fixé. Placez vos joueurs sur la liste des transferts et recevez des offres des clubs IA.
+- **Mercato (acheter / vendre / agents libres)** — recherche **multi-filtres** (type : tous / agents libres / transférables, poste exact, note min, potentiel min, âge max, prix max/budget, tri). Un **vivier d'agents libres** (sans club) est signable sans indemnité de transfert, juste contre une prime — idéal en **Master League** pour bâtir l'équipe avec un budget fixé. **Signatures réalistes** : une star refuse un club trop modeste, un club rechigne à lâcher ses cadres, et il faut convaincre (prime/indemnité) les joueurs qui visent plus haut. Placez vos joueurs sur la liste des transferts et recevez des offres des clubs IA.
 - **Tactique avant match** — choisissez votre formation (4-4-2, 4-3-3, 4-2-3-1, 3-5-2, 5-3-2, 4-5-1), composez votre onze sur un terrain visuel, et réglez vos consignes (mentalité, tempo, pressing) qui influencent réellement la simulation.
 - **Matchs simulés** — moteur basé sur la force des lignes (attaque / milieu / défense), la tactique, l'avantage du terrain et une part d'aléatoire. Match joué avec animation minute par minute et buteurs, ou simulation rapide.
 - **Carrière sur plusieurs saisons** — classement en direct (places européennes / relégation), meilleurs buteurs, calendrier aller-retour complet, objectifs de saison, actualités du club, vieillissement/progression des joueurs et évolution du budget entre saisons.

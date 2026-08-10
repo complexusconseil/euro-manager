@@ -66,7 +66,7 @@ FM.newMasterLeague = function(managerName, clubName, leagueId, seed, kitColors){
     ligueNom: lgMeta.nom, pays: lgMeta.pays,
     couleurs: (kitColors && kitColors.length>=2) ? kitColors : ["#111827","#e5e7eb"],
     rep: 1, budget: 12, budgetTotal: 20,
-    joueurs: FM.makeMasterSquad(lgMeta.pays),
+    joueurs: FM.makeMasterSquad(lgMeta.pays, true),   // effectif « maison » aux noms iconiques
     formation: "4-4-2",
     tactique: { mentalite:1, tempo:1, pressing:1, largeur:1 },
     onze: [], pts:0, j:0, g:0, n:0, p:0, bp:0, bc:0
@@ -287,26 +287,58 @@ FM.transferMarket = function(filter={}){
   const my = FM.myClub();
   const applyFilters = arr => {
     if (filter.poste) arr = arr.filter(p=>p.groupe===filter.poste);
+    if (filter.posteExact) arr = arr.filter(p=>p.pos===filter.posteExact);
     if (filter.noteMin) arr = arr.filter(p=>p.note>=filter.noteMin);
+    if (filter.noteMax) arr = arr.filter(p=>p.note<=filter.noteMax);
+    if (filter.potMin) arr = arr.filter(p=>p.potentiel>=filter.potMin);
+    if (filter.ageMin) arr = arr.filter(p=>p.age>=filter.ageMin);
     if (filter.ageMax) arr = arr.filter(p=>p.age<=filter.ageMax);
     if (filter.valeurMax) arr = arr.filter(p=>p.valeur<=filter.valeurMax);
+    if (filter.nat){ const n=filter.nat.toLowerCase(); arr=arr.filter(p=>(p.nat||"").toLowerCase()===n); }
     if (filter.q){ const q=filter.q.toLowerCase(); arr=arr.filter(p=>p.nom.toLowerCase().includes(q)); }
     return arr;
   };
+  const sortFn = (key)=>{
+    switch(key){
+      case "valeur": return (a,b)=>b.valeur-a.valeur;
+      case "valeurAsc": return (a,b)=>a.valeur-b.valeur;
+      case "age": return (a,b)=>a.age-b.age;
+      case "pot": return (a,b)=>b.potentiel-a.potentiel;
+      default: return (a,b)=>b.note-a.note;
+    }
+  };
+  const sorter = sortFn(filter.sort);
+  const type = filter.type || "all";
   // Agents libres (sans club) : toujours présentés en tête (hors quota de liste)
-  let libres = applyFilters((FM.state.freeAgents || [])
+  let libres = type==="transf" ? [] : applyFilters((FM.state.freeAgents || [])
     .map(p=>({ ...p, clubId:null, clubNom:"🆓 Agent libre", dispo:true, libre:true })));
-  libres.sort((a,b)=>b.note-a.note);
+  libres.sort(sorter);
   // Joueurs sous contrat dans les autres clubs
   let list = [];
-  for (const c of FM.state.db.clubs){
-    if (c.id === my.id) continue;
-    for (const p of c.joueurs) list.push({ ...p, clubId:c.id, clubNom:c.nom, dispo: p.transferListe });
+  if (type!=="libre"){
+    for (const c of FM.state.db.clubs){
+      if (c.id === my.id) continue;
+      for (const p of c.joueurs){
+        if (type==="transf" && !p.transferListe) continue;
+        list.push({ ...p, clubId:c.id, clubNom:c.nom, dispo: p.transferListe });
+      }
+    }
+    list = applyFilters(list);
   }
-  list = applyFilters(list);
-  list.sort((a,b)=> (b.dispo?1:0)-(a.dispo?1:0) || b.note-a.note);
+  list.sort((a,b)=> (b.dispo?1:0)-(a.dispo?1:0) || sorter(a,b));
   const limit = filter.limit || 120;
   return libres.concat(list).slice(0, Math.max(limit, libres.length));
+};
+
+/* Réputation de club attendue par un joueur selon son niveau */
+function expectedRepFor(note){ return note>=85?5:note>=80?4:note>=75?3:note>=70?2:1; }
+/* Un joueur accepte-t-il de rejoindre un club de réputation buyerRep ?
+   Renvoie {ok, mult, note} : mult = surcoût exigé si le club est un cran en dessous. */
+FM.playerWillingness = function(note, buyerRep){
+  const exp = expectedRepFor(note);
+  if (buyerRep >= exp) return { ok:true, mult:1 };
+  if (buyerRep === exp-1) return { ok:true, mult:1.3, note:"il faudra le convaincre financièrement" };
+  return { ok:false, reason:`vise un club plus huppé (niveau ${"★".repeat(exp)})` };
 };
 
 /* Acheter : renvoie {ok, msg} */
@@ -318,8 +350,10 @@ FM.buyPlayer = function(playerId, offreM){
   if (fa){
     if (my.joueurs.length >= 30) return { ok:false, msg:"Effectif complet (30 max). Vendez d'abord." };
     if (offreM > my.budget) return { ok:false, msg:`Budget insuffisant (${my.budget.toFixed(1)} M€ dispo).` };
-    const prime = fa.valeur * 0.2;             // prime à la signature attendue
-    if (offreM < prime) return { ok:false, msg:`${fa.nom} attend une prime d'environ ${prime.toFixed(1)} M€ pour signer.` };
+    const will = FM.playerWillingness(fa.note, my.rep);
+    if (!will.ok) return { ok:false, msg:`${fa.nom} décline : il ${will.reason}.` };
+    const prime = fa.valeur * 0.2 * will.mult;             // prime à la signature attendue
+    if (offreM < prime) return { ok:false, msg:`${fa.nom} attend une prime d'environ ${prime.toFixed(1)} M€ pour signer${will.mult>1?" (club ambitieux)":""}.` };
     FM.state.freeAgents = FM.state.freeAgents.filter(x=>x.id!==playerId);
     my.budget -= offreM;
     fa.transferListe = false; fa.contrat = FM._ri(2,4); fa.moral = Math.min(99, fa.moral+6);
@@ -340,10 +374,17 @@ FM.buyPlayer = function(playerId, offreM){
   if (my.joueurs.length >= 30) return { ok:false, msg:"Effectif complet (30 max). Vendez d'abord." };
   if (offreM > my.budget) return { ok:false, msg:`Budget insuffisant (${my.budget.toFixed(1)} M€ dispo).` };
 
-  // Le club vendeur accepte-t-il ?
-  const seuil = player.valeur * (player.transferListe ? 0.9 : (1.15 + seller.rep*0.06));
+  // Le joueur veut-il venir ? (réalisme : une star ne rejoint pas un club modeste)
+  const will = FM.playerWillingness(player.note, my.rep);
+  if (!will.ok) return { ok:false, msg:`${player.nom} refuse de signer : il ${will.reason}.` };
+
+  // Le club vendeur veut-il vendre ? (réticence accrue si le joueur est un cadre)
+  const cadre = player.note >= (seller.rep>=4?80:seller.rep>=3?76:72);
+  if (cadre && !player.transferListe && FM._rnd() < 0.5)
+    return { ok:false, msg:`${seller.nom} ne souhaite pas se séparer de ${player.nom}, un cadre de l'effectif.` };
+  const seuil = player.valeur * will.mult * (player.transferListe ? 0.95 : (1.2 + seller.rep*0.07));
   if (offreM < seuil){
-    return { ok:false, msg:`${seller.nom} refuse. Il faut environ ${seuil.toFixed(1)} M€ pour ${player.nom}.` };
+    return { ok:false, msg:`${seller.nom} refuse. Il faut environ ${seuil.toFixed(1)} M€ pour ${player.nom}${will.mult>1?" (et le convaincre)":""}.` };
   }
   // Transfert accepté
   seller.joueurs = seller.joueurs.filter(p=>p.id!==playerId);
@@ -478,19 +519,51 @@ FM.endSeason = function(){
   if (superCup && superCup.playerWon) bonus += 8;
   if (cupResult){ bonus += cupResult.playerReward; if (cupResult.playerReward>0) addNews(`💶 Parcours en ${cupResult.nom} : +${cupResult.playerReward} M€.`); }
   if (euroPrize>0) addNews(`💶 Recettes des coupes d'Europe : +${euroPrize.toFixed(0)} M€.`);
+  const seasonJustEnded = FM.state.saison;
   for (const c of FM.state.db.clubs){
     c.pts=c.j=c.g=c.n=c.p=c.bp=c.bc=0;
     c.budget += c.budgetTotal*0.12 + (c===my?bonus:0);
     for (const p of c.joueurs){
-      p.age++; p.matchs=0; p.buts=0; p.passes=0; p.noteTotale=0; p.noteMatchs=0;
-      // progression / déclin
-      if (p.age<=23 && p.note<p.potentiel) p.note=Math.min(p.potentiel,p.note+FM._ri(0,3));
-      else if (p.age>=31) p.note=Math.max(40,p.note-FM._ri(0,2));
+      const avg = FM.playerAvgNote(p);
+      // 1) Historique de carrière (bilan de la saison écoulée)
+      p.carriere = p.carriere || [];
+      p.carriere.push({ saison:seasonJustEnded, club:c.nom, matchs:p.matchs||0,
+                        buts:p.buts||0, passes:p.passes||0, note:p.note,
+                        avg:+avg.toFixed(2), sel:p.selJeunes||null });
+      if (p.carriere.length>20) p.carriere.shift();
+      // 2) Boost / malus de performance (si assez de matchs joués)
+      let perf=0, tag=null;
+      if ((p.matchs||0) >= 8){
+        if (avg>=7.4){ perf=FM._ri(1,2); tag="excellente"; }
+        else if (avg>=7.0){ perf=1; tag="bonne"; }
+        else if (avg<=6.0){ perf=-FM._ri(1,2); tag="décevante"; }
+        else if (avg<=6.4){ perf=-1; tag="moyenne"; }
+      }
+      // 3) Progression / déclin liés à l'âge
+      let ageDelta=0;
+      if (p.age<=23 && p.note<p.potentiel) ageDelta=FM._ri(0,3);
+      else if (p.age>=31) ageDelta=-FM._ri(0,2);
+      // Application : les jeunes peuvent dépasser légèrement leur potentiel sur une grande saison
+      const ceil = (p.age<=23 && perf>0) ? Math.min(94, p.potentiel+1) : (p.age<=23 ? p.potentiel : 94);
+      p.note = Math.max(40, Math.min(ceil, p.note + ageDelta + perf));
+      if (perf>0 && p.age<=23) p.potentiel = Math.min(94, Math.max(p.potentiel, p.note+ FM._ri(0,2)));
+      // Moral selon la saison
+      p.moral = Math.max(35, Math.min(99, p.moral + (perf>0?6:perf<0?-6:0)));
+      if (c===my && tag && (p.matchs||0)>=8){
+        if (perf>0) addNews(`📈 Saison ${tag} de ${p.nom} (moy ${avg.toFixed(2)}) : note ${p.note-perf}→${p.note}.`);
+        else addNews(`📉 Saison ${tag} de ${p.nom} (moy ${avg.toFixed(2)}) : note ${p.note-perf}→${p.note}.`);
+      }
+      // Reset des compteurs de la saison
+      p.matchs=0; p.buts=0; p.passes=0; p.noteTotale=0; p.noteMatchs=0; p.selJeunes=null;
+      p.age++;
       p.valeur = FM.playerValue(p.note, p.potentiel, p.age);
       p.contrat = Math.max(0, p.contrat-1);
     }
     c.onze = FM.autoPickXI(c);
   }
+
+  // --- Convocations en sélections de jeunes (U17/U19/U21) ---
+  applyYouthCallups();
 
   // --- Montées / descentes dans le championnat du joueur ---
   const promoRelegation = applyPromotionRelegation(t);
@@ -522,6 +595,31 @@ FM.endSeason = function(){
     (pc ? ` Qualifié en ${FM.state.europe[pc].nom} !` : ` (Non qualifié en coupe d'Europe.)`));
   FM.save();
 };
+
+/* ---------- Convocations en sélections de jeunes (U17 / U19 / U21) ----------
+   Les jeunes joueurs prometteurs sont appelés avec les équipes de jeunes de
+   leur nation ; ils y gagnent de l'expérience (petit boost de développement).
+   Annoncé pour le club du joueur ; enregistré sur la fiche (p.selJeunes).      */
+function applyYouthCallups(){
+  const my = FM.myClub();
+  for (const c of FM.state.db.clubs){
+    const nation = FM.nationForCountry(c.pays);
+    for (const p of c.joueurs){
+      if (p.age > 21) continue;
+      const cat = p.age<=17 ? "U17" : p.age<=19 ? "U19" : "U21";
+      // seuil de sélection : bon niveau pour l'âge
+      const seuil = p.age<=17 ? 63 : p.age<=19 ? 66 : 69;
+      if (p.note < seuil && p.potentiel < seuil+6) continue;
+      if (FM._rnd() > 0.85) continue;             // tous les éligibles ne sont pas retenus
+      const matchs = FM._ri(2,6), buts = p.groupe==="A" ? FM._ri(0,3) : FM._ri(0,1);
+      p.selJeunes = { equipe:`${nation} ${cat}`, cat, nation, matchs, buts };
+      // Boost de développement (expérience internationale jeune)
+      if (p.age<=23) p.potentiel = Math.min(94, p.potentiel + (FM._rnd()<0.5?1:0));
+      p.moral = Math.min(99, p.moral + 3);
+      if (c===my) addNews(`🎖️ ${p.nom} (${p.age} ans) est convoqué en ${nation} ${cat} !`);
+    }
+  }
+}
 
 /* Clôture de la coupe nationale en fin de saison : simule les tours restants,
    annonce le vainqueur, calcule la prime du parcours du joueur. */

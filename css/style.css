@@ -147,6 +147,30 @@ tbody tr:hover{background:var(--card2)}
 .intl-pick{display:flex;align-items:center;gap:10px;margin:10px 0}
 .intl-pick select{padding:8px 10px;border-radius:8px}
 .tag.free{background:#134e2b;color:#7ee2a8;border-color:#1c6b3d}
+/* Rendez-vous internationaux dans le calendrier */
+.intl-fixture{display:grid;grid-template-columns:56px 1fr auto;gap:6px 12px;align-items:center;padding:8px 10px;border-radius:8px;margin:6px 0;background:rgba(255,255,255,.03)}
+.intl-fixture .if-note{grid-column:1/-1;font-size:.8em;color:#9aa4b2}
+.intl-fixture.upcoming{border-left:3px solid #3b82f6}
+.intl-fixture.won{border-left:3px solid #f0b429;background:rgba(240,180,41,.08)}
+.intl-fixture .if-s{font-weight:700}
+/* Filtres mercato : grille compacte */
+.market-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px}
+.market-filters input,.market-filters select{padding:8px 10px;border-radius:8px;width:100%}
+.player-link{color:#7fb2ff;cursor:pointer;text-decoration:none;border-bottom:1px dotted #4a6aa5}
+.player-link:hover{color:#a9ccff}
+/* Fiche joueur */
+.player-card{max-width:640px;width:94%}
+.pc-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.pc-badge{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff}
+.pc-badge.G{background:#b45309}.pc-badge.D{background:#1d4ed8}.pc-badge.M{background:#047857}.pc-badge.A{background:#b91c1c}
+.pc-id{flex:1}.pc-id b{font-size:1.15em}.pc-id small{display:block;color:#9aa4b2}
+.pc-note{font-size:1.9em;font-weight:800;padding:4px 12px;border-radius:10px;background:rgba(255,255,255,.06)}
+.pc-attrs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.pc-attrs>div{background:rgba(255,255,255,.04);border-radius:8px;padding:8px;text-align:center}
+.pc-attrs small{display:block;color:#9aa4b2;font-size:.78em}
+.pc-season{background:rgba(255,255,255,.03);border-radius:8px;padding:10px;margin-bottom:10px}
+.pc-season h4,.pc-career h4{margin:0 0 6px}.pc-season span{margin-right:14px}
+.pc-youth{background:rgba(240,180,41,.1);border-radius:8px;padding:8px 10px;margin-bottom:10px}
 
 /* ---------- Terrain ---------- */
 .strength-line{color:var(--mut);margin-bottom:12px}

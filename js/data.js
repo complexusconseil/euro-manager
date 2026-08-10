@@ -299,11 +299,25 @@ function clubColors(nom){
 /* ---------- Effectif de départ Mode Master League ----------
    Joueurs "maison" inconnus, faibles (esprit ML PES 5/6) : notes 60-70,
    quelques jeunes à potentiel. Noms génériques issus des pools.        */
-FM.makeMasterSquad = function(country){
+/* Noms iconiques de l'effectif « maison » Master League (esprit PES 5/6),
+   alignés sur les postes du plan ci-dessous (Castolo, Espimas, Minanda…). */
+const ML_ICONS = [
+  "Ruskin","Zubov",                          // GB, GB
+  "Ivarov","Cabrera",                        // DD, DD
+  "Dodo","Sackey",                           // DG, DG
+  "Gordon","Bikefski","Stremer","Nyman",     // DC x4
+  "Jaric","Yeboah",                          // MDC x2
+  "Minanda","Hamsun","Ordaz",                // MC x3
+  "Valeny","Ximelez",                        // MO x2
+  "Burchet","Kruse","Lettieri",              // AD, AG, AD
+  "Castolo","Espimas","Bergman"              // BU x3 (Castolo en pointe !)
+];
+FM.makeMasterSquad = function(country, iconic){
   const plan = ["GB","GB","DD","DD","DG","DG","DC","DC","DC","DC",
                 "MDC","MDC","MC","MC","MC","MO","MO","AD","AG","AD","BU","BU","BU"];
   return plan.map((pos,i) => {
     const p = makePlayer(1, pos, country || "FRA");
+    if (iconic && ML_ICONS[i]) p.nom = ML_ICONS[i];   // noms iconiques (club créé par le joueur)
     // Note volontairement basse ; un ou deux "espoirs" avec du potentiel
     const jeune = i % 5 === 0;
     p.age = jeune ? ri(17,20) : ri(21,31);
@@ -317,6 +331,7 @@ FM.makeMasterSquad = function(country){
     return p;
   });
 };
+FM.ML_ICONS = ML_ICONS;
 
 /* ---------- Agents libres ----------
    Vivier de joueurs SANS CLUB, signables sans indemnité de transfert (juste

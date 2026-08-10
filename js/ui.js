@@ -118,7 +118,7 @@ function renderStart(){
     });
     card.appendChild(kitRow);
 
-    const info = el("p","ml-info","🎮 Vous démarrez avec un effectif « maison » modeste et un petit budget, à la place du club le plus faible du championnat. Recrutez, progressez et bâtissez une grande équipe au fil des saisons — comme la Ligue des Masters d'antan.");
+    const info = el("p","ml-info","🎮 Vous démarrez dans le <b>championnat de votre choix</b> (sélectionné ci-dessus), à la place de son club le plus faible, avec un effectif « maison » aux <b>noms iconiques (Castolo, Espimas, Minanda…)</b> et un petit budget. Piochez parmi les <b>agents libres</b> ou achetez à d'autres clubs, puis bâtissez une grande équipe au fil des saisons — comme la Ligue des Masters d'antan.");
     card.appendChild(info);
 
     const btn = el("button","btn primary big","🏆 Lancer la Master League");
@@ -400,7 +400,7 @@ function renderSquad(body){
     const tr = el("tr", inXI?"in-xi":"");
     tr.innerHTML = `
       <td><span class="pos-badge ${p.groupe}">${p.pos}</span></td>
-      <td>${inXI?'⭐ ':''}${p.nom}</td>
+      <td><a class="player-link">${inXI?'⭐ ':''}${p.nom}</a></td>
       <td>${FLAG[p.nat]||''}</td>
       <td>${p.age}</td>
       <td><b class="note ${noteClass(p.note)}">${p.note}</b></td>
@@ -413,6 +413,7 @@ function renderSquad(body){
       <td>${p.passes||0}</td>
       <td>${p.noteMatchs?('<b class="note '+noteClass((FM.playerAvgNote(p))*10)+'">'+FM.playerAvgNote(p).toFixed(2)+'</b>'):'—'}</td>
       <td></td>`;
+    tr.querySelector(".player-link").onclick=()=> openPlayerCard(p, my.nom);
     const btn = el("button","btn tiny "+(p.transferListe?"danger-ghost":"ghost"), p.transferListe?"Retirer":"Vendre");
     btn.onclick=()=>{ FM.toggleTransferList(p.id); renderGame(); };
     tr.lastChild.appendChild(btn);
@@ -422,6 +423,55 @@ function renderSquad(body){
   const scroll = el("div","table-scroll"); scroll.appendChild(table);
   card.appendChild(scroll);
   body.appendChild(card);
+}
+
+/* Fiche joueur : identité, attributs, saison en cours, historique de carrière */
+function openPlayerCard(p, clubNom){
+  const overlay = el("div","overlay");
+  const box = el("div","card player-card");
+  const avg = FM.playerAvgNote ? FM.playerAvgNote(p) : 0;
+  const carr = p.carriere || [];
+  let carrRows = carr.slice().reverse().map(s=>`
+    <tr><td>${s.saison}</td><td>${s.club||'—'}</td><td>${s.matchs}</td><td>${s.buts}</td>
+    <td>${s.passes||0}</td><td>${s.avg?s.avg.toFixed(2):'—'}</td><td>${s.note}</td>
+    <td>${s.sel?('🎖️ '+s.sel.equipe):''}</td></tr>`).join("");
+  const totMatch = carr.reduce((a,s)=>a+(s.matchs||0),0)+(p.matchs||0);
+  const totButs = carr.reduce((a,s)=>a+(s.buts||0),0)+(p.buts||0);
+  const totPasses = carr.reduce((a,s)=>a+(s.passes||0),0)+(p.passes||0);
+  box.innerHTML = `
+    <div class="pc-head">
+      <div class="pc-badge ${p.groupe}">${p.pos}</div>
+      <div class="pc-id"><b>${p.nom}</b> ${FLAG[p.nat]||''}
+        <small>${FM.POS_LABEL[p.pos]} · ${p.age} ans${clubNom?(' · '+clubNom):''}</small></div>
+      <div class="pc-note ${noteClass(p.note)}">${p.note}</div>
+    </div>
+    <div class="pc-attrs">
+      <div><small>Potentiel</small><b>${p.potentiel}</b></div>
+      <div><small>Valeur</small><b>${p.valeur.toFixed(1)} M€</b></div>
+      <div><small>Salaire</small><b>${(p.salaire||0).toFixed(1)} k€</b></div>
+      <div><small>Forme</small><b>${formeIcon(p.forme)}</b></div>
+      <div><small>Moral</small><b>${p.moral}</b></div>
+      <div><small>Contrat</small><b>${p.contrat} an${p.contrat>1?'s':''}</b></div>
+    </div>
+    <div class="pc-season">
+      <h4>Saison en cours</h4>
+      <span>⚽ ${p.buts||0} buts</span><span>🅰️ ${p.passes||0} passes</span>
+      <span>👟 ${p.matchs||0} matchs</span><span>🌟 ${p.noteMatchs?avg.toFixed(2):'—'} moy</span>
+    </div>
+    ${p.selJeunes?`<p class="pc-youth">🎖️ Convoqué en <b>${p.selJeunes.equipe}</b> (${p.selJeunes.matchs} matchs, ${p.selJeunes.buts} buts).</p>`:''}
+    <div class="pc-career">
+      <h4>Carrière — totaux : ${totMatch} matchs · ${totButs} buts · ${totPasses} passes</h4>
+      ${carr.length?`<div class="table-scroll"><table class="squad-table"><thead><tr>
+        <th>Saison</th><th>Club</th><th>M</th><th>⚽</th><th>🅰️</th><th>Moy</th><th>Note</th><th>Sélection</th>
+        </tr></thead><tbody>${carrRows}</tbody></table></div>`
+        :`<p class="hint">Première saison en cours — l'historique se construira au fil des saisons.</p>`}
+    </div>`;
+  const close = el("button","btn ghost","Fermer");
+  close.onclick=()=>overlay.remove();
+  box.appendChild(close);
+  overlay.appendChild(box);
+  overlay.onclick=e=>{ if(e.target===overlay) overlay.remove(); };
+  document.body.appendChild(overlay);
 }
 
 /* ============= TACTIQUE ============= */
@@ -925,40 +975,47 @@ function playIntlTie(){
 }
 
 /* ============= MERCATO ============= */
-let marketFilter = { poste:"", noteMin:0, ageMax:40, q:"" };
+let marketFilter = { type:"all", poste:"", posteExact:"", noteMin:0, potMin:0, ageMax:40, valeurMax:0, sort:"note", q:"" };
 function renderMarket(body){
   const my = FM.myClub();
   const head = el("div","card");
   head.innerHTML = `<h3>💱 Mercato — Budget : <span class="${my.budget<0?'neg':'pos'}">${money(my.budget)}</span></h3>`;
 
+  const listBox = el("div","card"); listBox.id="marketList";
   const filters = el("div","market-filters");
-  const q = el("input"); q.type="text"; q.placeholder="Rechercher un joueur…"; q.value=marketFilter.q;
+  const mkSel = (opts, cur, on, cls)=>{
+    const s=el("select"); if(cls)s.className=cls;
+    opts.forEach(([v,l])=>s.appendChild(new Option(l,v)));
+    s.value=cur; s.onchange=()=>{ on(s.value); refreshMarket(listBox); }; return s;
+  };
+  const q = el("input"); q.type="text"; q.placeholder="Nom du joueur…"; q.value=marketFilter.q;
   q.oninput=()=>{ marketFilter.q=q.value; refreshMarket(listBox); };
   filters.appendChild(q);
 
-  const posSel = el("select");
-  posSel.appendChild(new Option("Tous postes",""));
-  [["G","Gardiens"],["D","Défenseurs"],["M","Milieux"],["A","Attaquants"]].forEach(([v,l])=>posSel.appendChild(new Option(l,v)));
-  posSel.value=marketFilter.poste;
-  posSel.onchange=()=>{ marketFilter.poste=posSel.value; refreshMarket(listBox); };
-  filters.appendChild(posSel);
-
-  const noteSel = el("select");
-  [0,60,70,75,80,85].forEach(n=> noteSel.appendChild(new Option(n?`Note ≥ ${n}`:"Toute note", n)));
-  noteSel.value=marketFilter.noteMin;
-  noteSel.onchange=()=>{ marketFilter.noteMin=parseInt(noteSel.value,10); refreshMarket(listBox); };
-  filters.appendChild(noteSel);
-
-  const ageSel = el("select");
-  [40,21,23,25,28,32].forEach(a=> ageSel.appendChild(new Option(a===40?"Tout âge":`≤ ${a} ans`, a)));
-  ageSel.value=marketFilter.ageMax;
-  ageSel.onchange=()=>{ marketFilter.ageMax=parseInt(ageSel.value,10); refreshMarket(listBox); };
-  filters.appendChild(ageSel);
+  // Type : tous / agents libres / transférables
+  filters.appendChild(mkSel([["all","Tous les joueurs"],["libre","🆓 Agents libres"],["transf","Transférables"]],
+    marketFilter.type, v=>marketFilter.type=v));
+  // Poste exact
+  const posOpts = [["","Tous postes"]].concat(FM.POSITIONS.map(p=>[p, `${p} · ${FM.POS_LABEL[p]}`]));
+  filters.appendChild(mkSel(posOpts, marketFilter.posteExact, v=>marketFilter.posteExact=v));
+  // Note min
+  filters.appendChild(mkSel([[0,"Toute note"],[60,"Note ≥ 60"],[70,"Note ≥ 70"],[75,"Note ≥ 75"],[80,"Note ≥ 80"],[85,"Note ≥ 85"]],
+    marketFilter.noteMin, v=>marketFilter.noteMin=parseInt(v,10)));
+  // Potentiel min
+  filters.appendChild(mkSel([[0,"Tout potentiel"],[75,"Potentiel ≥ 75"],[80,"Potentiel ≥ 80"],[85,"Potentiel ≥ 85"],[90,"Potentiel ≥ 90"]],
+    marketFilter.potMin, v=>marketFilter.potMin=parseInt(v,10)));
+  // Âge max
+  filters.appendChild(mkSel([[40,"Tout âge"],[19,"≤ 19 ans"],[21,"≤ 21 ans"],[23,"≤ 23 ans"],[25,"≤ 25 ans"],[28,"≤ 28 ans"],[32,"≤ 32 ans"]],
+    marketFilter.ageMax, v=>marketFilter.ageMax=parseInt(v,10)));
+  // Valeur max (budget)
+  filters.appendChild(mkSel([[0,"Tout prix"],[1,"≤ 1 M€"],[5,"≤ 5 M€"],[15,"≤ 15 M€"],[30,"≤ 30 M€"],[60,"≤ 60 M€"],[Math.max(1,Math.floor(my.budget)),"≤ mon budget"]],
+    marketFilter.valeurMax, v=>marketFilter.valeurMax=parseInt(v,10)));
+  // Tri
+  filters.appendChild(mkSel([["note","Trier : note"],["pot","Trier : potentiel"],["valeur","Trier : valeur ↓"],["valeurAsc","Trier : valeur ↑"],["age","Trier : âge ↑"]],
+    marketFilter.sort, v=>marketFilter.sort=v));
 
   head.appendChild(filters);
   body.appendChild(head);
-
-  const listBox = el("div","card"); listBox.id="marketList";
   body.appendChild(listBox);
   refreshMarket(listBox);
 }
@@ -966,8 +1023,12 @@ function refreshMarket(container){
   container.innerHTML="";
   const my = FM.myClub();
   const list = FM.transferMarket({
-    poste: marketFilter.poste, noteMin: marketFilter.noteMin,
+    type: marketFilter.type,
+    posteExact: marketFilter.posteExact,
+    noteMin: marketFilter.noteMin, potMin: marketFilter.potMin,
     ageMax: marketFilter.ageMax===40?null:marketFilter.ageMax,
+    valeurMax: marketFilter.valeurMax||null,
+    sort: marketFilter.sort,
     q: marketFilter.q, limit:80
   });
   const table = el("table","squad-table");
@@ -976,10 +1037,11 @@ function refreshMarket(container){
   list.forEach(p=>{
     const tr = el("tr", p.dispo?"listed":"");
     tr.innerHTML = `<td><span class="pos-badge ${p.groupe}">${p.pos}</span></td>
-      <td>${p.nom} ${FLAG[p.nat]||''}</td><td>${p.clubNom}</td><td>${p.age}</td>
+      <td><a class="player-link">${p.nom}</a> ${FLAG[p.nat]||''}</td><td>${p.clubNom}</td><td>${p.age}</td>
       <td><b class="note ${noteClass(p.note)}">${p.note}</b></td>
       <td>${p.valeur.toFixed(1)} M€</td>
       <td>${p.libre?'<span class="tag free">🆓 Libre</span>':(p.dispo?'<span class="tag">Transférable</span>':'—')}</td><td></td>`;
+    tr.querySelector(".player-link").onclick=()=> openPlayerCard(p, p.clubNom);
     const btn = el("button","btn tiny primary",p.libre?"Signer":"Offre");
     btn.onclick=()=> openBid(p);
     tr.lastChild.appendChild(btn);
@@ -1063,6 +1125,33 @@ function renderTable(body){
 /* ============= CALENDRIER ============= */
 function renderCalendar(body){
   const my = FM.myClub();
+
+  // Rendez-vous internationaux à suivre (Coupe du Monde / Euro — facultatif)
+  const pi = FM.state.pendingIntl;
+  const pal = FM.state.intlPalmares || [];
+  if ((pi && !pi.fait) || pal.length){
+    const ic = el("div","card intl-cal");
+    ic.appendChild(el("h3",null,"🌍 Rendez-vous internationaux"));
+    if (pi && !pi.fait){
+      const wc = pi.kind==="WC";
+      const row = el("div","intl-fixture upcoming");
+      row.innerHTML = `<span class="jd">Été</span>
+        <span class="if-t">${wc?"🌍 Coupe du Monde":"🇪🇺 Championnat d'Europe"}</span>
+        <span class="if-s">à suivre</span>
+        <span class="if-note">facultatif · votre sélection : <b>${pi.defaultNation}</b> · jouable depuis l'Accueil</span>`;
+      ic.appendChild(row);
+    }
+    pal.slice(0,6).forEach(e=>{
+      const row = el("div","intl-fixture "+(e.playerWon?"won":"done"));
+      row.innerHTML = `<span class="jd">S${e.saison}</span>
+        <span class="if-t">${e.tournoi} — ${e.nation}</span>
+        <span class="if-s">${e.playerWon?'🏆 Vainqueur':'Terminé'}</span>
+        <span class="if-note">Champion : <b>${e.champion}</b></span>`;
+      ic.appendChild(row);
+    });
+    body.appendChild(ic);
+  }
+
   const card = el("div","card");
   card.appendChild(el("h3",null,"📅 Calendrier & résultats"));
   const list = el("div","fixtures");
