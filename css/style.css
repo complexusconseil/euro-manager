@@ -56,6 +56,10 @@ select,input[type=text],input[type=number]{
 }
 .club-id{display:flex;align-items:center;gap:12px}
 .club-id .flag{font-size:30px}
+.crest{vertical-align:middle;flex-shrink:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
+.club-cell{display:flex;align-items:center;gap:8px}
+.lh-team{display:flex;align-items:center;gap:8px}
+.lh-team:last-child{justify-content:flex-end}
 .club-id small{display:block;color:var(--mut);font-size:12px}
 .topbar .stats{display:flex;gap:18px;flex-wrap:wrap}
 .topbar .stats>div{text-align:center}

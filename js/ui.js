@@ -7,6 +7,32 @@ const el = (tag, cls, html) => { const e=document.createElement(tag); if(cls)e.c
 const money = m => (m>=0? "" : "-") + Math.abs(m).toFixed(1) + " M€";
 const FLAG = { FRA:"🇫🇷",ENG:"🏴",ESP:"🇪🇸",ITA:"🇮🇹",GER:"🇩🇪",POR:"🇵🇹",BRA:"🇧🇷",ARG:"🇦🇷",NED:"🇳🇱",BEL:"🇧🇪" };
 
+/* ---- Écussons (crests) générés aux couleurs du club ---- */
+function clubMonogram(nom){
+  let m="";
+  for (const w of nom.split(/\s+/)){
+    if (/^[A-Z0-9]{2,}$/.test(w)) m += w;        // sigle déjà en capitales (SG, RB)
+    else if (w.length) m += w[0].toUpperCase();
+  }
+  return m.slice(0,3);
+}
+function textColorFor(bg){
+  const c=(bg||"#333").replace('#','');
+  const r=parseInt(c.slice(0,2),16)||0,g=parseInt(c.slice(2,4),16)||0,b=parseInt(c.slice(4,6),16)||0;
+  return (0.299*r+0.587*g+0.114*b)>150 ? "#111" : "#fff";
+}
+function clubCrest(club, size){
+  size=size||40;
+  const cols=(club.couleurs&&club.couleurs.length>=2)?club.couleurs:["#3a4557","#e6edf3"];
+  const c1=cols[0], c2=cols[1];
+  const mono=clubMonogram(club.nom), txt=textColorFor(c1);
+  const d="M50 4 L92 16 V52 C92 78 72 92 50 98 C28 92 8 78 8 52 V16 Z";
+  return `<svg class="crest" width="${size}" height="${size}" viewBox="0 0 100 100" aria-label="${club.nom}">
+    <path d="${d}" fill="${c1}" stroke="${c2}" stroke-width="7"/>
+    <text x="50" y="63" text-anchor="middle" font-size="34" font-weight="800" fill="${txt}" font-family="Segoe UI,Arial,sans-serif">${mono}</text>
+  </svg>`;
+}
+
 let currentTab = "accueil";
 
 /* ============= ÉCRAN DE DÉMARRAGE ============= */
@@ -76,7 +102,7 @@ function renderGame(){
   const top = el("div","topbar");
   top.innerHTML = `
     <div class="club-id">
-      <span class="flag">${FLAG[my.pays]}</span>
+      ${clubCrest(my,46)}
       <div><b>${my.nom}</b><small>${my.ligueNom} · ${FM.state.managerName}</small></div>
     </div>
     <div class="stats">
@@ -147,9 +173,9 @@ function renderHome(body){
     card.innerHTML = `
       <div class="match-header">Journée ${FM.state.journee+1} · ${FM.state.ligueJoueurNom||FM.myClub().ligueNom}</div>
       <div class="match-teams">
-        <div class="side ${iAmHome?'me':''}"><span class="flag">${FLAG[dom.pays]}</span><b>${dom.nom}</b><small>Note ${FM.squadRating(dom)}</small></div>
+        <div class="side ${iAmHome?'me':''}">${clubCrest(dom,56)}<b>${dom.nom}</b><small>Note ${FM.squadRating(dom)}</small></div>
         <div class="vs">VS</div>
-        <div class="side ${!iAmHome?'me':''}"><span class="flag">${FLAG[ext.pays]}</span><b>${ext.nom}</b><small>Note ${FM.squadRating(ext)}</small></div>
+        <div class="side ${!iAmHome?'me':''}">${clubCrest(ext,56)}<b>${ext.nom}</b><small>Note ${FM.squadRating(ext)}</small></div>
       </div>
       <p class="match-loc">${iAmHome?'🏟 À domicile':'✈ À l\'extérieur'} · Vous êtes ${iAmHome?dom.nom:ext.nom}</p>`;
   }
@@ -204,9 +230,9 @@ function playMatchFlow(){
   const overlay = el("div","overlay");
   const box = el("div","match-live card");
   box.innerHTML = `<div class="live-head">
-      <div><span class="flag">${FLAG[dom.pays]}</span> ${dom.nom}</div>
+      <div class="lh-team">${clubCrest(dom,34)} ${dom.nom}</div>
       <div class="live-score" id="liveScore">0 - 0</div>
-      <div>${ext.nom} <span class="flag">${FLAG[ext.pays]}</span></div>
+      <div class="lh-team">${ext.nom} ${clubCrest(ext,34)}</div>
     </div>
     <div class="live-min" id="liveMin">Coup d'envoi…</div>
     <div class="live-feed" id="liveFeed"></div>`;
@@ -499,7 +525,7 @@ function renderTable(body){
     let zone=""; const total=t.length;
     if (i<3) zone="ucl"; else if (i<6) zone="uel"; else if (i>=total-3) zone="rel";
     if (zone) tr.classList.add(zone);
-    tr.innerHTML = `<td>${i+1}</td><td>${FLAG[c.pays]} ${c.nom}</td>
+    tr.innerHTML = `<td>${i+1}</td><td class="club-cell">${clubCrest(c,22)}<span>${c.nom}</span></td>
       <td>${c.j}</td><td>${c.g}</td><td>${c.n}</td><td>${c.p}</td>
       <td>${c.bp}</td><td>${c.bc}</td><td>${c.bp-c.bc>0?'+':''}${c.bp-c.bc}</td><td><b>${c.pts}</b></td>`;
     tb.appendChild(tr);

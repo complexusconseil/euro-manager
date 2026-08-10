@@ -168,6 +168,47 @@ function makeSquad(rep, country){
   return plan.map(p => makePlayer(rep, p, country));
 }
 
+/* ---------- Joueur réel (nom/poste/âge/note imposés) ---------- */
+function makeRealPlayer(nom, pos, age, note){
+  note = Math.max(38, Math.min(94, note));
+  let potentiel = note;
+  if (age <= 21) potentiel = Math.min(94, note + ri(2,9));
+  else if (age <= 24) potentiel = Math.min(94, note + ri(0,3));
+  const value = playerValue(note, potentiel, age);
+  const wage = Math.round((value*2.2 + note*0.3) * 10) / 10;
+  return {
+    id: PID++, nom, nat:"", pos, groupe:POS_GROUP[pos],
+    age, note, potentiel, valeur:value, salaire:wage,
+    forme: ri(-2,2), moral: ri(60,90), contrat: ri(1,4),
+    buts:0, passes:0, matchs:0, transferListe:false
+  };
+}
+
+/* Construit un effectif à partir des données réelles, complété par de la profondeur */
+function makeRealSquad(nom, rep, country){
+  const data = (FM.CLUBDATA && FM.CLUBDATA[nom]);
+  if (!data || !data.p || !data.p.length) return makeSquad(rep, country);
+  const squad = data.p.map(([n,pos,age,note]) => makeRealPlayer(n,pos,age,note));
+  // Complète la profondeur pour atteindre au moins 20 joueurs (jeunes du centre de formation)
+  const need = Math.max(0, 20 - squad.length);
+  const fillPos = ["DC","MC","AD","GB","BU","DG","MDC","AG"];
+  for (let i=0;i<need;i++){
+    const p = makePlayer(Math.max(1, rep-2), fillPos[i%fillPos.length], country);
+    p.age = ri(17,20); p.note = Math.max(58, p.note-6);
+    p.potentiel = Math.max(p.note, Math.min(88, p.note + ri(3,12)));
+    p.valeur = playerValue(p.note, p.potentiel, p.age);
+    squad.push(p);
+  }
+  return squad;
+}
+
+/* Couleurs d'un club (depuis les données réelles ou palette par défaut) */
+function clubColors(nom){
+  const d = FM.CLUBDATA && FM.CLUBDATA[nom];
+  if (d && d.c && d.c.length>=2) return [d.c[0], d.c[1]];
+  return ["#3a4557", "#e6edf3"];
+}
+
 /* ---------- Construction de la base complète ---------- */
 FM.buildDatabase = function(){
   PID = 1;
@@ -175,9 +216,10 @@ FM.buildDatabase = function(){
   let cid = 1;
   for (const lg of LEAGUES){
     for (const [nom, rep, budget] of lg.clubs){
-      const squad = makeSquad(rep, lg.pays);
+      const squad = makeRealSquad(nom, rep, lg.pays);
       clubs.push({
         id: cid++, nom, ligue: lg.id, ligueNom: lg.nom, pays: lg.pays,
+        couleurs: clubColors(nom),
         rep, budget: budget * (0.15 + rnd()*0.15),   // budget transferts dispo (part du budget total)
         budgetTotal: budget,
         joueurs: squad,
