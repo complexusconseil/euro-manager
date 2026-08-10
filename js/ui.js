@@ -53,11 +53,11 @@ function renderStart(){
 
   // Sélecteur de mode
   const modeSwitch = el("div","mode-switch");
-  const bC = el("button","mode-btn"+(startMode==="career"?" active":""),"🏅 Mode Carrière");
-  const bM = el("button","mode-btn"+(startMode==="master"?" active":""),"🏆 Master League");
-  bC.onclick=()=>{ startMode="career"; renderStart(); };
-  bM.onclick=()=>{ startMode="master"; renderStart(); };
-  modeSwitch.appendChild(bC); modeSwitch.appendChild(bM);
+  [["career","🏅 Carrière"],["master","🏆 Master League"],["intl","🌍 International"]].forEach(([m,lbl])=>{
+    const b = el("button","mode-btn"+(startMode===m?" active":""),lbl);
+    b.onclick=()=>{ startMode=m; renderStart(); };
+    modeSwitch.appendChild(b);
+  });
   wrap.appendChild(modeSwitch);
 
   const card = el("div","card start-card");
@@ -65,10 +65,13 @@ function renderStart(){
   const nameIn = el("input"); nameIn.type="text"; nameIn.value="Manager"; nameIn.id="mgrName";
   card.appendChild(nameIn);
 
-  card.appendChild(el("label",null,"Choisissez un championnat"));
-  const ligueSel = el("select"); ligueSel.id="ligueSel";
-  FM.LEAGUES.forEach(l=> ligueSel.appendChild(new Option(`${l.nom}`, l.id)));
-  card.appendChild(ligueSel);
+  let ligueSel = null;
+  if (startMode !== "intl"){
+    card.appendChild(el("label",null,"Choisissez un championnat"));
+    ligueSel = el("select"); ligueSel.id="ligueSel";
+    FM.LEAGUES.forEach(l=> ligueSel.appendChild(new Option(`${l.nom}`, l.id)));
+    card.appendChild(ligueSel);
+  }
 
   if (startMode === "career"){
     /* ---- MODE CARRIÈRE : choisir un vrai club ---- */
@@ -94,7 +97,7 @@ function renderStart(){
     };
     card.appendChild(btn);
 
-  } else {
+  } else if (startMode === "master"){
     /* ---- MODE MASTER LEAGUE : créer son club ---- */
     card.appendChild(el("label",null,"Nom de votre club"));
     const clubName = el("input"); clubName.type="text"; clubName.value="FC Master"; clubName.id="mlName";
@@ -125,9 +128,35 @@ function renderStart(){
       currentTab="accueil"; renderGame();
     };
     card.appendChild(btn);
+
+  } else {
+    /* ---- MODE INTERNATIONAL : Euro / Coupe du Monde ---- */
+    card.appendChild(el("label",null,"Compétition"));
+    const compSel = el("select");
+    compSel.appendChild(new Option("Championnat d'Europe (16 nations)","EURO"));
+    compSel.appendChild(new Option("Coupe du Monde (32 nations)","WC"));
+    card.appendChild(compSel);
+
+    card.appendChild(el("label",null,"Choisissez votre sélection"));
+    const natSel = el("select");
+    card.appendChild(natSel);
+    const fillNations = ()=>{
+      natSel.innerHTML="";
+      const list = compSel.value==="EURO" ? FM.nationsForEuro() : FM.nationsList();
+      list.slice().sort((a,b)=>a.localeCompare(b)).forEach(n=> natSel.appendChild(new Option(n,n)));
+      natSel.value = compSel.value==="EURO" ? "France" : "Brésil";
+    };
+    compSel.onchange = fillNations; fillNations();
+
+    const info = el("p","ml-info","🌍 Disputez le tournoi à élimination directe avec la sélection de votre choix. La force de chaque nation est réaliste ; les effectifs sont représentatifs (générés).");
+    card.appendChild(info);
+
+    const btn = el("button","btn primary big","🌍 Lancer le tournoi");
+    btn.onclick = ()=>{ FM.setSeed(20260810 + Math.floor(natSel.selectedIndex*7 + compSel.selectedIndex*13)); startInternational(compSel.value, natSel.value); };
+    card.appendChild(btn);
   }
 
-  if (FM.hasSave()){
+  if (FM.hasSave() && startMode!=="intl"){
     const cont = el("button","btn ghost","▶ Reprendre la partie sauvegardée");
     cont.onclick = ()=>{ if(FM.load()){ currentTab="accueil"; renderGame(); } };
     card.appendChild(cont);
@@ -165,7 +194,8 @@ function renderGame(){
   // Onglets
   const tabs = el("div","tabs");
   const T = [["accueil","🏠 Accueil"],["effectif","👥 Effectif"],["tactique","📋 Tactique"],
-             ["mercato","💱 Mercato"],["classement","🏆 Classement"],["calendrier","📅 Calendrier"],["actus","📰 Actus"]];
+             ["mercato","💱 Mercato"],["europe","🏆 Europe"],["classement","📊 Classement"],
+             ["calendrier","📅 Calendrier"],["actus","📰 Actus"]];
   T.forEach(([k,lbl])=>{
     const b = el("button","tab"+(currentTab===k?" active":""),lbl);
     b.onclick=()=>{ currentTab=k; renderGame(); };
@@ -181,6 +211,7 @@ function renderGame(){
     case "effectif": renderSquad(body); break;
     case "tactique": renderTactics(body); break;
     case "mercato": renderMarket(body); break;
+    case "europe": renderEurope(body); break;
     case "classement": renderTable(body); break;
     case "calendrier": renderCalendar(body); break;
     case "actus": renderNews(body); break;
@@ -464,6 +495,231 @@ function openPlayerPicker(slotIdx, slotPos){
   overlay.appendChild(box);
   overlay.onclick=e=>{ if(e.target===overlay) overlay.remove(); };
   document.body.appendChild(overlay);
+}
+
+/* ============= COUPES D'EUROPE ============= */
+function renderEurope(body){
+  const e = FM.state.europe;
+  if (!e){ body.appendChild(el("div","card",`<p class="hint">Les coupes d'Europe se mettent en place en début de saison.</p>`)); return; }
+
+  // Bandeau des 3 compétitions
+  const bar = el("div","comp-bar");
+  ["UCL","UEL","UECL"].forEach(k=>{
+    const c=e[k];
+    const stat = c.finished ? "🏆 "+c.teams[c.champion].nom : FM.roundName(c.alive.length);
+    const pill = el("div","comp-pill"+(e.playerComp===k?" mine":""));
+    pill.innerHTML = `<span class="ce">${c.emoji}</span><div><b>${c.nom}</b><small>${stat}</small></div>`;
+    bar.appendChild(pill);
+  });
+  body.appendChild(bar);
+
+  if (!e.playerComp){
+    const c = el("div","card");
+    c.innerHTML = `<h3>🏆 Coupes d'Europe</h3><p>Votre club n'est pas qualifié cette saison. Terminez dans les premières places de votre championnat pour vous qualifier (top 4 → Ligue des Champions, 5-6 → Europa, 7-8 → Conference).</p>`;
+    const b = el("button","btn ghost","⏩ Suivre les coupes (simuler un tour)");
+    b.onclick=()=>{ advanceAllCups(); renderGame(); };
+    c.appendChild(b);
+    body.appendChild(c);
+    renderCupHistory(body, e.UCL);
+    return;
+  }
+
+  const comp = e[e.playerComp];
+  const card = el("div","card");
+  card.appendChild(el("h3",null,`${comp.emoji} ${comp.nom} — parcours de ${FM.myClub().nom}`));
+
+  if (comp.finished){
+    const won = comp.champion===comp.playerSeed;
+    card.innerHTML += `<p class="euro-final ${won?'win':''}">${won?'🏆 VAINQUEUR ! Félicitations !':'Vainqueur : <b>'+comp.teams[comp.champion].nom+'</b>'}</p>`;
+  } else if (comp.playerAlive){
+    const tie = FM.playerTie(comp);
+    const opp = comp.teams[tie[0]===comp.playerSeed?tie[1]:tie[0]];
+    card.appendChild(el("p","round-name",`${FM.roundName(comp.alive.length)}`));
+    const tieBox = el("div","tie-box");
+    const me = FM.myClub();
+    tieBox.innerHTML = `
+      <div class="tie-side">${clubCrest(me,52)}<b>${me.nom}</b><small>${FM.squadRating(me)}</small></div>
+      <div class="vs">VS</div>
+      <div class="tie-side">${clubCrest({nom:opp.nom,couleurs:opp.couleurs},52)}<b>${opp.nom}</b><small>${opp.note}</small></div>`;
+    card.appendChild(tieBox);
+    const play = el("button","btn primary big","▶ Jouer le match");
+    play.onclick=()=> playCupTie(comp);
+    card.appendChild(play);
+    const sim = el("button","btn ghost","⏩ Simuler ce tour");
+    sim.onclick=()=>{ FM.resolveTournamentRound(comp); advanceAllCups(true); FM.save(); renderGame(); };
+    card.appendChild(sim);
+  } else {
+    card.appendChild(el("p","round-name","Vous avez été éliminé de la compétition."));
+    const b = el("button","btn ghost","⏩ Suivre la suite (simuler un tour)");
+    b.onclick=()=>{ advanceAllCups(); renderGame(); };
+    card.appendChild(b);
+  }
+  body.appendChild(card);
+  renderCupHistory(body, comp);
+}
+
+/* Historique des tours d'une compétition (met en avant le club du joueur) */
+function renderCupHistory(body, comp){
+  if (!comp.history.length) return;
+  const h = el("div","card");
+  h.appendChild(el("h3",null,`${comp.emoji} ${comp.nom} — résultats`));
+  comp.history.slice().reverse().forEach(rd=>{
+    h.appendChild(el("p","cup-round-title",rd.nom));
+    const list = el("div","cup-ties");
+    rd.ties.forEach(t=>{
+      const A=comp.teams[t.a], B=comp.teams[t.b];
+      const mine = (t.a===comp.playerSeed||t.b===comp.playerSeed);
+      const row = el("div","cup-tie"+(mine?" mine":""));
+      row.innerHTML = `<span class="ct-a ${t.winner===t.a?'w':''}">${A.nom}</span>
+        <span class="ct-s">${t.as}-${t.es}${t.pen?` <em>tab ${t.pen[0]}-${t.pen[1]}</em>`:''}</span>
+        <span class="ct-b ${t.winner===t.b?'w':''}">${B.nom}</span>`;
+      list.appendChild(row);
+    });
+    h.appendChild(list);
+  });
+  body.appendChild(h);
+}
+
+/* Avance d'un tour les coupes où le joueur n'est PAS (ou toutes) */
+function advanceAllCups(othersOnly){
+  const e = FM.state.europe; if(!e) return;
+  ["UCL","UEL","UECL"].forEach(k=>{
+    if (othersOnly && e.playerComp===k) return;
+    if (!e[k].finished) FM.resolveTournamentRound(e[k]);
+  });
+  FM.save();
+}
+
+/* Match de coupe du joueur, avec animation, puis résolution du tour */
+function playCupTie(comp){
+  const tie = FM.playerTie(comp);
+  if (!tie){ renderGame(); return; }
+  const [a,b] = tie;
+  const res = FM.simCupMatch(comp, a, b);          // calculé une fois
+  const playerA = (a===comp.playerSeed);
+  const me = FM.myClub();
+  const oppTeam = comp.teams[playerA?b:a];
+  const opp = { nom:oppTeam.nom, couleurs:oppTeam.couleurs, pays:oppTeam.pays };
+  const selfScore = playerA?res.as:res.es, oppScore = playerA?res.es:res.as;
+  // events -> côté 'me'/'opp'
+  const evs = res.events.map(ev=>({ min:ev.min, joueur:ev.joueur, me: (ev.side==="a")===playerA }));
+
+  animateTie(me, opp, selfScore, oppScore, res.pen, playerA, evs, ()=>{
+    FM.resolveTournamentRound(comp, res);          // même résultat que l'animation
+    advanceAllCups(true);
+    FM.save();
+    renderGame();
+  });
+}
+
+/* Overlay animé d'un match de coupe (équipe du joueur à gauche) */
+function animateTie(me, opp, selfScore, oppScore, pen, playerA, evs, onDone){
+  const overlay = el("div","overlay");
+  const box = el("div","match-live card");
+  box.innerHTML = `<div class="live-head">
+      <div class="lh-team">${clubCrest(me,34)} ${me.nom}</div>
+      <div class="live-score" id="cScore">0 - 0</div>
+      <div class="lh-team">${opp.nom} ${clubCrest({nom:opp.nom,couleurs:opp.couleurs},34)}</div>
+    </div>
+    <div class="live-min" id="cMin">Coup d'envoi…</div>
+    <div class="live-feed" id="cFeed"></div>`;
+  overlay.appendChild(box);
+  const skip = el("button","btn ghost","⏭ Passer");
+  box.appendChild(skip);
+  document.body.appendChild(overlay);
+
+  const feed = box.querySelector("#cFeed"), scoreEl = box.querySelector("#cScore"), minEl = box.querySelector("#cMin");
+  const ordered = evs.slice().sort((x,y)=>x.min-y.min);
+  let s=0,o=0,idx=0,minute=0;
+  function finish(){
+    clearInterval(timer);
+    s=selfScore; o=oppScore;
+    scoreEl.textContent = `${s} - ${o}`;
+    let txt = "Coup de sifflet final ⏱";
+    if (pen){ const pS=playerA?pen[0]:pen[1], pO=playerA?pen[1]:pen[0]; txt = `Tirs au but : ${pS}-${pO}`; }
+    minEl.textContent = txt;
+    const won = selfScore>oppScore || (selfScore===oppScore && pen && ((playerA?pen[0]:pen[1])>(playerA?pen[1]:pen[0])));
+    feed.innerHTML = `<div class="tie-verdict ${won?'win':'lose'}">${won?'✅ Qualifié !':'❌ Éliminé'}</div>` + feed.innerHTML;
+    skip.textContent="✔ Continuer"; skip.className="btn primary";
+    skip.onclick=()=>{ overlay.remove(); onDone(); };
+  }
+  skip.onclick = finish;
+  const timer = setInterval(()=>{
+    minute += 3;
+    if (minute>90){ finish(); return; }
+    minEl.textContent = `${minute}'`;
+    while (idx<ordered.length && ordered[idx].min<=minute){
+      const ev = ordered[idx++];
+      if (ev.me) s++; else o++;
+      scoreEl.textContent = `${s} - ${o}`;
+      const line = el("div","feed-line "+(ev.me?"left":"right"),`<span class="fmin">${ev.min}'</span> ⚽ <b>${ev.joueur}</b>`);
+      line.classList.add("flash"); feed.prepend(line);
+    }
+  }, 220);
+}
+
+/* ============= MODE INTERNATIONAL (Euro / Coupe du Monde) ============= */
+let intlComp = null;
+
+function startInternational(kind, nation){
+  intlComp = FM.makeNationTournament(kind, nation);
+  renderTournament();
+}
+
+function renderTournament(){
+  const comp = intlComp;
+  const app = $("#app"); app.innerHTML = "";
+  const meN = comp.teams[comp.playerSeed];
+  const meCrest = { nom:meN.nom, couleurs:meN.couleurs };
+
+  const top = el("div","topbar");
+  top.innerHTML = `<div class="club-id">${clubCrest(meCrest,46)}
+      <div><b>${meN.nom}</b><small>${comp.emoji} ${comp.nom}</small></div></div>
+    <div class="stats">
+      <div><small>Tour</small><b>${comp.finished?'Terminé':FM.roundName(comp.alive.length)}</b></div>
+      <div><small>Équipes</small><b>${comp.alive.length}</b></div>
+      <div><small>Force</small><b>${meN.note}</b></div>
+    </div>`;
+  app.appendChild(top);
+
+  const body = el("div","content"); app.appendChild(body);
+  const card = el("div","card");
+  card.appendChild(el("h3",null,`${comp.emoji} ${comp.nom}`));
+  if (comp.finished){
+    const won = comp.champion===comp.playerSeed;
+    card.innerHTML += `<p class="euro-final ${won?'win':''}">${won?'🏆 CHAMPION ! '+meN.nom+' remporte le tournoi !':'Vainqueur : <b>'+comp.teams[comp.champion].nom+'</b>'}</p>`;
+  } else if (comp.playerAlive){
+    const tie = FM.playerTie(comp);
+    const opp = comp.teams[tie[0]===comp.playerSeed?tie[1]:tie[0]];
+    card.appendChild(el("p","round-name",FM.roundName(comp.alive.length)));
+    const tb = el("div","tie-box");
+    tb.innerHTML = `<div class="tie-side">${clubCrest(meCrest,52)}<b>${meN.nom}</b><small>${meN.note}</small></div>
+      <div class="vs">VS</div>
+      <div class="tie-side">${clubCrest({nom:opp.nom,couleurs:opp.couleurs},52)}<b>${opp.nom}</b><small>${opp.note}</small></div>`;
+    card.appendChild(tb);
+    const play = el("button","btn primary big","▶ Jouer le match"); play.onclick=()=>playIntlTie(); card.appendChild(play);
+    const sim = el("button","btn ghost","⏩ Simuler ce tour"); sim.onclick=()=>{ FM.resolveTournamentRound(comp); renderTournament(); }; card.appendChild(sim);
+  } else {
+    card.appendChild(el("p","round-name",`${meN.nom} a été éliminé.`));
+    const b = el("button","btn ghost","⏩ Simuler jusqu'à la fin"); b.onclick=()=>{ let g=0; while(!comp.finished&&g++<10) FM.resolveTournamentRound(comp); renderTournament(); }; card.appendChild(b);
+  }
+  body.appendChild(card);
+  renderCupHistory(body, comp);
+
+  const foot = el("div","footbar");
+  const q = el("button","btn ghost small","⏻ Menu principal"); q.onclick=()=>renderStart();
+  foot.appendChild(q); app.appendChild(foot);
+}
+
+function playIntlTie(){
+  const comp = intlComp;
+  const tie = FM.playerTie(comp); if(!tie){ renderTournament(); return; }
+  const [a,b] = tie; const res = FM.simCupMatch(comp,a,b); const playerA=(a===comp.playerSeed);
+  const meN = comp.teams[comp.playerSeed], oppN = comp.teams[playerA?b:a];
+  const selfScore = playerA?res.as:res.es, oppScore = playerA?res.es:res.as;
+  const evs = res.events.map(ev=>({min:ev.min, joueur:ev.joueur, me:(ev.side==="a")===playerA}));
+  animateTie({nom:meN.nom,couleurs:meN.couleurs}, {nom:oppN.nom,couleurs:oppN.couleurs},
+    selfScore, oppScore, res.pen, playerA, evs, ()=>{ FM.resolveTournamentRound(comp,res); renderTournament(); });
 }
 
 /* ============= MERCATO ============= */

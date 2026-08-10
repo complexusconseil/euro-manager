@@ -203,6 +203,31 @@ tbody tr:hover{background:var(--card2)}
   opacity:0;transition:.3s;z-index:80;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.4)}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 
+/* ---------- Coupes d'Europe / Tournois ---------- */
+.comp-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.comp-pill{flex:1;min-width:150px;display:flex;align-items:center;gap:10px;background:var(--card);
+  border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.comp-pill.mine{border-color:var(--green);background:rgba(46,160,67,.1)}
+.comp-pill .ce{font-size:24px}
+.comp-pill small{display:block;color:var(--mut);font-size:12px}
+.round-name{text-align:center;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.tie-box{display:flex;align-items:center;justify-content:center;gap:22px;margin:6px 0 12px}
+.tie-side{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:130px}
+.tie-side small{color:var(--mut)}
+.euro-final{text-align:center;font-size:18px;font-weight:700;padding:14px;background:var(--card2);border-radius:10px}
+.euro-final.win{background:linear-gradient(135deg,rgba(240,180,41,.25),rgba(46,160,67,.2));border:1px solid var(--accent)}
+.cup-round-title{color:var(--mut);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px}
+.cup-ties{display:flex;flex-direction:column;gap:4px}
+.cup-tie{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:6px 10px;border-radius:7px;background:var(--card2);font-size:13.5px}
+.cup-tie.mine{background:rgba(46,160,67,.12);border:1px solid var(--green)}
+.cup-tie .ct-a{text-align:right}.cup-tie .ct-b{text-align:left}
+.cup-tie .ct-a.w,.cup-tie .ct-b.w{font-weight:800;color:var(--green2)}
+.cup-tie .ct-s{background:var(--bg2);border-radius:6px;padding:2px 8px;font-weight:700;white-space:nowrap}
+.cup-tie .ct-s em{color:var(--mut);font-weight:600;font-size:11px;font-style:normal}
+.tie-verdict{text-align:center;font-weight:800;padding:8px;border-radius:8px;margin-bottom:8px}
+.tie-verdict.win{background:rgba(46,160,67,.25);color:var(--green2)}
+.tie-verdict.lose{background:rgba(248,81,73,.2);color:var(--red)}
+
 /* ---------- Footer ---------- */
 .footbar{text-align:center;padding:8px 0 20px}
 

@@ -19,6 +19,11 @@ La partie est **sauvegardée automatiquement** dans le navigateur (localStorage)
 
 - **Mode Carrière** — prenez les rênes d'un vrai club et menez-le vers ses objectifs, saison après saison.
 - **Mode Master League** (esprit PES 5/6) — créez votre propre club, choisissez ses couleurs, démarrez avec un effectif « maison » modeste et un petit budget (à la place du club le plus faible du championnat choisi), puis bâtissez une grande équipe au fil des saisons.
+- **Mode International** — disputez le **Championnat d'Europe** (16 nations) ou la **Coupe du Monde** (32 nations) avec la sélection de votre choix, en élimination directe.
+
+## 🏆 Compétitions européennes (mode Carrière & Master League)
+
+Onglet **Europe** : selon votre classement, votre club se qualifie en **Ligue des Champions** (top 4), **Ligue Europa** (5-6) ou **Ligue Conférence** (7-8). Brackets à élimination directe avec les vrais clubs des 5 championnats, vous jouez vos tours (matchs animés, prolongation/tirs au but), et le parcours européen rapporte des recettes. Qualification recalculée chaque saison selon les résultats.
 
 ## ✨ Fonctionnalités
 

@@ -276,3 +276,5 @@ FM.POS_LABEL = POS_LABEL;
 FM.FORMATIONS = FORMATIONS;
 FM.LEAGUES = LEAGUES;
 FM._rnd = rnd; FM._ri = ri; FM._pick = pick;
+FM.__NAMES = NAMES;
+FM._nameFrom = function(poolKey){ const p = NAMES[poolKey] || NAMES.FRA; return pick(p.first)+" "+pick(p.last); };

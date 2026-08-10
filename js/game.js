@@ -30,6 +30,9 @@ FM.newGame = function(managerName, clubId, seed){
     objectif: objectifFor(club)
   };
   addNews(`Bienvenue ${FM.state.managerName} ! Vous prenez les rênes de ${club.nom}. Objectif : ${FM.state.objectif}.`);
+  FM.setupEuropeanCups();
+  const pc0 = FM.state.europe.playerComp;
+  if (pc0) addNews(`🏆 ${club.nom} est engagé en ${FM.state.europe[pc0].nom} cette saison !`);
   FM.save();
   return FM.state;
 };
@@ -78,6 +81,7 @@ FM.newMasterLeague = function(managerName, clubName, leagueId, seed, kitColors){
     objectif: "assurer le maintien et bâtir votre club"
   };
   addNews(`⚽ Master League — ${FM.state.managerName} fonde ${mlClub.nom} et intègre la ${lgMeta.nom} (à la place de ${removed.nom}). Budget de départ : ${mlClub.budget.toFixed(1)} M€. Bâtissez une équipe compétitive !`);
+  FM.setupEuropeanCups();                     // (un promu n'est en général pas qualifié)
   FM.save();
   return FM.state;
 };
@@ -340,17 +344,21 @@ FM.endSeason = function(){
   const t = FM.table();
   const rank = t.findIndex(c=>c.id===FM.state.managedClubId)+1;
   const champ = t[0];
+  FM.snapshotFinalTables();                 // mémorise le classement final pour les coupes
+  const euroPrize = europeanPrize();        // prime selon le parcours européen
   FM.state.historique.push({
     saison: FM.state.saison,
     classement: rank,
     champion: champ.nom,
-    pts: FM.myClub().pts
+    pts: FM.myClub().pts,
+    europe: FM.state.europe ? europeSummary() : null
   });
   addNews(`🏁 Fin de saison ${FM.state.saison} : ${champ.nom} champion. ${FM.myClub().nom} termine ${rank}${rank===1?"er":"e"}.`);
 
   // Nouvelle saison : reset tables, vieillissement, budget
   const my = FM.myClub();
-  const bonus = rank<=3 ? 30 : rank<=6 ? 15 : rank<=10 ? 5 : 0;
+  const bonus = (rank<=3 ? 30 : rank<=6 ? 15 : rank<=10 ? 5 : 0) + euroPrize;
+  if (euroPrize>0) addNews(`💶 Recettes des coupes d'Europe : +${euroPrize.toFixed(0)} M€.`);
   for (const c of FM.state.db.clubs){
     c.pts=c.j=c.g=c.n=c.p=c.bp=c.bc=0;
     c.budget += c.budgetTotal*0.12 + (c===my?bonus:0);
@@ -369,9 +377,35 @@ FM.endSeason = function(){
   FM.state.resultats=[];
   FM.state.offres=[];
   FM.state.calendrier = FM.makeSchedule(FM.clubsInMyLeague().map(c=>c.id));
-  addNews(`Saison ${FM.state.saison} : nouvel objectif — ${FM.state.objectif}. Budget mercato : ${my.budget.toFixed(1)} M€.`);
+  FM.setupEuropeanCups();                    // coupes de la nouvelle saison (selon classement final)
+  const pc = FM.state.europe.playerComp;
+  addNews(`Saison ${FM.state.saison} : nouvel objectif — ${FM.state.objectif}. Budget mercato : ${my.budget.toFixed(1)} M€.` +
+    (pc ? ` Qualifié en ${FM.state.europe[pc].nom} !` : ` (Non qualifié en coupe d'Europe.)`));
   FM.save();
 };
+
+/* Prime européenne = tours disputés par le club du joueur */
+function europeanPrize(){
+  const e = FM.state.europe;
+  if (!e || !e.playerComp) return 0;
+  const comp = e[e.playerComp];
+  const perRound = { UCL:14, UEL:7, UECL:4 }[e.playerComp] || 5;
+  const roundsPlayed = comp.history.filter(h=>h.ties.some(t=>t.a===comp.playerSeed||t.b===comp.playerSeed)).length;
+  let prize = roundsPlayed * perRound;
+  if (comp.finished && comp.champion===comp.playerSeed) prize += perRound*3;   // bonus vainqueur
+  return prize;
+}
+function europeSummary(){
+  const e = FM.state.europe; if (!e || !e.playerComp) return null;
+  const comp = e[e.playerComp];
+  let res;
+  if (comp.finished && comp.champion===comp.playerSeed) res = "Vainqueur 🏆";
+  else {
+    const lost = comp.history.find(h=>h.ties.some(t=>(t.a===comp.playerSeed||t.b===comp.playerSeed)&&t.winner!==comp.playerSeed));
+    res = lost ? ("éliminé en "+lost.nom) : "en cours";
+  }
+  return { comp:e.playerComp, nom:comp.nom, resultat:res };
+}
 
 /* ---------- Actualités ---------- */
 function addNews(txt){ FM.state.news.unshift({ txt, saison:FM.state.saison, j:FM.state.journee }); if(FM.state.news.length>60) FM.state.news.pop(); }
