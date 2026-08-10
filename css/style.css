@@ -143,6 +143,10 @@ tbody tr:hover{background:var(--card2)}
 .scorers li{padding:4px 0}
 .boards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
 .boards .board{margin:0}
+.intl-banner{border:1px solid #3b5bdb;background:linear-gradient(135deg,rgba(59,91,219,.14),rgba(16,20,32,.2))}
+.intl-pick{display:flex;align-items:center;gap:10px;margin:10px 0}
+.intl-pick select{padding:8px 10px;border-radius:8px}
+.tag.free{background:#134e2b;color:#7ee2a8;border-color:#1c6b3d}
 
 /* ---------- Terrain ---------- */
 .strength-line{color:var(--mut);margin-bottom:12px}

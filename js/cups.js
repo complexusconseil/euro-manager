@@ -488,6 +488,12 @@ FM.makeNationTournament = function(kind, playerNationName){
 FM.nationsList = () => NATIONS.map(n=>n[0]);
 FM.nationsForEuro = () => NATIONS.filter(n=>n[2]==="UEFA").map(n=>n[0]);
 
+/* Correspondance code pays d'un championnat -> nom de sélection nationale */
+FM.COUNTRY_NATION = { FRA:"France", ENG:"Angleterre", ESP:"Espagne", ITA:"Italie",
+  GER:"Allemagne", POR:"Portugal", NED:"Pays-Bas", BEL:"Belgique", TUR:"Turquie",
+  SCO:"Écosse", RUS:"Russie", GRE:"Grèce", SUI:"Suisse", AUT:"Autriche", UKR:"Ukraine" };
+FM.nationForCountry = code => FM.COUNTRY_NATION[code] || "France";
+
 function natColors(name){
   const map={ "France":["#0055A4","#EF4135"],"Espagne":["#C60B1E","#FFC400"],"Angleterre":["#FFFFFF","#CE1124"],
     "Portugal":["#006600","#FF0000"],"Allemagne":["#000000","#FFCE00"],"Pays-Bas":["#AE1C28","#21468B"],

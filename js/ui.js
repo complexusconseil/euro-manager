@@ -242,6 +242,31 @@ function ord(n){ return n===1?"er":"e"; }
 /* ============= ACCUEIL ============= */
 function renderHome(body){
   const my = FM.myClub();
+
+  // Bannière : tournoi international de l'été (Coupe du Monde / Euro) à disputer
+  const pi = FM.state.pendingIntl;
+  if (pi && !pi.fait){
+    const wc = pi.kind==="WC";
+    const noms = wc ? FM.nationsList() : FM.nationsForEuro();
+    const banner = el("div","card intl-banner");
+    banner.innerHTML = `<h3>${wc?"🌍 Coupe du Monde":"🇪🇺 Championnat d'Europe"} — cet été</h3>
+      <p>Prenez en main une sélection nationale et disputez le tournoi (élimination directe), en parallèle de votre carrière.</p>`;
+    const row = el("div","intl-pick");
+    const sel = el("select");
+    noms.forEach(n=> sel.appendChild(new Option(n, n)));
+    sel.value = noms.includes(pi.defaultNation) ? pi.defaultNation : noms[0];
+    row.appendChild(el("label",null,"Sélection : "));
+    row.appendChild(sel);
+    banner.appendChild(row);
+    const go = el("button","btn primary big",(wc?"🌍":"🇪🇺")+" Disputer le tournoi");
+    go.onclick=()=> startCareerIntl(pi.kind, sel.value);
+    banner.appendChild(go);
+    const skip = el("button","btn ghost","Passer (ne pas participer)");
+    skip.onclick=()=>{ FM.state.pendingIntl.fait=true; FM.save(); renderGame(); };
+    banner.appendChild(skip);
+    body.appendChild(banner);
+  }
+
   if (FM.isSeasonOver()){
     const c = el("div","card center");
     const t = FM.table();
@@ -812,9 +837,19 @@ function animateMatch(me, opp, selfScore, oppScore, pen, playerA, evs, opts, onD
 
 /* ============= MODE INTERNATIONAL (Euro / Coupe du Monde) ============= */
 let intlComp = null;
+let intlCareer = false;                 // tournoi disputé depuis une carrière ?
+let intlKind = null, intlNation = null;
 
 function startInternational(kind, nation){
   intlComp = FM.makeNationTournament(kind, nation);
+  intlCareer = false;
+  renderTournament();
+}
+
+/* Lance le tournoi international depuis une carrière (retour à la carrière ensuite) */
+function startCareerIntl(kind, nation){
+  intlComp = FM.makeNationTournament(kind, nation);
+  intlCareer = true; intlKind = kind; intlNation = nation;
   renderTournament();
 }
 
@@ -840,6 +875,11 @@ function renderTournament(){
   if (comp.finished){
     const won = comp.champion===comp.playerSeed;
     card.innerHTML += `<p class="euro-final ${won?'win':''}">${won?'🏆 CHAMPION ! '+meN.nom+' remporte le tournoi !':'Vainqueur : <b>'+comp.teams[comp.champion].nom+'</b>'}</p>`;
+    // Carrière : enregistrer le résultat une seule fois
+    if (intlCareer && !comp._recorded){
+      comp._recorded = true;
+      FM.recordIntlResult(intlKind, intlNation, comp.teams[comp.champion].nom, won);
+    }
   } else if (comp.playerAlive){
     const tie = FM.playerTie(comp);
     const opp = comp.teams[tie[0]===comp.playerSeed?tie[1]:tie[0]];
@@ -859,8 +899,15 @@ function renderTournament(){
   renderCupHistory(body, comp);
 
   const foot = el("div","footbar");
-  const q = el("button","btn ghost small","⏻ Menu principal"); q.onclick=()=>renderStart();
-  foot.appendChild(q); app.appendChild(foot);
+  if (intlCareer){
+    const r = el("button","btn ghost small","⬅ Retour à la carrière");
+    r.onclick=()=>{ currentTab="accueil"; renderGame(); };
+    foot.appendChild(r);
+  } else {
+    const q = el("button","btn ghost small","⏻ Menu principal"); q.onclick=()=>renderStart();
+    foot.appendChild(q);
+  }
+  app.appendChild(foot);
 }
 
 function playIntlTie(){
@@ -932,8 +979,8 @@ function refreshMarket(container){
       <td>${p.nom} ${FLAG[p.nat]||''}</td><td>${p.clubNom}</td><td>${p.age}</td>
       <td><b class="note ${noteClass(p.note)}">${p.note}</b></td>
       <td>${p.valeur.toFixed(1)} M€</td>
-      <td>${p.dispo?'<span class="tag">Transférable</span>':'—'}</td><td></td>`;
-    const btn = el("button","btn tiny primary","Offre");
+      <td>${p.libre?'<span class="tag free">🆓 Libre</span>':(p.dispo?'<span class="tag">Transférable</span>':'—')}</td><td></td>`;
+    const btn = el("button","btn tiny primary",p.libre?"Signer":"Offre");
     btn.onclick=()=> openBid(p);
     tr.lastChild.appendChild(btn);
     tb.appendChild(tr);
@@ -947,12 +994,12 @@ function openBid(p){
   const my = FM.myClub();
   const overlay = el("div","overlay");
   const box = el("div","card picker");
-  const suggested = Math.round(p.valeur*(p.dispo?1.0:1.2)*10)/10;
-  box.innerHTML = `<h3>Offre pour ${p.nom}</h3>
+  const suggested = Math.round(p.valeur*(p.libre?0.25:(p.dispo?1.0:1.2))*10)/10;
+  box.innerHTML = `<h3>${p.libre?'Signer '+p.nom+' (libre)':'Offre pour '+p.nom}</h3>
     <p><span class="pos-badge ${p.groupe}">${p.pos}</span> ${FM.POS_LABEL[p.pos]} · ${p.clubNom} · ${p.age} ans · Note <b>${p.note}</b></p>
-    <p>Valeur estimée : <b>${p.valeur.toFixed(1)} M€</b> · Votre budget : <b>${my.budget.toFixed(1)} M€</b></p>`;
+    <p>Valeur estimée : <b>${p.valeur.toFixed(1)} M€</b> · Votre budget : <b>${my.budget.toFixed(1)} M€</b>${p.libre?' · <b>aucune indemnité de transfert</b>':''}</p>`;
   const inp = el("input"); inp.type="number"; inp.step="0.5"; inp.min="0"; inp.value=suggested;
-  box.appendChild(el("label",null,"Montant de l'offre (M€)"));
+  box.appendChild(el("label",null,p.libre?"Prime à la signature (M€)":"Montant de l'offre (M€)"));
   box.appendChild(inp);
   const msg = el("p","bid-msg","");
   const send = el("button","btn primary","💰 Soumettre l'offre");

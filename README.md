@@ -27,9 +27,17 @@ Compositions réelles 2026-27, ~253 clubs : Ligue 1 🇫🇷, Premier League �
 
 Entre deux saisons, chaque championnat se renouvelle : les derniers du classement sont **relégués** et remplacés par des **promus** (montées/descentes).
 
+## 🏅 Coupes nationales (chaque championnat)
+
+Chaque pays a sa **coupe nationale** en élimination directe (match sec) : Coupe de France 🇫🇷, FA Cup 🏴, Copa del Rey 🇪🇸, Coppa Italia 🇮🇹, DFB-Pokal 🇩🇪, Taça de Portugal 🇵🇹, KNVB Beker 🇳🇱, Coupe de Belgique 🇧🇪, Türkiye Kupası 🇹🇷, Scottish Cup 🏴, Coupe de Russie 🇷🇺, Coupe de Grèce 🇬🇷, Coupe de Suisse 🇨🇭, ÖFB-Cup 🇦🇹, Coupe d'Ukraine 🇺🇦. Tous les clubs du championnat sont engagés (les têtes de série entrent plus tard) ; onglet **Coupe** pour jouer/simuler chaque tour, avec primes de parcours et trophée à la clé. Nouveau tirage chaque saison.
+
+## 🌍 Coupe du Monde & Euro en carrière
+
+Chaque **été**, un tournoi international (alterné **Coupe du Monde** / **Championnat d'Europe**) s'invite dans votre carrière **et** en Master League : depuis l'Accueil, prenez en main la **sélection de votre choix** (par défaut celle de votre pays) et disputez l'élimination directe avec de vrais effectifs, puis revenez à votre club. Palmarès international conservé.
+
 ## 🎥 Moteur 3D immersif
 
-Les matchs se jouent avec un **rendu 3D du terrain** (moteur Three.js embarqué, 100 % hors-ligne) : caméra de retransmission qui suit le ballon, 22 joueurs aux couleurs des deux clubs, buts et célébrations en direct, HUD score/minute. Bascule possible vers un rendu 2D léger via la case **« Rendu 3D »** de l'écran d'accueil (utile sur machines modestes).
+Les matchs se jouent avec un **rendu 3D du terrain** (moteur Three.js embarqué, 100 % hors-ligne) : **joueurs humanoïdes animés** (course, foulée, bras/jambes articulés, orientation vers le jeu) aux couleurs des deux clubs, **ombres portées** en temps réel, **stade avec tribunes garnies et projecteurs**, pelouse tondue avec surfaces et arcs, caméra de retransmission qui suit le ballon, buts et célébrations, HUD score/minute. Bascule possible vers un rendu 2D léger via la case **« Rendu 3D »** de l'écran d'accueil (utile sur machines modestes).
 
 ## 🏆 Compétitions européennes (mode Carrière & Master League)
 
@@ -49,7 +57,7 @@ En mode International, **toutes les sélections** (Europe, Amériques, Afrique, 
 - **Base de données de clubs européens** — les 5 grands championnats aux **compositions réelles 2026-27** : Ligue 1 🇫🇷 (18), Premier League 🏴 (20), La Liga 🇪🇸 (20), Serie A 🇮🇹 (20), Bundesliga 🇩🇪 (18) — soit 96 clubs, promotions/relégations incluses. Effectifs réels à jour au 10/08/2026 (mercato d'été inclus).
 - **Gestion de l'effectif** — consultez notes, potentiel, forme, moral, valeur marchande et **statistiques détaillées** de chaque joueur : matchs, **buts**, **passes décisives** et **note moyenne** de match.
 - **Statistiques & trophées** — classements du championnat en direct : **meilleurs buteurs**, **meilleurs passeurs**, **meilleures notes moyennes**. En fin de saison : Meilleur buteur, Meilleur passeur et **Joueur de la saison** (meilleure note moyenne).
-- **Mercato (acheter / vendre)** — recherchez des joueurs dans toute l'Europe avec filtres (poste, note, âge), faites des offres, négociez selon votre budget. Placez vos joueurs sur la liste des transferts et recevez des offres des clubs IA.
+- **Mercato (acheter / vendre / agents libres)** — recherchez des joueurs dans toute l'Europe avec filtres (poste, note, âge), faites des offres, négociez selon votre budget. Un **vivier d'agents libres** (sans club) est signable sans indemnité de transfert, juste contre une prime — idéal en **Master League** pour bâtir l'équipe avec un budget fixé. Placez vos joueurs sur la liste des transferts et recevez des offres des clubs IA.
 - **Tactique avant match** — choisissez votre formation (4-4-2, 4-3-3, 4-2-3-1, 3-5-2, 5-3-2, 4-5-1), composez votre onze sur un terrain visuel, et réglez vos consignes (mentalité, tempo, pressing) qui influencent réellement la simulation.
 - **Matchs simulés** — moteur basé sur la force des lignes (attaque / milieu / défense), la tactique, l'avantage du terrain et une part d'aléatoire. Match joué avec animation minute par minute et buteurs, ou simulation rapide.
 - **Carrière sur plusieurs saisons** — classement en direct (places européennes / relégation), meilleurs buteurs, calendrier aller-retour complet, objectifs de saison, actualités du club, vieillissement/progression des joueurs et évolution du budget entre saisons.

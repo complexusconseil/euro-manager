@@ -318,6 +318,31 @@ FM.makeMasterSquad = function(country){
   });
 };
 
+/* ---------- Agents libres ----------
+   Vivier de joueurs SANS CLUB, signables sans indemnité de transfert (juste
+   une prime à la signature). Profils réalistes : vétérans en fin de carrière,
+   joueurs relancés, quelques jeunes libres. Notes 60-80.                    */
+FM.makeFreeAgents = function(n, country){
+  n = n || 46;
+  const plan = ["GB","DC","DC","DG","DD","MDC","MC","MC","MO","AG","AD","BU","BU"];
+  const list = [];
+  for (let i=0;i<n;i++){
+    const pos = plan[i % plan.length];
+    const p = makePlayer(2, pos, country || pick(["FRA","ESP","POR","BRA","ARG","NED","BEL","ITA","ENG"]));
+    // Profil "agent libre" : plutôt expérimenté, sans club
+    const jeune = i % 8 === 0;
+    p.age = jeune ? ri(18,21) : ri(28,36);
+    p.note = jeune ? ri(62,70) : ri(63,80);
+    p.potentiel = jeune ? Math.min(85, p.note + ri(4,12)) : p.note;
+    p.forme = ri(-1,1); p.moral = ri(55,80);
+    p.contrat = 0;                       // libre
+    p.valeur = playerValue(p.note, p.potentiel, p.age);
+    p.salaire = Math.round((p.valeur*2.2 + p.note*0.3) * 10) / 10;
+    list.push(p);
+  }
+  return list.sort((a,b)=>b.note-a.note);
+};
+
 /* ---------- Construction de la base complète ---------- */
 FM.buildDatabase = function(){
   PID = 1;

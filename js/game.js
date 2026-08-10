@@ -35,6 +35,7 @@ FM.newGame = function(managerName, clubId, seed){
   if (pc0) addNews(`🏆 ${club.nom} est engagé en ${FM.state.europe[pc0].nom} cette saison !`);
   FM.setupDomesticCup();
   addNews(`${FM.state.coupe.emoji} ${FM.state.coupe.nom} : le tirage est fait, à vous de jouer !`);
+  FM.state.freeAgents = FM.makeFreeAgents(46, club.pays);
   FM.save();
   return FM.state;
 };
@@ -92,6 +93,9 @@ FM.newMasterLeague = function(managerName, clubName, leagueId, seed, kitColors){
   FM.setupEuropeanCups();                     // (un promu n'est en général pas qualifié)
   FM.setupDomesticCup();                       // engagé en coupe nationale dès la 1re saison
   addNews(`${FM.state.coupe.emoji} Engagé en ${FM.state.coupe.nom} : une chance de titre dès cette saison !`);
+  // ML : vivier d'agents libres plus fourni pour bâtir l'équipe avec un budget fixé
+  FM.state.freeAgents = FM.makeFreeAgents(56, lgMeta.pays);
+  addNews(`🆓 ${FM.state.freeAgents.length} agents libres disponibles : recrutez malin avec votre budget (onglet Mercato).`);
   FM.save();
   return FM.state;
 };
@@ -281,25 +285,51 @@ function postMatchdayUpdates(myResult){
 /* ---------- MERCATO ---------- */
 FM.transferMarket = function(filter={}){
   const my = FM.myClub();
+  const applyFilters = arr => {
+    if (filter.poste) arr = arr.filter(p=>p.groupe===filter.poste);
+    if (filter.noteMin) arr = arr.filter(p=>p.note>=filter.noteMin);
+    if (filter.ageMax) arr = arr.filter(p=>p.age<=filter.ageMax);
+    if (filter.valeurMax) arr = arr.filter(p=>p.valeur<=filter.valeurMax);
+    if (filter.q){ const q=filter.q.toLowerCase(); arr=arr.filter(p=>p.nom.toLowerCase().includes(q)); }
+    return arr;
+  };
+  // Agents libres (sans club) : toujours présentés en tête (hors quota de liste)
+  let libres = applyFilters((FM.state.freeAgents || [])
+    .map(p=>({ ...p, clubId:null, clubNom:"🆓 Agent libre", dispo:true, libre:true })));
+  libres.sort((a,b)=>b.note-a.note);
+  // Joueurs sous contrat dans les autres clubs
   let list = [];
   for (const c of FM.state.db.clubs){
     if (c.id === my.id) continue;
-    for (const p of c.joueurs){
-      list.push({ ...p, clubId:c.id, clubNom:c.nom, dispo: p.transferListe });
-    }
+    for (const p of c.joueurs) list.push({ ...p, clubId:c.id, clubNom:c.nom, dispo: p.transferListe });
   }
-  if (filter.poste) list = list.filter(p=>p.groupe===filter.poste);
-  if (filter.noteMin) list = list.filter(p=>p.note>=filter.noteMin);
-  if (filter.ageMax) list = list.filter(p=>p.age<=filter.ageMax);
-  if (filter.valeurMax) list = list.filter(p=>p.valeur<=filter.valeurMax);
-  if (filter.q){ const q=filter.q.toLowerCase(); list=list.filter(p=>p.nom.toLowerCase().includes(q)); }
-  list.sort((a,b)=>b.note-a.note);
-  return list.slice(0, filter.limit || 120);
+  list = applyFilters(list);
+  list.sort((a,b)=> (b.dispo?1:0)-(a.dispo?1:0) || b.note-a.note);
+  const limit = filter.limit || 120;
+  return libres.concat(list).slice(0, Math.max(limit, libres.length));
 };
 
 /* Acheter : renvoie {ok, msg} */
 FM.buyPlayer = function(playerId, offreM){
   const my = FM.myClub();
+
+  // 1) Agent libre : signature contre une simple prime (pas d'indemnité de transfert)
+  const fa = (FM.state.freeAgents || []).find(x=>x.id===playerId);
+  if (fa){
+    if (my.joueurs.length >= 30) return { ok:false, msg:"Effectif complet (30 max). Vendez d'abord." };
+    if (offreM > my.budget) return { ok:false, msg:`Budget insuffisant (${my.budget.toFixed(1)} M€ dispo).` };
+    const prime = fa.valeur * 0.2;             // prime à la signature attendue
+    if (offreM < prime) return { ok:false, msg:`${fa.nom} attend une prime d'environ ${prime.toFixed(1)} M€ pour signer.` };
+    FM.state.freeAgents = FM.state.freeAgents.filter(x=>x.id!==playerId);
+    my.budget -= offreM;
+    fa.transferListe = false; fa.contrat = FM._ri(2,4); fa.moral = Math.min(99, fa.moral+6);
+    my.joueurs.push(fa);
+    my.onze = FM.autoPickXI(my);
+    addNews(`✍️ Signature libre : ${fa.nom} (${fa.note}, ${FM.POS_LABEL[fa.pos]}) s'engage avec ${my.nom} (prime ${offreM.toFixed(1)} M€).`);
+    FM.save();
+    return { ok:true, msg:`${fa.nom} signe librement pour une prime de ${offreM.toFixed(1)} M€ !` };
+  }
+
   let seller=null, player=null;
   for (const c of FM.state.db.clubs){
     if (c.id===my.id) continue;
@@ -472,6 +502,21 @@ FM.endSeason = function(){
   FM.state.calendrier = FM.makeSchedule(FM.clubsInMyLeague().map(c=>c.id));
   FM.setupEuropeanCups();                    // coupes de la nouvelle saison (selon classement final)
   FM.setupDomesticCup();                      // nouveau tirage de la coupe nationale
+
+  // Agents libres : vieillissement + renouvellement du vivier
+  if (FM.state.freeAgents){
+    FM.state.freeAgents.forEach(p=>{ p.age++; if(p.age>=32) p.note=Math.max(40,p.note-FM._ri(0,2)); p.valeur=FM.playerValue(p.note,p.potentiel,p.age); });
+    FM.state.freeAgents = FM.state.freeAgents.filter(p=>p.age<=38);
+  }
+  FM.state.freeAgents = (FM.state.freeAgents||[]).concat(FM.makeFreeAgents(28, my.pays))
+    .sort((a,b)=>b.note-a.note).slice(0,60);
+
+  // Tournoi international de l'été (alterné Coupe du Monde / Championnat d'Europe)
+  const endedSeason = FM.state.saison - 1;
+  const wc = (endedSeason % 2 === 0);
+  FM.state.pendingIntl = { kind: wc?"WC":"EURO", defaultNation: FM.nationForCountry(my.pays), fait:false };
+  addNews(`🌍 ${wc?"Coupe du Monde":"Championnat d'Europe"} cet été — prenez en main une sélection (onglet Accueil).`);
+
   const pc = FM.state.europe.playerComp;
   addNews(`Saison ${FM.state.saison} : nouvel objectif — ${FM.state.objectif}. Budget mercato : ${my.budget.toFixed(1)} M€.` +
     (pc ? ` Qualifié en ${FM.state.europe[pc].nom} !` : ` (Non qualifié en coupe d'Europe.)`));
@@ -615,6 +660,16 @@ function europeSummary(){
   } else res = "en cours";
   return { comp:e.playerComp, nom:comp.nom, resultat:res };
 }
+
+/* Enregistre le résultat d'un tournoi international disputé en carrière */
+FM.recordIntlResult = function(kind, nation, championNom, playerWon){
+  if (FM.state.pendingIntl) FM.state.pendingIntl.fait = true;   // épreuve consommée
+  const nomTournoi = kind==="WC" ? "Coupe du Monde" : "Championnat d'Europe";
+  FM.state.intlPalmares = FM.state.intlPalmares || [];
+  FM.state.intlPalmares.unshift({ saison:FM.state.saison, tournoi:nomTournoi, nation, champion:championNom, playerWon });
+  addNews(`🌍 ${nomTournoi} : ${championNom} champion.` + (playerWon ? ` 🏆 Avec ${nation}, vous êtes sur le toit du monde !` : ` (Vous dirigiez ${nation}.)`));
+  FM.save();
+};
 
 /* ---------- Actualités ---------- */
 function addNews(txt){ FM.state.news.unshift({ txt, saison:FM.state.saison, j:FM.state.journee }); if(FM.state.news.length>60) FM.state.news.pop(); }
