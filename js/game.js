@@ -384,26 +384,30 @@ FM.endSeason = function(){
   FM.save();
 };
 
-/* Prime européenne = tours disputés par le club du joueur */
+/* Prime européenne = phase de ligue + tours à élimination directe */
 function europeanPrize(){
   const e = FM.state.europe;
   if (!e || !e.playerComp) return 0;
-  const comp = e[e.playerComp];
+  const comp = e[e.playerComp], ko = comp.ko;
   const perRound = { UCL:14, UEL:7, UECL:4 }[e.playerComp] || 5;
-  const roundsPlayed = comp.history.filter(h=>h.ties.some(t=>t.a===comp.playerSeed||t.b===comp.playerSeed)).length;
-  let prize = roundsPlayed * perRound;
-  if (comp.finished && comp.champion===comp.playerSeed) prize += perRound*3;   // bonus vainqueur
+  let prize = 6;   // participation à la phase de ligue
+  if (ko){
+    const roundsPlayed = ko.history.filter(h=>h.ties.some(t=>t.a===ko.playerSeed||t.b===ko.playerSeed)).length;
+    prize += roundsPlayed * perRound;
+    if (ko.finished && ko.champion===ko.playerSeed) prize += perRound*3;
+  }
   return prize;
 }
 function europeSummary(){
   const e = FM.state.europe; if (!e || !e.playerComp) return null;
-  const comp = e[e.playerComp];
+  const comp = e[e.playerComp], ko = comp.ko;
   let res;
-  if (comp.finished && comp.champion===comp.playerSeed) res = "Vainqueur 🏆";
-  else {
-    const lost = comp.history.find(h=>h.ties.some(t=>(t.a===comp.playerSeed||t.b===comp.playerSeed)&&t.winner!==comp.playerSeed));
+  if (comp.phase==="league") res = "phase de ligue";
+  else if (ko && ko.finished && ko.champion===ko.playerSeed) res = "Vainqueur 🏆";
+  else if (ko){
+    const lost = ko.history.find(h=>h.ties.some(t=>(t.a===ko.playerSeed||t.b===ko.playerSeed)&&t.winner!==ko.playerSeed));
     res = lost ? ("éliminé en "+lost.nom) : "en cours";
-  }
+  } else res = "en cours";
   return { comp:e.playerComp, nom:comp.nom, resultat:res };
 }
 

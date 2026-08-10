@@ -506,7 +506,10 @@ function renderEurope(body){
   const bar = el("div","comp-bar");
   ["UCL","UEL","UECL"].forEach(k=>{
     const c=e[k];
-    const stat = c.finished ? "🏆 "+c.teams[c.champion].nom : FM.roundName(c.alive.length);
+    let stat;
+    if (c.phase==="league") stat = `Phase de ligue J${c.lp.cur}/${c.lp.rounds}`;
+    else if (FM.compFinished(c)) stat = "🏆 "+FM.compChampionTeam(c).nom;
+    else stat = FM.roundName(c.ko.alive.length);
     const pill = el("div","comp-pill"+(e.playerComp===k?" mine":""));
     pill.innerHTML = `<span class="ce">${c.emoji}</span><div><b>${c.nom}</b><small>${stat}</small></div>`;
     bar.appendChild(pill);
@@ -515,47 +518,114 @@ function renderEurope(body){
 
   if (!e.playerComp){
     const c = el("div","card");
-    c.innerHTML = `<h3>🏆 Coupes d'Europe</h3><p>Votre club n'est pas qualifié cette saison. Terminez dans les premières places de votre championnat pour vous qualifier (top 4 → Ligue des Champions, 5-6 → Europa, 7-8 → Conference).</p>`;
-    const b = el("button","btn ghost","⏩ Suivre les coupes (simuler un tour)");
-    b.onclick=()=>{ advanceAllCups(); renderGame(); };
-    c.appendChild(b);
+    c.innerHTML = `<h3>🏆 Coupes d'Europe</h3><p>Votre club n'est pas qualifié cette saison. Qualifiez-vous via le classement de votre championnat (places attribuées selon le coefficient UEFA de votre pays).</p>
+      <p>🏆 <b>${FM.compChampionTeam(e.UCL)?FM.compChampionTeam(e.UCL).nom:'—'}</b> remporte la Ligue des Champions.</p>`;
     body.appendChild(c);
-    renderCupHistory(body, e.UCL);
+    if (e.UCL.ko) renderCupHistory(body, e.UCL.ko);
     return;
   }
 
   const comp = e[e.playerComp];
-  const card = el("div","card");
-  card.appendChild(el("h3",null,`${comp.emoji} ${comp.nom} — parcours de ${FM.myClub().nom}`));
 
-  if (comp.finished){
-    const won = comp.champion===comp.playerSeed;
-    card.innerHTML += `<p class="euro-final ${won?'win':''}">${won?'🏆 VAINQUEUR ! Félicitations !':'Vainqueur : <b>'+comp.teams[comp.champion].nom+'</b>'}</p>`;
-  } else if (comp.playerAlive){
-    const tie = FM.playerTie(comp);
-    const opp = comp.teams[tie[0]===comp.playerSeed?tie[1]:tie[0]];
-    card.appendChild(el("p","round-name",`${FM.roundName(comp.alive.length)}`));
-    const tieBox = el("div","tie-box");
+  if (comp.phase==="league"){ renderLeaguePhase(body, comp); return; }
+
+  // ---- Phase à élimination directe ----
+  const ko = comp.ko;
+  const card = el("div","card");
+  card.appendChild(el("h3",null,`${comp.emoji} ${comp.nom} — phase finale (${FM.myClub().nom})`));
+  if (ko.finished){
+    const won = ko.champion===ko.playerSeed;
+    card.innerHTML += `<p class="euro-final ${won?'win':''}">${won?'🏆 VAINQUEUR ! Félicitations !':'Vainqueur : <b>'+ko.teams[ko.champion].nom+'</b>'}</p>`;
+  } else if (ko.playerAlive){
+    const tie = FM.playerTie(ko);
+    const opp = ko.teams[tie[0]===ko.playerSeed?tie[1]:tie[0]];
     const me = FM.myClub();
+    card.appendChild(el("p","round-name",`${FM.roundName(ko.alive.length)}${ko.alive.length>2?' · aller-retour':' · match sec'}`));
+    const tieBox = el("div","tie-box");
     tieBox.innerHTML = `
       <div class="tie-side">${clubCrest(me,52)}<b>${me.nom}</b><small>${FM.squadRating(me)}</small></div>
       <div class="vs">VS</div>
       <div class="tie-side">${clubCrest({nom:opp.nom,couleurs:opp.couleurs},52)}<b>${opp.nom}</b><small>${opp.note}</small></div>`;
     card.appendChild(tieBox);
     const play = el("button","btn primary big","▶ Jouer le match");
-    play.onclick=()=> playCupTie(comp);
+    play.onclick=()=> playCupTie(ko);
     card.appendChild(play);
     const sim = el("button","btn ghost","⏩ Simuler ce tour");
-    sim.onclick=()=>{ FM.resolveTournamentRound(comp); advanceAllCups(true); FM.save(); renderGame(); };
+    sim.onclick=()=>{ FM.resolveTournamentRound(ko); FM.save(); renderGame(); };
     card.appendChild(sim);
   } else {
-    card.appendChild(el("p","round-name","Vous avez été éliminé de la compétition."));
-    const b = el("button","btn ghost","⏩ Suivre la suite (simuler un tour)");
-    b.onclick=()=>{ advanceAllCups(); renderGame(); };
+    card.appendChild(el("p","round-name","Vous avez été éliminé."));
+    const b = el("button","btn ghost","⏩ Voir la suite");
+    b.onclick=()=>{ let g=0; while(!ko.finished&&g++<8) FM.resolveTournamentRound(ko); FM.save(); renderGame(); };
     card.appendChild(b);
   }
   body.appendChild(card);
-  renderCupHistory(body, comp);
+  renderCupHistory(body, ko);
+}
+
+/* Phase de ligue : classement + match du joueur */
+function renderLeaguePhase(body, comp){
+  const card = el("div","card");
+  card.appendChild(el("h3",null,`${comp.emoji} ${comp.nom} — phase de ligue (J${comp.lp.cur+1}/${comp.lp.rounds})`));
+  const pm = FM.lpPlayerMatch(comp);
+  if (pm){
+    const me = FM.myClub();
+    const oppIdx = pm.playerHome?pm.away:pm.home;
+    const opp = comp.teams[oppIdx];
+    const box = el("div","tie-box");
+    box.innerHTML = `
+      <div class="tie-side">${clubCrest(me,52)}<b>${me.nom}</b><small>${pm.playerHome?'🏟 domicile':'✈ extérieur'}</small></div>
+      <div class="vs">VS</div>
+      <div class="tie-side">${clubCrest({nom:opp.nom,couleurs:opp.couleurs},52)}<b>${opp.nom}</b><small>${opp.note}</small></div>`;
+    card.appendChild(box);
+    const play = el("button","btn primary big","▶ Jouer le match");
+    play.onclick=()=> playLeagueMatch(comp);
+    card.appendChild(play);
+    const sim = el("button","btn ghost","⏩ Simuler la journée");
+    sim.onclick=()=>{ FM.lpResolveRound(comp); FM.save(); renderGame(); };
+    card.appendChild(sim);
+    const simAll = el("button","btn ghost","⏩⏩ Simuler toute la phase");
+    simAll.onclick=()=>{ let g=0; while(comp.phase==="league"&&g++<40) FM.lpResolveRound(comp); FM.save(); renderGame(); };
+    card.appendChild(simAll);
+  }
+  body.appendChild(card);
+
+  // Classement de la phase de ligue
+  const tCard = el("div","card");
+  tCard.appendChild(el("h3",null,"Classement — les 16 premiers qualifiés"));
+  const table = el("table","rank-table");
+  table.innerHTML = `<thead><tr><th>#</th><th>Club</th><th>J</th><th>G</th><th>N</th><th>P</th><th>Diff</th><th>Pts</th></tr></thead>`;
+  const tb = el("tbody");
+  FM.lpTable(comp).forEach((row,i)=>{
+    const t = comp.teams[row.idx];
+    const tr = el("tr", row.idx===comp.playerIdx?"me":"");
+    if (i<16) tr.classList.add("ucl");
+    tr.innerHTML = `<td>${i+1}</td><td class="club-cell">${clubCrest({nom:t.nom,couleurs:t.couleurs},22)}<span>${t.nom}</span></td>
+      <td>${row.j}</td><td>${row.g}</td><td>${row.n}</td><td>${row.p}</td>
+      <td>${row.diff>0?'+':''}${row.diff}</td><td><b>${row.pts}</b></td>`;
+    tb.appendChild(tr);
+  });
+  table.appendChild(tb);
+  const scroll = el("div","table-scroll"); scroll.appendChild(table);
+  tCard.appendChild(scroll);
+  tCard.appendChild(el("p","legend","🟩 Top 16 → phase à élimination directe (aller-retour)"));
+  body.appendChild(tCard);
+}
+
+/* Match de phase de ligue du joueur (match sec, animé) */
+function playLeagueMatch(comp){
+  const pm = FM.lpPlayerMatch(comp);
+  if (!pm){ renderGame(); return; }
+  const m = FM.simLeagueMatch(comp, pm.home, pm.away);   // hs=domicile, as=extérieur
+  const me = FM.myClub();
+  const oppIdx = pm.playerHome?pm.away:pm.home;
+  const opp = { nom:comp.teams[oppIdx].nom, couleurs:comp.teams[oppIdx].couleurs };
+  const self = pm.playerHome?m.hs:m.as, oppS = pm.playerHome?m.as:m.hs;
+  const evs = m.events.map(ev=>({ min:ev.min, joueur:ev.joueur, me:(ev.home===pm.playerHome) }));
+  animateMatch(me, opp, self, oppS, null, pm.playerHome, evs, {label:"Phase de ligue", noVerdict:true}, ()=>{
+    FM.lpResolveRound(comp, { hs:m.hs, as:m.as });
+    FM.save(); renderGame();
+  });
 }
 
 /* Historique des tours d'une compétition (met en avant le club du joueur) */

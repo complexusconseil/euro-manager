@@ -27,11 +27,15 @@ Compositions réelles 2026-27, ~195 clubs : Ligue 1 🇫🇷, Premier League �
 
 ## 🏆 Compétitions européennes (mode Carrière & Master League)
 
-Onglet **Europe** : qualification par **coefficient UEFA** — chaque pays reçoit un nombre de places selon son rang (les grands championnats 4 en C1, les intermédiaires 2, etc.), attribuées d'après le classement final. **Ligue des Champions** (32), **Ligue Europa** (32), **Ligue Conférence** (16), brackets multi-pays avec les vrais clubs. Confrontations en **matchs aller-retour** (score cumulé, tirs au but si égalité ; finale sèche) — vous jouez l'aller puis le retour, animés. Recettes européennes selon le parcours.
+Onglet **Europe** : qualification par **coefficient UEFA** — chaque pays reçoit un nombre de places selon son rang (les grands championnats 4 en C1, les intermédiaires 2, etc.), attribuées d'après le classement final. **Ligue des Champions** (36), **Ligue Europa** (36), **Ligue Conférence** (24), multi-pays avec les vrais clubs.
 
-## 🌐 Sélections nationales réelles
+- **Phase de ligue** (saison régulière) : un championnat à classement unique (8 journées en C1/C3, 6 en Conférence). Vous jouez vos matchs (ou simulez la journée / toute la phase). Les **16 premiers** se qualifient.
+- **Phase finale** : élimination directe en **matchs aller-retour** (score cumulé, tirs au but si égalité ; **finale sèche**) — vous jouez l'aller puis le retour, animés.
+- Recettes européennes selon le parcours ; qualification recalculée chaque saison.
 
-En mode International, les sélections **UEFA + Russie** utilisent de **vrais effectifs**, qui **évoluent à chaque rassemblement** (forme du moment ±, absences pour blessure/choix du sélectionneur, joueurs rappelés). Les sélections hors-Europe utilisent pour l'instant des effectifs représentatifs.
+## 🌐 Sélections nationales réelles (50 nations)
+
+En mode International, **toutes les sélections** (Europe, Amériques, Afrique, Asie + Russie) utilisent de **vrais effectifs**, qui **évoluent à chaque rassemblement** : forme du moment (±), absences pour blessure ou choix du sélectionneur, joueurs rappelés.
 
 ## ✨ Fonctionnalités
 

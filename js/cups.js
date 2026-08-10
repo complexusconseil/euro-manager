@@ -241,6 +241,125 @@ FM.resolveTournamentRound = function(comp, playerRes){
   return comp.history[comp.history.length-1];
 };
 
+/* ================= PHASE DE LIGUE (saison régulière) =================
+   Chaque coupe de clubs : une phase de ligue (championnat, N équipes, R
+   journées, classement unique) puis une phase à élimination directe
+   (16 premiers, aller-retour).                                          */
+function shuffleArr(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(FM._rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+function buildLeagueSchedule(N, R){
+  const played=new Set(), homeCount=new Array(N).fill(0), sched=[];
+  const key=(a,b)=>a<b?a+'-'+b:b+'-'+a;
+  for(let r=0;r<R;r++){
+    let round=null, attempt=0;
+    while(attempt++<400){
+      const order=shuffleArr([...Array(N).keys()]);
+      const used=new Set(), pairs=[]; let ok=true;
+      for(const t of order){
+        if(used.has(t))continue;
+        let partner=-1;
+        for(const u of order){ if(u!==t && !used.has(u) && !played.has(key(t,u))){ partner=u; break; } }
+        if(partner<0){ ok=false; break; }
+        used.add(t); used.add(partner);
+        const home = homeCount[t]<=homeCount[partner]?t:partner;
+        pairs.push(home===t?[t,partner]:[partner,t]);
+      }
+      if(ok && used.size===N){ round=pairs; break; }
+    }
+    if(!round){ const idx=[...Array(N).keys()]; round=[]; for(let i=0;i<N/2;i++) round.push([idx[i],idx[N-1-i]]); }
+    round.forEach(([h,a])=>{ played.add(key(h,a)); homeCount[h]++; });
+    sched.push(round);
+  }
+  return sched;
+}
+
+FM.makeClubComp = function(id, nom, emoji, teams, playerKey){
+  const sorted = teams.slice().sort((a,b)=>b.note-a.note);
+  const N = sorted.length;
+  const rounds = N>=32 ? 8 : 6;
+  const playerIdx = playerKey!=null ? sorted.findIndex(t=>t.key===playerKey) : -1;
+  return {
+    id, nom, emoji, kind:"club",
+    teams: sorted, playerIdx,
+    phase: "league",
+    lp: { rounds, cur:0, schedule: buildLeagueSchedule(N, rounds),
+          results: [], stats: sorted.map(()=>({pts:0,j:0,g:0,n:0,p:0,bf:0,bc:0})) },
+    ko: null, playerAlive: playerIdx>=0, finished:false, champion:null
+  };
+};
+
+/* Un match brut d'une phase de ligue (exposé pour l'UI) */
+FM.simLeagueMatch = (comp, h, a) => rawMatch(comp, h, a);
+
+/* Classement de la phase de ligue */
+FM.lpTable = function(comp){
+  return comp.teams.map((t,i)=>{
+    const s = comp.lp.stats[i];
+    return { idx:i, pts:s.pts, j:s.j, g:s.g, n:s.n, p:s.p, bf:s.bf, bc:s.bc, diff:s.bf-s.bc, note:t.note };
+  }).sort((a,b)=> b.pts-a.pts || b.diff-a.diff || b.bf-a.bf || b.note-a.note);
+};
+
+/* Match du joueur dans la journée courante (ou null) */
+FM.lpPlayerMatch = function(comp){
+  if(comp.playerIdx<0 || comp.phase!=="league" || comp.lp.cur>=comp.lp.rounds) return null;
+  for(const [h,a] of comp.lp.schedule[comp.lp.cur])
+    if(h===comp.playerIdx || a===comp.playerIdx) return { home:h, away:a, playerHome:h===comp.playerIdx };
+  return null;
+};
+
+function applyLP(stats,h,a,hs,as){
+  const S=stats[h], T=stats[a]; S.j++; T.j++; S.bf+=hs; S.bc+=as; T.bf+=as; T.bc+=hs;
+  if(hs>as){ S.g++; T.p++; S.pts+=3; } else if(hs<as){ T.g++; S.p++; T.pts+=3; } else { S.n++; T.n++; S.pts++; T.pts++; }
+}
+
+/* Résout la journée courante (playerRes {hs,as} orienté domicile/extérieur du match du joueur) */
+FM.lpResolveRound = function(comp, playerRes){
+  const r=comp.lp.cur; if(r>=comp.lp.rounds) return null;
+  const results=[];
+  for(const [h,a] of comp.lp.schedule[r]){
+    const isP = comp.playerIdx>=0 && (h===comp.playerIdx || a===comp.playerIdx);
+    let hs,as;
+    if(isP && playerRes){ hs=playerRes.hs; as=playerRes.as; }
+    else { const m=rawMatch(comp,h,a); hs=m.hs; as=m.as; }
+    applyLP(comp.lp.stats,h,a,hs,as);
+    results.push({h,a,hs,as});
+  }
+  comp.lp.results.push(results); comp.lp.cur++;
+  if(comp.lp.cur>=comp.lp.rounds) FM.lpFinishToKO(comp);
+  return results;
+};
+
+/* Fin de la phase de ligue -> phase à élimination directe (16 premiers) */
+FM.lpFinishToKO = function(comp){
+  const table = FM.lpTable(comp);
+  const top = table.slice(0,16).map(row=>comp.teams[row.idx]);   // classés 1..16
+  const order = seedOrder(16);
+  const bracket = order.map(s=>s-1);
+  let playerSeed = -1;
+  if(comp.playerIdx>=0){ const pk=comp.teams[comp.playerIdx].key; playerSeed = top.findIndex(t=>t.key===pk); }
+  comp.ko = {
+    id:comp.id, nom:comp.nom, emoji:comp.emoji, kind:"club",
+    teams: top, alive: bracket, round:0, roundsTotal:4,
+    history:[], playerSeed, playerAlive: playerSeed>=0, finished:false, champion:null
+  };
+  comp.phase = "ko";
+  comp.playerAlive = comp.ko.playerAlive;
+};
+
+/* Simule entièrement une compétition (ligue puis KO) — pour les coupes non jouées */
+FM.autoCompleteClubComp = function(comp){
+  let g=0;
+  while(comp.phase==="league" && comp.lp.cur<comp.lp.rounds && g++<40) FM.lpResolveRound(comp);
+  g=0;
+  while(comp.ko && !comp.ko.finished && g++<8) FM.resolveTournamentRound(comp.ko);
+  comp.finished = !!(comp.ko && comp.ko.finished);
+  comp.champion = comp.ko ? comp.ko.champion : null;
+};
+
+/* Helpers d'état (une coupe de clubs) */
+FM.compFinished = comp => !!(comp.ko && comp.ko.finished);
+FM.compChampionTeam = comp => (comp.ko && comp.ko.finished) ? comp.ko.teams[comp.ko.champion] : null;
+
 /* ---------------- COUPES D'EUROPE (clubs) ----------------
    Qualification selon le CLASSEMENT de chaque championnat et le
    COEFFICIENT UEFA du pays (nombre de places allouées par rang).          */
@@ -278,7 +397,7 @@ FM.setupEuropeanCups = function(){
     if (arr.length>size){ leftover = byRating(leftover.concat(arr.slice(size))); arr = arr.slice(0,size); }
     return arr;
   }
-  const ucl = fill(cl,32), uel = fill(el,32), uecl = fill(ecl,16);
+  const ucl = fill(cl,36), uel = fill(el,36), uecl = fill(ecl,24);
 
   const toTeam = id => { const c=FM.clubById(id); return { key:id, ref:id, nom:c.nom, pays:c.pays, couleurs:c.couleurs, note:FM.squadRating(c) }; };
   const myId = st.managedClubId;
@@ -289,10 +408,12 @@ FM.setupEuropeanCups = function(){
 
   st.europe = {
     playerComp,
-    UCL: FM.makeTournament("UCL","Ligue des Champions","🏆","club",ucl.map(toTeam), playerComp==="UCL"?myId:null),
-    UEL: FM.makeTournament("UEL","Ligue Europa","🥈","club",uel.map(toTeam), playerComp==="UEL"?myId:null),
-    UECL:FM.makeTournament("UECL","Ligue Conférence","🥉","club",uecl.map(toTeam), playerComp==="UECL"?myId:null)
+    UCL: FM.makeClubComp("UCL","Ligue des Champions","🏆",ucl.map(toTeam), playerComp==="UCL"?myId:null),
+    UEL: FM.makeClubComp("UEL","Ligue Europa","🥈",uel.map(toTeam), playerComp==="UEL"?myId:null),
+    UECL:FM.makeClubComp("UECL","Ligue Conférence","🥉",uecl.map(toTeam), playerComp==="UECL"?myId:null)
   };
+  // Les coupes où le joueur n'est pas sont simulées entièrement (affichage du champion)
+  ["UCL","UEL","UECL"].forEach(k=>{ if(playerComp!==k) FM.autoCompleteClubComp(st.europe[k]); });
   return st.europe;
 };
 
