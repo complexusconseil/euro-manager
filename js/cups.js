@@ -363,7 +363,7 @@ FM.compChampionTeam = comp => (comp.ko && comp.ko.finished) ? comp.ko.teams[comp
 /* ---------------- COUPES D'EUROPE (clubs) ----------------
    Qualification selon le CLASSEMENT de chaque championnat et le
    COEFFICIENT UEFA du pays (nombre de places allouées par rang).          */
-FM.LEAGUE_COEFF = { LL:1, PL:2, SA:3, BL:4, L1:5, POR:6, NER:7, BEL:8, TUR:9, SCO:10, RUS:11 };
+FM.LEAGUE_COEFF = { LL:1, PL:2, SA:3, BL:4, L1:5, POR:6, NER:7, BEL:8, TUR:9, SCO:10, RUS:11, GRE:12, SUI:13, AUT:14, UKR:15 };
 function coeffSlots(rank){
   if (rank<=5)  return { cl:4, el:2, ecl:1 };   // grands championnats
   if (rank<=8)  return { cl:2, el:2, ecl:2 };   // championnats intermédiaires

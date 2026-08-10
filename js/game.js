@@ -184,15 +184,66 @@ function applyResult(dom, ext, res){
 }
 
 function accumulateStats(dom, ext, res){
-  for (const c of [dom, ext]) for (const s of c.onze){
-    const p = FM.getPlayer(c, s.id); if (p) p.matchs++;
-  }
+  // Buteurs + regroupement des buts par club
+  const goalsBy = {};
   for (const e of res.events){
     const c = FM.clubById(e.clubId);
     const p = FM.getPlayer(c, e.joueurId);
     if (p) p.buts++;
+    (goalsBy[e.clubId] = goalsBy[e.clubId] || []).push(e.joueurId);
+  }
+  const domWin = res.domScore>res.extScore, extWin = res.extScore>res.domScore;
+  const drew = res.domScore===res.extScore;
+  for (const c of [dom, ext]){
+    const won = (c===dom&&domWin)||(c===ext&&extWin);
+    const conceded = c===dom ? res.extScore : res.domScore;
+    const scorers = goalsBy[c.id] || [];
+    const xi = c.onze.map(s=>FM.getPlayer(c, s.id)).filter(Boolean);
+    // Passes décisives : un coéquipier (milieu/attaquant de préférence) crédité par but (~65 %)
+    for (const gId of scorers){
+      if (FM._rnd() < 0.65){
+        const cand = xi.filter(p=>p.id!==gId);
+        const off = cand.filter(p=>p.groupe==="M"||p.groupe==="A");
+        const passer = FM._pick(off.length ? off : cand);
+        if (passer) passer.passes = (passer.passes||0)+1;
+      }
+    }
+    // Note de match par titulaire
+    for (const p of xi){
+      p.matchs++;
+      let note = 6.0 + FM._rnd()*0.6 - 0.3;
+      const persoGoals = scorers.filter(id=>id===p.id).length;
+      note += persoGoals*1.1;
+      if (won) note += 0.4; else if (drew) note += 0.1; else note -= 0.2;
+      if (p.groupe==="D" || p.pos==="GB"){ note += conceded===0 ? 0.6 : -conceded*0.15; }
+      note = Math.max(4.5, Math.min(10, note));
+      p.noteTotale = (p.noteTotale||0) + note;
+      p.noteMatchs = (p.noteMatchs||0) + 1;
+    }
   }
 }
+
+/* Moyenne de note d'un joueur (0 si jamais noté) */
+FM.playerAvgNote = function(p){
+  return p.noteMatchs ? (p.noteTotale/p.noteMatchs) : 0;
+};
+
+/* Classements individuels de la saison en cours (buteurs, passeurs, notes) */
+FM.leaderboards = function(ligueId, minMatchs){
+  ligueId = ligueId || FM.state.ligueJoueur;
+  minMatchs = minMatchs || 5;
+  const players = [];
+  for (const c of FM.state.db.clubs){
+    if (ligueId!=="ALL" && c.ligue!==ligueId) continue;
+    for (const p of c.joueurs) players.push({ ...p, clubNom:c.nom });
+  }
+  const buteurs = players.filter(p=>p.buts>0).sort((a,b)=>b.buts-a.buts || b.passes-a.passes).slice(0,15);
+  const passeurs = players.filter(p=>(p.passes||0)>0).sort((a,b)=>(b.passes||0)-(a.passes||0)).slice(0,15);
+  const notes = players.filter(p=>(p.noteMatchs||0)>=minMatchs)
+    .map(p=>({ ...p, avg:FM.playerAvgNote(p) }))
+    .sort((a,b)=>b.avg-a.avg).slice(0,15);
+  return { buteurs, passeurs, notes };
+};
 
 /* Mises à jour post-journée : forme, moral, mercato IA, actualités */
 function postMatchdayUpdates(myResult){
@@ -345,25 +396,48 @@ FM.endSeason = function(){
   const rank = t.findIndex(c=>c.id===FM.state.managedClubId)+1;
   const champ = t[0];
   FM.snapshotFinalTables();                 // mémorise le classement final pour les coupes
+
+  // --- Trophées individuels du championnat (avant remise à zéro des stats) ---
+  const lb = FM.leaderboards(FM.state.ligueJoueur, 8);
+  const potm = lb.notes[0];                 // Joueur de la saison (meilleure moyenne)
+  const pichichi = lb.buteurs[0];           // Meilleur buteur
+  const passeur = lb.passeurs[0];           // Meilleur passeur
+  const trophies = {
+    joueur:   potm ? { nom:potm.nom, club:potm.clubNom, avg:+FM.playerAvgNote(potm).toFixed(2) } : null,
+    buteur:   pichichi ? { nom:pichichi.nom, club:pichichi.clubNom, buts:pichichi.buts } : null,
+    passeur:  passeur ? { nom:passeur.nom, club:passeur.clubNom, passes:passeur.passes||0 } : null
+  };
+  if (trophies.buteur) addNews(`👑 Meilleur buteur ${FM.state.ligueJoueur} : ${trophies.buteur.nom} (${trophies.buteur.club}) — ${trophies.buteur.buts} buts.`);
+  if (trophies.passeur) addNews(`🅰️ Meilleur passeur : ${trophies.passeur.nom} (${trophies.passeur.club}) — ${trophies.passeur.passes} passes déc.`);
+  if (trophies.joueur) addNews(`🌟 Joueur de la saison : ${trophies.joueur.nom} (${trophies.joueur.club}) — note moyenne ${trophies.joueur.avg}.`);
+
   const euroPrize = europeanPrize();        // prime selon le parcours européen
+  const euroSum = FM.state.europe ? europeSummary() : null;
+
+  // --- Supercoupe d'Europe : vainqueur C1 vs vainqueur C3 (saison écoulée) ---
+  const superCup = playSuperCup();
+
   FM.state.historique.push({
     saison: FM.state.saison,
     classement: rank,
     champion: champ.nom,
     pts: FM.myClub().pts,
-    europe: FM.state.europe ? europeSummary() : null
+    europe: euroSum,
+    trophies,
+    superCup
   });
   addNews(`🏁 Fin de saison ${FM.state.saison} : ${champ.nom} champion. ${FM.myClub().nom} termine ${rank}${rank===1?"er":"e"}.`);
 
   // Nouvelle saison : reset tables, vieillissement, budget
   const my = FM.myClub();
-  const bonus = (rank<=3 ? 30 : rank<=6 ? 15 : rank<=10 ? 5 : 0) + euroPrize;
+  let bonus = (rank<=3 ? 30 : rank<=6 ? 15 : rank<=10 ? 5 : 0) + euroPrize;
+  if (superCup && superCup.playerWon) bonus += 8;
   if (euroPrize>0) addNews(`💶 Recettes des coupes d'Europe : +${euroPrize.toFixed(0)} M€.`);
   for (const c of FM.state.db.clubs){
     c.pts=c.j=c.g=c.n=c.p=c.bp=c.bc=0;
     c.budget += c.budgetTotal*0.12 + (c===my?bonus:0);
     for (const p of c.joueurs){
-      p.age++; p.matchs=0; p.buts=0;
+      p.age++; p.matchs=0; p.buts=0; p.passes=0; p.noteTotale=0; p.noteMatchs=0;
       // progression / déclin
       if (p.age<=23 && p.note<p.potentiel) p.note=Math.min(p.potentiel,p.note+FM._ri(0,3));
       else if (p.age>=31) p.note=Math.max(40,p.note-FM._ri(0,2));
@@ -372,6 +446,10 @@ FM.endSeason = function(){
     }
     c.onze = FM.autoPickXI(c);
   }
+
+  // --- Montées / descentes dans le championnat du joueur ---
+  const promoRelegation = applyPromotionRelegation(t);
+
   FM.state.saison++;
   FM.state.journee=0;
   FM.state.resultats=[];
@@ -383,6 +461,99 @@ FM.endSeason = function(){
     (pc ? ` Qualifié en ${FM.state.europe[pc].nom} !` : ` (Non qualifié en coupe d'Europe.)`));
   FM.save();
 };
+
+/* ---------- Supercoupe d'Europe ----------
+   Oppose le vainqueur de la Ligue des Champions au vainqueur de la Ligue Europa
+   de la saison qui s'achève. Simulée et annoncée ; mise en avant si le club
+   du joueur est concerné. Renvoie null si les vainqueurs ne sont pas connus. */
+function playSuperCup(){
+  const e = FM.state.europe;
+  if (!e || !e.UCL || !e.UEL) return null;
+  // S'assurer que C1 & C3 ont un vainqueur (auto-complète si le joueur n'a pas terminé)
+  if (!FM.compFinished(e.UCL)) FM.autoCompleteClubComp(e.UCL);
+  if (!FM.compFinished(e.UEL)) FM.autoCompleteClubComp(e.UEL);
+  const ucl = FM.compChampionTeam(e.UCL);
+  const uel = FM.compChampionTeam(e.UEL);
+  if (!ucl || !uel) return null;
+  // Force d'équipe = note d'effectif pré-calculée + aléa
+  const sA = (ucl.note||70)+FM._rnd()*6, sB = (uel.note||70)+FM._rnd()*6;
+  let ga = 1 + Math.round(Math.max(0,(sA-sB))/5 + FM._rnd()*2);
+  let gb = 1 + Math.round(Math.max(0,(sB-sA))/5 + FM._rnd()*2);
+  let winner;
+  if (ga===gb){ // prolongation / tirs au but
+    winner = FM._rnd() < (sA/(sA+sB)) ? ucl : uel;
+  } else winner = ga>gb ? ucl : uel;
+  const myId = FM.state.managedClubId;
+  const isMe = t => (t.ref===myId || t.key===myId);
+  const playerInvolved = isMe(ucl) || isMe(uel);
+  const playerWon = isMe(winner);
+  addNews(`🏆⭐ Supercoupe d'Europe : ${ucl.nom} ${ga}–${gb} ${uel.nom}. ${winner.nom} soulève le trophée !` +
+    (playerInvolved ? (playerWon ? " Bravo, c'est VOTRE club !" : " Votre club s'incline de justesse.") : ""));
+  return { ucl:ucl.nom, uel:uel.nom, ga, gb, vainqueur:winner.nom, playerInvolved, playerWon };
+}
+
+/* ---------- Montées / descentes ----------
+   Reproduit le renouvellement du championnat entre deux saisons : les derniers
+   du classement (hors club du joueur) sont relégués et remplacés par des promus
+   générés. Le club du joueur n'est jamais relégué (pas de division inférieure
+   modélisée) — la carrière continue toujours dans l'élite.                     */
+function applyPromotionRelegation(finalTable){
+  const lgId = FM.state.ligueJoueur;
+  const lgMeta = FM.LEAGUES.find(l=>l.id===lgId);
+  const N = finalTable.length >= 20 ? 3 : (finalTable.length >= 14 ? 2 : 1);
+  // Candidats à la descente : du bas vers le haut, hors club du joueur
+  const relegated = [];
+  for (let i=finalTable.length-1; i>=0 && relegated.length<N; i--){
+    if (finalTable[i].id !== FM.state.managedClubId) relegated.push(finalTable[i]);
+  }
+  const relIds = new Set(relegated.map(c=>c.id));
+  FM.state.db.clubs = FM.state.db.clubs.filter(c=>!relIds.has(c.id));
+  // Promus générés
+  const promoted = [];
+  for (let i=0;i<relegated.length;i++){
+    const club = makePromotedClub(lgMeta);
+    FM.state.db.clubs.push(club);
+    promoted.push(club.nom);
+  }
+  if (relegated.length){
+    addNews(`⬇️ Relégations (${lgMeta.nom}) : ${relegated.map(c=>c.nom).join(", ")}.`);
+    addNews(`⬆️ Promus : ${promoted.join(", ")}.`);
+  }
+  return { releguees: relegated.map(c=>c.nom), promues: promoted };
+}
+
+/* Génère un club promu (nom unique, effectif modeste type promu) */
+const PROMO_NAMES = ["Athletic","Sporting","Union","Racing","Real","Atlético","City","United",
+  "Olympique","Dynamo","Rovers","Wanderers","Forest","Metropolitan","Provincial","Étoile"];
+const PROMO_SUFFIX = ["FC","SC","CF","AC","Club","1919","1908","Town"];
+function makePromotedClub(lgMeta){
+  const existing = new Set(FM.state.db.clubs.map(c=>c.nom));
+  let nom;
+  for (let tries=0; tries<40; tries++){
+    nom = FM._pick(PROMO_NAMES)+" "+FM._pick(PROMO_SUFFIX);
+    if (!existing.has(nom)) break;
+  }
+  if (existing.has(nom)) nom = nom+" "+(FM.state.saison+1);
+  const rep = 1;
+  const budgetTotal = 16;
+  const newId = Math.max(...FM.state.db.clubs.map(c=>c.id)) + 1;
+  // Ids joueurs garantis uniques (PID est réinitialisé au rechargement de page)
+  let maxPid = 0;
+  for (const c of FM.state.db.clubs) for (const p of c.joueurs) if (p.id>maxPid) maxPid=p.id;
+  const squad = FM.makeMasterSquad(lgMeta.pays);
+  squad.forEach(p => { p.id = ++maxPid; });
+  const club = {
+    id: newId, nom, ligue: lgMeta.id, ligueNom: lgMeta.nom, pays: lgMeta.pays,
+    couleurs: ["#374151","#e5e7eb"],
+    rep, budget: budgetTotal*0.2, budgetTotal,
+    joueurs: squad,
+    formation: "4-4-2",
+    tactique: { mentalite:1, tempo:1, pressing:1, largeur:1 },
+    onze: [], pts:0, j:0, g:0, n:0, p:0, bp:0, bc:0
+  };
+  club.onze = FM.autoPickXI(club);
+  return club;
+}
 
 /* Prime européenne = phase de ligue + tours à élimination directe */
 function europeanPrize(){

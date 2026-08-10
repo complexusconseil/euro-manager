@@ -21,9 +21,15 @@ La partie est **sauvegardée automatiquement** dans le navigateur (localStorage)
 - **Mode Master League** (esprit PES 5/6) — créez votre propre club, choisissez ses couleurs, démarrez avec un effectif « maison » modeste et un petit budget (à la place du club le plus faible du championnat choisi), puis bâtissez une grande équipe au fil des saisons.
 - **Mode International** — disputez le **Championnat d'Europe** (16 nations) ou la **Coupe du Monde** (32 nations) avec la sélection de votre choix, en élimination directe.
 
-## 🌍 Championnats (11 pays)
+## 🌍 Championnats (15 pays)
 
-Compositions réelles 2026-27, ~195 clubs : Ligue 1 🇫🇷, Premier League 🏴, La Liga 🇪🇸, Serie A 🇮🇹, Bundesliga 🇩🇪, Primeira Liga 🇵🇹, Eredivisie 🇳🇱, Pro League 🇧🇪, Süper Lig 🇹🇷, Scottish Premiership 🏴, **Premier Liga russe 🇷🇺**.
+Compositions réelles 2026-27, ~253 clubs : Ligue 1 🇫🇷, Premier League 🏴, La Liga 🇪🇸, Serie A 🇮🇹, Bundesliga 🇩🇪, Primeira Liga 🇵🇹, Eredivisie 🇳🇱, Pro League 🇧🇪, Süper Lig 🇹🇷, Scottish Premiership 🏴, Premier Liga russe 🇷🇺, **Super League grecque 🇬🇷, Super League suisse 🇨🇭, Bundesliga autrichienne 🇦🇹, Premier League ukrainienne 🇺🇦**.
+
+Entre deux saisons, chaque championnat se renouvelle : les derniers du classement sont **relégués** et remplacés par des **promus** (montées/descentes).
+
+## 🎥 Moteur 3D immersif
+
+Les matchs se jouent avec un **rendu 3D du terrain** (moteur Three.js embarqué, 100 % hors-ligne) : caméra de retransmission qui suit le ballon, 22 joueurs aux couleurs des deux clubs, buts et célébrations en direct, HUD score/minute. Bascule possible vers un rendu 2D léger via la case **« Rendu 3D »** de l'écran d'accueil (utile sur machines modestes).
 
 ## 🏆 Compétitions européennes (mode Carrière & Master League)
 
@@ -31,6 +37,7 @@ Onglet **Europe** : qualification par **coefficient UEFA** — chaque pays reço
 
 - **Phase de ligue** (saison régulière) : un championnat à classement unique (8 journées en C1/C3, 6 en Conférence). Vous jouez vos matchs (ou simulez la journée / toute la phase). Les **16 premiers** se qualifient.
 - **Phase finale** : élimination directe en **matchs aller-retour** (score cumulé, tirs au but si égalité ; **finale sèche**) — vous jouez l'aller puis le retour, animés.
+- **Supercoupe d'Europe** : le vainqueur de la Ligue des Champions affronte celui de la Ligue Europa en début de saison suivante (mise en avant si votre club est concerné).
 - Recettes européennes selon le parcours ; qualification recalculée chaque saison.
 
 ## 🌐 Sélections nationales réelles (50 nations)
@@ -40,7 +47,8 @@ En mode International, **toutes les sélections** (Europe, Amériques, Afrique, 
 ## ✨ Fonctionnalités
 
 - **Base de données de clubs européens** — les 5 grands championnats aux **compositions réelles 2026-27** : Ligue 1 🇫🇷 (18), Premier League 🏴 (20), La Liga 🇪🇸 (20), Serie A 🇮🇹 (20), Bundesliga 🇩🇪 (18) — soit 96 clubs, promotions/relégations incluses. Effectifs réels à jour au 10/08/2026 (mercato d'été inclus).
-- **Gestion de l'effectif** — consultez notes, potentiel, forme, moral, valeur marchande et statistiques de chaque joueur.
+- **Gestion de l'effectif** — consultez notes, potentiel, forme, moral, valeur marchande et **statistiques détaillées** de chaque joueur : matchs, **buts**, **passes décisives** et **note moyenne** de match.
+- **Statistiques & trophées** — classements du championnat en direct : **meilleurs buteurs**, **meilleurs passeurs**, **meilleures notes moyennes**. En fin de saison : Meilleur buteur, Meilleur passeur et **Joueur de la saison** (meilleure note moyenne).
 - **Mercato (acheter / vendre)** — recherchez des joueurs dans toute l'Europe avec filtres (poste, note, âge), faites des offres, négociez selon votre budget. Placez vos joueurs sur la liste des transferts et recevez des offres des clubs IA.
 - **Tactique avant match** — choisissez votre formation (4-4-2, 4-3-3, 4-2-3-1, 3-5-2, 5-3-2, 4-5-1), composez votre onze sur un terrain visuel, et réglez vos consignes (mentalité, tempo, pressing) qui influencent réellement la simulation.
 - **Matchs simulés** — moteur basé sur la force des lignes (attaque / milieu / défense), la tactique, l'avantage du terrain et une part d'aléatoire. Match joué avec animation minute par minute et buteurs, ou simulation rapide.
@@ -56,15 +64,20 @@ En mode International, **toutes les sélections** (Europe, Amériques, Afrique, 
 
 ## 🛠 Technique
 
-100 % HTML / CSS / JavaScript vanilla, aucune dépendance externe.
+100 % HTML / CSS / JavaScript vanilla. Seule dépendance : **Three.js** (moteur 3D), embarqué dans `js/vendor/` (licence MIT) — aucune connexion internet requise.
 
 | Fichier | Rôle |
 |---|---|
 | `index.html` | Page principale |
 | `css/style.css` | Interface (thème stade) |
-| `js/data.js` | Base de données : clubs européens + générateur de joueurs |
+| `js/realdata.js` | Données réelles : couleurs & effectifs des 253 clubs |
+| `js/data.js` | Base de données : championnats + générateur de joueurs |
 | `js/engine.js` | Moteur : composition, forces d'équipe, simulation de match |
-| `js/game.js` | Carrière : calendrier, classement, mercato, sauvegarde |
+| `js/game.js` | Carrière : calendrier, classement, mercato, stats, montées/descentes, sauvegarde |
+| `js/natdata.js` | Vraies sélections nationales (50 nations) |
+| `js/cups.js` | Coupes d'Europe (phase de ligue + phase finale), Supercoupe, sélections |
+| `js/match3d.js` | Moteur 3D des matchs (Three.js) |
 | `js/ui.js` | Rendu des écrans et interactions |
+| `js/vendor/three.min.js` | Three.js (MIT) — rendu 3D hors-ligne |
 
 Bon jeu ! ⚽

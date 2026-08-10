@@ -159,6 +159,34 @@ const LEAGUES = [
     ["Akhmat Grozny",2,22],    ["Akron Togliatti",2,22],    ["Baltika Kaliningrad",2,22],
     ["Dynamo Makhachkala",2,22],    ["Orenburg",2,22],    ["Rodina Moskva",1,12],
     ["Fakel Voronezh",1,12]
+  ]},
+  { id:"GRE", nom:"Super League (Grèce)", pays:"GRE", clubs:[
+    ["Olympiacos",3,45],    ["PAOK",3,45],    ["AEK Athens",3,45],
+    ["Panathinaikos",3,45],    ["Aris",2,22],    ["OFI Crete",2,22],
+    ["Atromitos",2,22],    ["Levadiakos",1,12],    ["Volos",2,22],
+    ["Asteras Tripolis",2,22],    ["Kifisia",1,12],    ["Panetolikos",1,12],
+    ["Iraklis",1,12],    ["Kalamata",1,12]
+  ]},
+  { id:"SUI", nom:"Super League (Suisse)", pays:"SUI", clubs:[
+    ["Young Boys",3,45],    ["Basel",3,45],    ["Lugano",2,22],
+    ["Servette",2,22],    ["Lucerne",2,22],    ["St. Gallen",2,22],
+    ["Zurich",2,22],    ["Sion",2,22],    ["Lausanne-Sport",2,22],
+    ["Grasshopper",2,22],    ["Thun",1,12],    ["Vaduz",1,12]
+  ]},
+  { id:"AUT", nom:"Bundesliga (Autriche)", pays:"AUT", clubs:[
+    ["Red Bull Salzburg",3,45],    ["Sturm Graz",3,45],    ["Rapid Wien",2,22],
+    ["Austria Wien",2,22],    ["LASK",2,22],    ["Wolfsberger AC",2,22],
+    ["TSV Hartberg",1,12],    ["SCR Altach",1,12],    ["WSG Tirol",1,12],
+    ["Grazer AK",1,12],    ["SV Ried",1,12],    ["Austria Lustenau",1,12]
+  ]},
+  { id:"UKR", nom:"Premier League (Ukraine)", pays:"UKR", clubs:[
+    ["Shakhtar Donetsk",3,45],    ["Dynamo Kyiv",3,45],    ["Polissya Zhytomyr",2,22],
+    ["Kryvbas Kryvyi Rih",2,22],    ["Oleksandriya",2,22],    ["Zorya Luhansk",2,22],
+    ["Karpaty Lviv",2,22],    ["Rukh Lviv",1,12],    ["Kolos Kovalivka",1,12],
+    ["Veres Rivne",1,12],    ["Chornomorets Odesa",2,22],    ["Obolon Kyiv",1,12],
+    ["LNZ Cherkasy",1,12],    ["FC Kharkiv",2,22],    ["Kudrivka",1,12],
+    ["Epitsentr Dunaivtsi",1,12],    ["Bukovyna Chernivtsi",1,12],    ["SC Poltava",1,12],
+    ["Desna Chernihiv",1,12],    ["Metalurh Zaporizhzhia",1,12]
   ]}
 ];
 

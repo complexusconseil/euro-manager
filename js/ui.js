@@ -165,6 +165,17 @@ function renderStart(){
     card.appendChild(del);
   }
   wrap.appendChild(card);
+
+  // Bascule rendu 3D / 2D des matchs
+  const rt = el("label","render-toggle");
+  const cb = el("input"); cb.type="checkbox"; cb.checked = localStorage.getItem("fm_render2d")!=="1";
+  cb.onchange = ()=>{ localStorage.setItem("fm_render2d", cb.checked?"0":"1"); };
+  rt.appendChild(cb);
+  const has3d = window.FM3D && FM3D.available();
+  rt.appendChild(el("span",null,"🎮 Rendu 3D des matchs (immersif)"+(has3d?"":" — indisponible sur ce navigateur")));
+  if(!has3d) cb.disabled=true;
+  wrap.appendChild(rt);
+
   wrap.appendChild(el("p","hint","💾 Partie sauvegardée automatiquement dans votre navigateur (localStorage)."));
   app.appendChild(wrap);
 }
@@ -294,69 +305,56 @@ function renderHome(body){
   body.appendChild(news);
 }
 
-/* ============= DÉROULÉ DU MATCH (animation) ============= */
+/* ============= VISUALISATION DES MATCHS (3D ou 2D) ============= */
+function use3D(){ return localStorage.getItem("fm_render2d")!=="1" && window.FM3D && FM3D.available(); }
+
+/* Répartiteur : home/away = {nom,couleurs} ; events = [{min,joueur,home:bool}] */
+function watchMatch(home, away, hs, as, events, opts, onDone){
+  opts = opts || {};
+  if (use3D()){ window.FM3D.play({home,away,hs,as,events,label:opts.label,endText:opts.endText}, onDone); return; }
+  animate2D(home, away, hs, as, events, opts, onDone);
+}
+
+/* Repli 2D animé */
+function animate2D(home, away, hs, as, events, opts, onDone){
+  const overlay = el("div","overlay");
+  const box = el("div","match-live card");
+  box.innerHTML = `<div class="live-head">
+      <div class="lh-team">${clubCrest(home,34)} ${home.nom}</div>
+      <div class="live-score" id="lS">0 - 0</div>
+      <div class="lh-team">${away.nom} ${clubCrest(away,34)}</div></div>
+    ${opts.label?`<div class="leg-label">${opts.label}</div>`:''}
+    <div class="live-min" id="lM">Coup d'envoi…</div>
+    <div class="live-feed" id="lF"></div>`;
+  overlay.appendChild(box);
+  const skip = el("button","btn ghost","⏭ Passer"); box.appendChild(skip);
+  document.body.appendChild(overlay);
+  const feed=box.querySelector("#lF"), sEl=box.querySelector("#lS"), mEl=box.querySelector("#lM");
+  const ord = events.slice().sort((a,b)=>a.min-b.min);
+  let s=0,o=0,idx=0,minute=0,timer;
+  const line = e => el("div","feed-line "+(e.home?"left":"right"),`<span class="fmin">${e.min}'</span> ⚽ <b>${e.joueur}</b>`);
+  function finish(){ clearInterval(timer); s=hs;o=as; sEl.textContent=`${s} - ${o}`;
+    mEl.textContent=(opts.endText?opts.endText+" · ":"")+"Coup de sifflet final ⏱";
+    skip.textContent="✔ Continuer"; skip.className="btn primary"; skip.onclick=()=>{ overlay.remove(); onDone&&onDone(); }; }
+  skip.onclick=finish;
+  timer=setInterval(()=>{ minute+=3; if(minute>90){finish();return;}
+    mEl.textContent=`${opts.label?opts.label+" · ":""}${minute}'`;
+    while(idx<ord.length && ord[idx].min<=minute){ const e=ord[idx++]; if(e.home)s++;else o++;
+      sEl.textContent=`${s} - ${o}`; const l=line(e); l.classList.add("flash"); feed.prepend(l); }
+  },220);
+}
+
+/* Match de championnat du joueur */
 function playMatchFlow(){
   const my = FM.myClub();
-  // Vérifier onze complet
-  const missing = my.onze.filter(s=>!s.id).length;
-  if (missing){ toast("⚠ Onze incomplet — complétez votre équipe (Tactique)."); currentTab="tactique"; renderGame(); return; }
-
+  if (my.onze.filter(s=>!s.id).length){ toast("⚠ Onze incomplet — complétez votre équipe (Tactique)."); currentTab="tactique"; renderGame(); return; }
   const res = FM.playMatchday();
   const mr = res.myResult;
   if (!mr){ renderGame(); return; }
   const dom = FM.clubById(mr.dom), ext = FM.clubById(mr.ext);
-
-  const overlay = el("div","overlay");
-  const box = el("div","match-live card");
-  box.innerHTML = `<div class="live-head">
-      <div class="lh-team">${clubCrest(dom,34)} ${dom.nom}</div>
-      <div class="live-score" id="liveScore">0 - 0</div>
-      <div class="lh-team">${ext.nom} ${clubCrest(ext,34)}</div>
-    </div>
-    <div class="live-min" id="liveMin">Coup d'envoi…</div>
-    <div class="live-feed" id="liveFeed"></div>`;
-  overlay.appendChild(box);
-  const skip = el("button","btn ghost","⏭ Passer");
-  box.appendChild(skip);
-  document.body.appendChild(overlay);
-
-  const events = mr.events.slice().sort((a,b)=>a.min-b.min);
-  let ds=0, es=0, idx=0, minute=0;
-  const feed = box.querySelector("#liveFeed");
-  const scoreEl = box.querySelector("#liveScore");
-  const minEl = box.querySelector("#liveMin");
-
-  function finish(){
-    ds=mr.ds; es=mr.es;
-    scoreEl.textContent = `${ds} - ${es}`;
-    minEl.textContent = "Coup de sifflet final ⏱";
-    // afficher tous buts manqués
-    feed.innerHTML="";
-    events.forEach(e=> feed.appendChild(buteurLine(e, dom, ext)));
-    skip.textContent="✔ Continuer";
-    skip.className="btn primary";
-    skip.onclick=()=>{ overlay.remove(); currentTab="accueil"; renderGame(); };
-    clearInterval(timer);
-  }
-  skip.onclick = finish;
-
-  const timer = setInterval(()=>{
-    minute += 3;
-    if (minute>90){ finish(); return; }
-    minEl.textContent = `${minute}'`;
-    while (idx<events.length && events[idx].min<=minute){
-      const e = events[idx++];
-      if (e.clubId===dom.id) ds++; else es++;
-      scoreEl.textContent = `${ds} - ${es}`;
-      const line = buteurLine(e, dom, ext);
-      line.classList.add("flash");
-      feed.prepend(line);
-    }
-  }, 220);
-}
-function buteurLine(e, dom, ext){
-  const side = e.clubId===dom.id ? "left":"right";
-  return el("div","feed-line "+side, `<span class="fmin">${e.min}'</span> ⚽ <b>${e.joueur}</b> <small>(${e.club})</small>`);
+  const events = mr.events.map(e=>({ min:e.min, joueur:e.joueur, home:e.clubId===dom.id }));
+  watchMatch({nom:dom.nom,couleurs:dom.couleurs}, {nom:ext.nom,couleurs:ext.couleurs}, mr.ds, mr.es, events,
+    {label:`${dom.ligueNom}`}, ()=>{ currentTab="accueil"; renderGame(); });
 }
 
 /* ============= EFFECTIF ============= */
@@ -368,7 +366,7 @@ function renderSquad(body){
   const table = el("table","squad-table");
   table.innerHTML = `<thead><tr>
     <th>Poste</th><th>Nom</th><th>Nat</th><th>Âge</th><th>Note</th><th>Pot</th>
-    <th>Valeur</th><th>Forme</th><th>Moral</th><th>Buts</th><th></th></tr></thead>`;
+    <th>Valeur</th><th>Forme</th><th>Moral</th><th title="Matchs">M</th><th title="Buts">⚽</th><th title="Passes déc.">🅰️</th><th title="Note moyenne">Moy</th><th></th></tr></thead>`;
   const tb = el("tbody");
   const order = {G:0,D:1,M:2,A:3};
   my.joueurs.slice().sort((a,b)=> order[a.groupe]-order[b.groupe] || b.note-a.note).forEach(p=>{
@@ -384,7 +382,10 @@ function renderSquad(body){
       <td>${p.valeur.toFixed(1)} M€</td>
       <td>${formeIcon(p.forme)}</td>
       <td>${moralBar(p.moral)}</td>
+      <td>${p.matchs||0}</td>
       <td>${p.buts}</td>
+      <td>${p.passes||0}</td>
+      <td>${p.noteMatchs?('<b class="note '+noteClass((FM.playerAvgNote(p))*10)+'">'+FM.playerAvgNote(p).toFixed(2)+'</b>'):'—'}</td>
       <td></td>`;
     const btn = el("button","btn tiny "+(p.transferListe?"danger-ghost":"ghost"), p.transferListe?"Retirer":"Vendre");
     btn.onclick=()=>{ FM.toggleTransferList(p.id); renderGame(); };
@@ -620,12 +621,10 @@ function playLeagueMatch(comp){
   const me = FM.myClub();
   const oppIdx = pm.playerHome?pm.away:pm.home;
   const opp = { nom:comp.teams[oppIdx].nom, couleurs:comp.teams[oppIdx].couleurs };
-  const self = pm.playerHome?m.hs:m.as, oppS = pm.playerHome?m.as:m.hs;
-  const evs = m.events.map(ev=>({ min:ev.min, joueur:ev.joueur, me:(ev.home===pm.playerHome) }));
-  animateMatch(me, opp, self, oppS, null, pm.playerHome, evs, {label:"Phase de ligue", noVerdict:true}, ()=>{
-    FM.lpResolveRound(comp, { hs:m.hs, as:m.as });
-    FM.save(); renderGame();
-  });
+  const homeT = comp.teams[pm.home], awayT = comp.teams[pm.away];
+  const evs = m.events.map(ev=>({ min:ev.min, joueur:ev.joueur, home:ev.home }));
+  watchMatch({nom:homeT.nom,couleurs:homeT.couleurs}, {nom:awayT.nom,couleurs:awayT.couleurs}, m.hs, m.as, evs,
+    {label:"Phase de ligue"}, ()=>{ FM.lpResolveRound(comp, { hs:m.hs, as:m.as }); FM.save(); renderGame(); });
 }
 
 /* Historique des tours d'une compétition (met en avant le club du joueur) */
@@ -673,20 +672,26 @@ function playCupTie(comp){
   const opp = { nom:oppTeam.nom, couleurs:oppTeam.couleurs };
   const finish = ()=>{ FM.resolveTournamentRound(comp, res); advanceAllCups(true); FM.save(); renderGame(); };
 
+  const meInfo = {nom:me.nom, couleurs:me.couleurs};
   if (!res.twoLeg){
     const selfScore = playerA?res.as:res.es, oppScore = playerA?res.es:res.as;
-    const evs = (res.ev1||[]).map(ev=>({ min:ev.min, joueur:ev.joueur, me:(ev.side==="a")===playerA }));
-    animateMatch(me, opp, selfScore, oppScore, res.pen, playerA, evs, {label:""}, finish);
+    const evs = (res.ev1||[]).map(ev=>({ min:ev.min, joueur:ev.joueur, home:(ev.side==="a")===playerA }));
+    const won = selfScore>oppScore || (selfScore===oppScore && res.pen && ((playerA?res.pen[0]:res.pen[1])>(playerA?res.pen[1]:res.pen[0])));
+    const ptxt = res.pen ? ` (tab ${playerA?res.pen[0]:res.pen[1]}-${playerA?res.pen[1]:res.pen[0]})` : "";
+    watchMatch(meInfo, opp, selfScore, oppScore, evs, {label:comp.nom, endText:(won?"✅ Qualifié":"❌ Éliminé")+ptxt}, finish);
     return;
   }
   // ALLER puis RETOUR, verdict au cumul
   const l1s = playerA?res.leg1.as:res.leg1.es, l1o = playerA?res.leg1.es:res.leg1.as;
-  const l1ev = (res.leg1.ev||[]).map(ev=>({ min:ev.min, joueur:ev.joueur, me:(ev.home===playerA) }));
+  const l1ev = (res.leg1.ev||[]).map(ev=>({ min:ev.min, joueur:ev.joueur, home:(ev.home===playerA) }));
   const l2s = playerA?res.leg2.as:res.leg2.es, l2o = playerA?res.leg2.es:res.leg2.as;
-  const l2ev = (res.leg2.ev||[]).map(ev=>({ min:ev.min, joueur:ev.joueur, me:(ev.home!==playerA) }));
-  animateMatch(me, opp, l1s, l1o, null, playerA, l1ev, {label:"Aller"}, ()=>{
-    animateMatch(me, opp, l2s, l2o, res.pen, playerA, l2ev,
-      { label:"Retour", agg:{ self:l1s+l2s, opp:l1o+l2o, pen:res.pen, playerA } }, finish);
+  const l2ev = (res.leg2.ev||[]).map(ev=>({ min:ev.min, joueur:ev.joueur, home:(ev.home!==playerA) }));
+  const aggS=l1s+l2s, aggO=l1o+l2o;
+  const won = aggS>aggO || (aggS===aggO && res.pen && ((playerA?res.pen[0]:res.pen[1])>(playerA?res.pen[1]:res.pen[0])));
+  const ptxt = res.pen ? ` tab ${playerA?res.pen[0]:res.pen[1]}-${playerA?res.pen[1]:res.pen[0]}` : "";
+  watchMatch(meInfo, opp, l1s, l1o, l1ev, {label:"Aller · "+comp.nom}, ()=>{
+    watchMatch(meInfo, opp, l2s, l2o, l2ev,
+      {label:"Retour", endText:`Cumul ${aggS}-${aggO}${ptxt} · ${won?"✅ Qualifié":"❌ Éliminé"}`}, finish);
   });
 }
 
@@ -809,9 +814,12 @@ function playIntlTie(){
   const [a,b] = tie; const res = FM.simCupMatch(comp,a,b); const playerA=(a===comp.playerSeed);
   const meN = comp.teams[comp.playerSeed], oppN = comp.teams[playerA?b:a];
   const selfScore = playerA?res.as:res.es, oppScore = playerA?res.es:res.as;
-  const evs = res.events.map(ev=>({min:ev.min, joueur:ev.joueur, me:(ev.side==="a")===playerA}));
-  animateMatch({nom:meN.nom,couleurs:meN.couleurs}, {nom:oppN.nom,couleurs:oppN.couleurs},
-    selfScore, oppScore, res.pen, playerA, evs, {label:""}, ()=>{ FM.resolveTournamentRound(comp,res); renderTournament(); });
+  const evs = res.events.map(ev=>({min:ev.min, joueur:ev.joueur, home:(ev.side==="a")===playerA}));
+  const won = selfScore>oppScore || (selfScore===oppScore && res.pen && ((playerA?res.pen[0]:res.pen[1])>(playerA?res.pen[1]:res.pen[0])));
+  const ptxt = res.pen ? ` (tab ${playerA?res.pen[0]:res.pen[1]}-${playerA?res.pen[1]:res.pen[0]})` : "";
+  watchMatch({nom:meN.nom,couleurs:meN.couleurs}, {nom:oppN.nom,couleurs:oppN.couleurs},
+    selfScore, oppScore, evs, {label:comp.nom, endText:(won?"✅ Qualifié":"❌ Éliminé")+ptxt},
+    ()=>{ FM.resolveTournamentRound(comp,res); renderTournament(); });
 }
 
 /* ============= MERCATO ============= */
@@ -932,19 +940,22 @@ function renderTable(body){
   card.appendChild(el("p","legend","🟩 Ligue des Champions (1-3) · 🟦 Europa (4-6) · 🟥 Relégation (3 derniers)"));
   body.appendChild(card);
 
-  // Meilleurs buteurs
-  const scorers = [];
-  FM.state.db.clubs.filter(c=>c.ligue===FM.state.ligueJoueur).forEach(c=>
-    c.joueurs.forEach(p=>{ if(p.buts>0) scorers.push({...p, club:c.nom}); }));
-  scorers.sort((a,b)=>b.buts-a.buts);
-  if (scorers.length){
-    const sc = el("div","card");
-    sc.appendChild(el("h3",null,"👟 Meilleurs buteurs"));
+  // Classements individuels : buteurs, passeurs, notes
+  const lb = FM.leaderboards(FM.state.ligueJoueur, 5);
+  const boards = el("div","boards");
+  function board(title, items, fmt){
+    if (!items.length) return;
+    const sc = el("div","card board");
+    sc.appendChild(el("h3",null,title));
     const ol = el("ol","scorers");
-    scorers.slice(0,10).forEach(p=> ol.appendChild(el("li",null,`<b>${p.buts}</b> — ${p.nom} <small>(${p.club})</small>`)));
+    items.slice(0,10).forEach(p=> ol.appendChild(el("li",null,fmt(p))));
     sc.appendChild(ol);
-    body.appendChild(sc);
+    boards.appendChild(sc);
   }
+  board("👟 Meilleurs buteurs", lb.buteurs, p=>`<b>${p.buts}</b> — ${p.nom} <small>(${p.clubNom})</small>`);
+  board("🅰️ Meilleurs passeurs", lb.passeurs, p=>`<b>${p.passes||0}</b> — ${p.nom} <small>(${p.clubNom})</small>`);
+  board("🌟 Meilleures notes", lb.notes, p=>`<b>${FM.playerAvgNote(p).toFixed(2)}</b> — ${p.nom} <small>(${p.clubNom}, ${p.noteMatchs} m)</small>`);
+  body.appendChild(boards);
 }
 
 /* ============= CALENDRIER ============= */
