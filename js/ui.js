@@ -414,15 +414,44 @@ function renderSquad(body){
       <td>${p.noteMatchs?('<b class="note '+noteClass((FM.playerAvgNote(p))*10)+'">'+FM.playerAvgNote(p).toFixed(2)+'</b>'):'—'}</td>
       <td></td>`;
     tr.querySelector(".player-link").onclick=()=> openPlayerCard(p, my.nom);
-    const btn = el("button","btn tiny "+(p.transferListe?"danger-ghost":"ghost"), p.transferListe?"Retirer":"Vendre");
-    btn.onclick=()=>{ FM.toggleTransferList(p.id); renderGame(); };
-    tr.lastChild.appendChild(btn);
+    if (p.loan && p.loan.borrowerId===my.id){
+      // Joueur prêté chez nous : badge + rendre
+      const badge = el("span","tag loan-tag","🔁 Prêt "+(p.loan.parentNom||''));
+      tr.lastChild.appendChild(badge);
+      const rb = el("button","btn tiny danger-ghost","Rendre");
+      rb.onclick=()=>{ FM.recallLoan(p.id); renderGame(); };
+      tr.lastChild.appendChild(rb);
+    } else {
+      const btn = el("button","btn tiny "+(p.transferListe?"danger-ghost":"ghost"), p.transferListe?"Retirer":"Vendre");
+      btn.onclick=()=>{ FM.toggleTransferList(p.id); renderGame(); };
+      tr.lastChild.appendChild(btn);
+      const lb = el("button","btn tiny ghost","Prêter");
+      lb.onclick=()=>{ const r=FM.loanOut(p.id); toast(r.msg); renderGame(); };
+      tr.lastChild.appendChild(lb);
+    }
     tb.appendChild(tr);
   });
   table.appendChild(tb);
   const scroll = el("div","table-scroll"); scroll.appendChild(table);
   card.appendChild(scroll);
+  card.appendChild(el("p","hint","💡 Cliquez sur un nom pour la fiche du joueur. « Prêter » envoie un joueur en prêt une saison ; les prêts entrants portent le badge 🔁."));
   body.appendChild(card);
+
+  // Prêts sortants en cours (nos joueurs prêtés ailleurs)
+  const loans = FM.myLoans();
+  if (loans.out.length){
+    const lc = el("div","card");
+    lc.appendChild(el("h3",null,`🔁 Joueurs prêtés (${loans.out.length})`));
+    loans.out.forEach(p=>{
+      const row = el("div","offer-row");
+      row.innerHTML = `<span><span class="pos-badge ${p.groupe}">${p.pos}</span> <b>${p.nom}</b> (${p.note}) → <b>${p.holderNom}</b> · retour fin de saison</span>`;
+      const rb = el("button","btn small ghost","Rappeler");
+      rb.onclick=()=>{ FM.recallLoan(p.id); renderGame(); };
+      row.appendChild(rb);
+      lc.appendChild(row);
+    });
+    body.appendChild(lc);
+  }
 }
 
 /* Fiche joueur : identité, attributs, saison en cours, historique de carrière */
@@ -992,8 +1021,8 @@ function renderMarket(body){
   q.oninput=()=>{ marketFilter.q=q.value; refreshMarket(listBox); };
   filters.appendChild(q);
 
-  // Type : tous / agents libres / transférables
-  filters.appendChild(mkSel([["all","Tous les joueurs"],["libre","🆓 Agents libres"],["transf","Transférables"]],
+  // Type : tous / agents libres / transférables / en prêt
+  filters.appendChild(mkSel([["all","Tous les joueurs"],["libre","🆓 Agents libres"],["transf","Transférables"],["pret","🔁 Disponibles en prêt"]],
     marketFilter.type, v=>marketFilter.type=v));
   // Poste exact
   const posOpts = [["","Tous postes"]].concat(FM.POSITIONS.map(p=>[p, `${p} · ${FM.POS_LABEL[p]}`]));
@@ -1022,35 +1051,44 @@ function renderMarket(body){
 function refreshMarket(container){
   container.innerHTML="";
   const my = FM.myClub();
-  const list = FM.transferMarket({
-    type: marketFilter.type,
-    posteExact: marketFilter.posteExact,
-    noteMin: marketFilter.noteMin, potMin: marketFilter.potMin,
-    ageMax: marketFilter.ageMax===40?null:marketFilter.ageMax,
-    valeurMax: marketFilter.valeurMax||null,
-    sort: marketFilter.sort,
-    q: marketFilter.q, limit:80
-  });
+  const loanMode = marketFilter.type==="pret";
+  const list = loanMode
+    ? FM.loanablePlayers({ posteExact:marketFilter.posteExact, noteMin:marketFilter.noteMin,
+        ageMax: marketFilter.ageMax===40?null:marketFilter.ageMax, q:marketFilter.q, limit:80 })
+    : FM.transferMarket({
+        type: marketFilter.type, posteExact: marketFilter.posteExact,
+        noteMin: marketFilter.noteMin, potMin: marketFilter.potMin,
+        ageMax: marketFilter.ageMax===40?null:marketFilter.ageMax,
+        valeurMax: marketFilter.valeurMax||null, sort: marketFilter.sort,
+        q: marketFilter.q, limit:80
+      });
   const table = el("table","squad-table");
-  table.innerHTML = `<thead><tr><th>Poste</th><th>Nom</th><th>Club</th><th>Âge</th><th>Note</th><th>Valeur</th><th>Statut</th><th></th></tr></thead>`;
+  table.innerHTML = `<thead><tr><th>Poste</th><th>Nom</th><th>Club</th><th>Âge</th><th>Note</th><th>${loanMode?'Pot':'Valeur'}</th><th>Statut</th><th></th></tr></thead>`;
   const tb = el("tbody");
   list.forEach(p=>{
     const tr = el("tr", p.dispo?"listed":"");
     tr.innerHTML = `<td><span class="pos-badge ${p.groupe}">${p.pos}</span></td>
       <td><a class="player-link">${p.nom}</a> ${FLAG[p.nat]||''}</td><td>${p.clubNom}</td><td>${p.age}</td>
       <td><b class="note ${noteClass(p.note)}">${p.note}</b></td>
-      <td>${p.valeur.toFixed(1)} M€</td>
-      <td>${p.libre?'<span class="tag free">🆓 Libre</span>':(p.dispo?'<span class="tag">Transférable</span>':'—')}</td><td></td>`;
+      <td>${loanMode?p.potentiel:(p.valeur.toFixed(1)+' M€')}</td>
+      <td>${loanMode?('<span class="tag loan-tag">🔁 prêt '+FM.loanFee(p).toFixed(1)+' M€</span>')
+        :(p.libre?'<span class="tag free">🆓 Libre</span>':(p.dispo?'<span class="tag">Transférable</span>':'—'))}</td><td></td>`;
     tr.querySelector(".player-link").onclick=()=> openPlayerCard(p, p.clubNom);
-    const btn = el("button","btn tiny primary",p.libre?"Signer":"Offre");
-    btn.onclick=()=> openBid(p);
-    tr.lastChild.appendChild(btn);
+    if (loanMode){
+      const btn = el("button","btn tiny primary","Prêter chez moi");
+      btn.onclick=()=>{ const r=FM.loanIn(p.id); toast(r.msg); renderGame(); };
+      tr.lastChild.appendChild(btn);
+    } else {
+      const btn = el("button","btn tiny primary",p.libre?"Signer":"Offre");
+      btn.onclick=()=> openBid(p);
+      tr.lastChild.appendChild(btn);
+    }
     tb.appendChild(tr);
   });
   table.appendChild(tb);
   const scroll = el("div","table-scroll"); scroll.appendChild(table);
   container.appendChild(scroll);
-  if(!list.length) container.appendChild(el("p","hint","Aucun joueur ne correspond aux filtres."));
+  if(!list.length) container.appendChild(el("p","hint",loanMode?"Aucun joueur disponible en prêt selon ces filtres.":"Aucun joueur ne correspond aux filtres."));
 }
 function openBid(p){
   const my = FM.myClub();

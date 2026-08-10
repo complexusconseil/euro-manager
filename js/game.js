@@ -355,6 +355,8 @@ FM.buyPlayer = function(playerId, offreM){
     const prime = fa.valeur * 0.2 * will.mult;             // prime à la signature attendue
     if (offreM < prime) return { ok:false, msg:`${fa.nom} attend une prime d'environ ${prime.toFixed(1)} M€ pour signer${will.mult>1?" (club ambitieux)":""}.` };
     FM.state.freeAgents = FM.state.freeAgents.filter(x=>x.id!==playerId);
+    FM.state.usedFreeAgents = FM.state.usedFreeAgents || [];
+    if (!FM.state.usedFreeAgents.includes(fa.nom)) FM.state.usedFreeAgents.push(fa.nom);
     my.budget -= offreM;
     fa.transferListe = false; fa.contrat = FM._ri(2,4); fa.moral = Math.min(99, fa.moral+6);
     my.joueurs.push(fa);
@@ -405,6 +407,7 @@ FM.toggleTransferList = function(playerId){
   const my = FM.myClub();
   const p = my.joueurs.find(x=>x.id===playerId);
   if (!p) return;
+  if (p.loan) return;                 // un joueur prêté ne peut pas être vendu
   p.transferListe = !p.transferListe;
   FM.save();
 };
@@ -447,6 +450,160 @@ function generateAIOffers(){
       }
     }
   }
+}
+
+/* ============================================================
+   PRÊTS DE JOUEURS (entre clubs) — durée : la saison en cours
+   ============================================================ */
+
+/* Joueurs d'autres clubs disponibles au prêt (jeunes ou doublures, hors cadres) */
+FM.loanablePlayers = function(filter){
+  filter = filter || {};
+  const my = FM.myClub();
+  let list = [];
+  for (const c of FM.state.db.clubs){
+    if (c.id === my.id) continue;
+    const ranked = c.joueurs.slice().sort((a,b)=>b.note-a.note);
+    const rank = new Map(ranked.map((p,i)=>[p.id,i]));
+    for (const p of c.joueurs){
+      if (p.loan) continue;                                   // déjà en prêt
+      const r = rank.get(p.id);
+      const wonderkid = p.potentiel>=84 && p.age<=21;         // pépite protégée : jamais prêtée
+      // Prêtables : doublures/jeunes de niveau modeste (les clubs ne prêtent pas leurs bons éléments)
+      const prettable = !wonderkid && p.note<=77 && ( r>=16 || (p.age<=20 && r>=11) );
+      if (!prettable) continue;
+      list.push({ ...p, clubId:c.id, clubNom:c.nom, pret:true });
+    }
+  }
+  if (filter.posteExact) list = list.filter(p=>p.pos===filter.posteExact);
+  else if (filter.poste) list = list.filter(p=>p.groupe===filter.poste);
+  if (filter.noteMin) list = list.filter(p=>p.note>=filter.noteMin);
+  if (filter.ageMax) list = list.filter(p=>p.age<=filter.ageMax);
+  if (filter.q){ const q=filter.q.toLowerCase(); list=list.filter(p=>p.nom.toLowerCase().includes(q)); }
+  list.sort((a,b)=> b.potentiel-a.potentiel || b.note-a.note);
+  return list.slice(0, filter.limit || 60);
+};
+
+/* Coût d'une indemnité de prêt (M€) */
+FM.loanFee = p => Math.max(0.1, Math.round(p.valeur*0.06*10)/10);
+
+/* Emprunter un joueur (prêt entrant) */
+FM.loanIn = function(playerId){
+  const my = FM.myClub();
+  if (my.joueurs.length >= 30) return { ok:false, msg:"Effectif complet (30 max)." };
+  let parent=null, player=null;
+  for (const c of FM.state.db.clubs){
+    if (c.id===my.id) continue;
+    const p = c.joueurs.find(x=>x.id===playerId);
+    if (p){ parent=c; player=p; break; }
+  }
+  if (!player) return { ok:false, msg:"Joueur introuvable." };
+  if (player.loan) return { ok:false, msg:"Ce joueur est déjà en prêt." };
+  // Réalisme : cadres et pépites protégées ne sont pas prêtés
+  const r = parent.joueurs.slice().sort((a,b)=>b.note-a.note).findIndex(x=>x.id===playerId);
+  const wonderkid = player.potentiel>=84 && player.age<=21;
+  const prettable = !wonderkid && player.note<=77 && ( r>=16 || (player.age<=20 && r>=11) );
+  if (!prettable) return { ok:false, msg:`${parent.nom} ne prête pas ${player.nom} (élément trop important).` };
+  const fee = FM.loanFee(player);
+  if (fee > my.budget) return { ok:false, msg:`Budget insuffisant pour l'indemnité de prêt (${fee.toFixed(1)} M€).` };
+  parent.joueurs = parent.joueurs.filter(x=>x.id!==playerId);
+  parent.onze = FM.autoPickXI(parent);
+  my.budget -= fee;
+  player.loan = { parentId:parent.id, parentNom:parent.nom, borrowerId:my.id, saison:FM.state.saison };
+  player.transferListe = false;
+  my.joueurs.push(player); my.onze = FM.autoPickXI(my);
+  FM.state.prets = FM.state.prets || [];
+  FM.state.prets.push({ playerId, parentId:parent.id, borrowerId:my.id, saison:FM.state.saison, type:"in" });
+  addNews(`🔁 Prêt : ${player.nom} (${player.note}) arrive de ${parent.nom} jusqu'en fin de saison (indemnité ${fee.toFixed(1)} M€).`);
+  FM.save();
+  return { ok:true, msg:`${player.nom} rejoint ${my.nom} en prêt.` };
+};
+
+/* Prêter un de nos joueurs à un club preneur (prêt sortant) */
+FM.loanOut = function(playerId){
+  const my = FM.myClub();
+  const player = my.joueurs.find(x=>x.id===playerId);
+  if (!player) return { ok:false, msg:"Joueur introuvable." };
+  if (player.loan) return { ok:false, msg:"Ce joueur est déjà concerné par un prêt." };
+  if (my.joueurs.length <= 16) return { ok:false, msg:"Effectif trop court (16 min) pour prêter." };
+  // Club preneur plausible : plutôt un club modeste qui cherche du renfort
+  const borrowers = FM.state.db.clubs.filter(c=>c.id!==my.id && c.joueurs.length<30);
+  if (!borrowers.length) return { ok:false, msg:"Aucun club preneur disponible." };
+  borrowers.sort((a,b)=> a.rep-b.rep);
+  const borrower = borrowers[FM._ri(0, Math.min(borrowers.length-1, 9))];
+  my.joueurs = my.joueurs.filter(x=>x.id!==playerId);
+  my.onze = FM.autoPickXI(my);
+  player.loan = { parentId:my.id, parentNom:my.nom, borrowerId:borrower.id, saison:FM.state.saison };
+  player.transferListe = false;
+  borrower.joueurs.push(player); borrower.onze = FM.autoPickXI(borrower);
+  FM.state.prets = FM.state.prets || [];
+  FM.state.prets.push({ playerId, parentId:my.id, borrowerId:borrower.id, saison:FM.state.saison, type:"out" });
+  const fee = Math.round(player.valeur*0.04*10)/10;
+  my.budget += fee;
+  addNews(`🔁 Prêt : ${player.nom} rejoint ${borrower.nom} pour la saison${fee>0?` (vous percevez ${fee.toFixed(1)} M€)`:''}.`);
+  FM.save();
+  return { ok:true, msg:`${player.nom} est prêté à ${borrower.nom}.` };
+};
+
+/* Liste des prêts en cours impliquant le club du joueur */
+FM.myLoans = function(){
+  const my = FM.myClub();
+  const out = [], inc = [];
+  for (const c of FM.state.db.clubs) for (const p of c.joueurs){
+    if (!p.loan) continue;
+    if (p.loan.parentId===my.id) out.push({ ...p, holderNom:c.nom, holderId:c.id });
+    else if (p.loan.borrowerId===my.id) inc.push({ ...p });
+  }
+  return { out, inc };
+};
+
+/* Retourne un joueur prêté à son club parent (sans effet de développement) */
+function returnLoan(playerId){
+  let holder=null, player=null;
+  for (const c of FM.state.db.clubs){
+    const p = c.joueurs.find(x=>x.id===playerId && x.loan);
+    if (p){ holder=c; player=p; break; }
+  }
+  if (!player) return { ok:false };
+  const parent = FM.clubById(player.loan.parentId);
+  holder.joueurs = holder.joueurs.filter(x=>x.id!==playerId);
+  holder.onze = FM.autoPickXI(holder);
+  const wasOut = player.loan.parentId===FM.state.managedClubId;
+  delete player.loan;
+  if (parent){ parent.joueurs.push(player); parent.onze = FM.autoPickXI(parent); }
+  FM.state.prets = (FM.state.prets||[]).filter(pr=>pr.playerId!==playerId);
+  return { ok:true, player, parent, holder, wasOut };
+}
+
+/* Rappeler / rendre un prêt immédiatement (déclenché par le joueur) */
+FM.recallLoan = function(playerId){
+  const r = returnLoan(playerId);
+  if (r.ok){
+    addNews(`🔁 Prêt interrompu : ${r.player.nom} retrouve ${r.parent?r.parent.nom:'son club'}.`);
+    FM.save();
+  }
+  return r;
+};
+
+/* Clôture des prêts en fin de saison : retour au club parent + développement
+   des jeunes prêtés (temps de jeu gagné). */
+function processLoansEndSeason(){
+  for (const pr of (FM.state.prets||[]).slice()){
+    const r = returnLoan(pr.playerId);
+    if (!r.ok) continue;
+    const p = r.player, mine = FM.state.managedClubId;
+    if (pr.type==="out" && p.age<=23){
+      p.potentiel = Math.min(94, p.potentiel + FM._ri(0,1));
+      p.note = Math.min(p.potentiel, p.note + FM._ri(0,2));
+      p.moral = Math.min(99, p.moral + 4);
+      if (r.parent && r.parent.id===mine) addNews(`🔁 Retour de prêt : ${p.nom} revient grandi de son expérience (note ${p.note}).`);
+    } else if (r.parent && r.parent.id===mine){
+      addNews(`🔁 Fin de prêt : ${p.nom} est de retour au club.`);
+    } else if (r.holder && r.holder.id===mine){
+      addNews(`🔁 Fin de prêt : ${p.nom} retourne à ${r.parent?r.parent.nom:'son club'}.`);
+    }
+  }
+  FM.state.prets = [];
 }
 
 /* ---------- Tactique / formation ---------- */
@@ -519,6 +676,9 @@ FM.endSeason = function(){
   if (superCup && superCup.playerWon) bonus += 8;
   if (cupResult){ bonus += cupResult.playerReward; if (cupResult.playerReward>0) addNews(`💶 Parcours en ${cupResult.nom} : +${cupResult.playerReward} M€.`); }
   if (euroPrize>0) addNews(`💶 Recettes des coupes d'Europe : +${euroPrize.toFixed(0)} M€.`);
+  // --- Prêts : retour au club parent (+ développement des jeunes prêtés) ---
+  processLoansEndSeason();
+
   const seasonJustEnded = FM.state.saison;
   for (const c of FM.state.db.clubs){
     c.pts=c.j=c.g=c.n=c.p=c.bp=c.bc=0;

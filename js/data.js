@@ -334,23 +334,51 @@ FM.makeMasterSquad = function(country, iconic){
 FM.ML_ICONS = ML_ICONS;
 
 /* ---------- Agents libres ----------
-   Vivier de joueurs SANS CLUB, signables sans indemnité de transfert (juste
-   une prime à la signature). Profils réalistes : vétérans en fin de carrière,
-   joueurs relancés, quelques jeunes libres. Notes 60-80.                    */
+   Vivier de joueurs SANS CLUB. Les noms sont de VRAIS joueurs (vétérans /
+   joueurs ayant été agents libres autour de 2024-2026). Instantané approximatif :
+   certains ont pu retrouver un club depuis. Complété par de jeunes espoirs
+   libres (générés) pour étoffer le vivier.   [nom, poste, âge(2026), note]     */
+FM.FREE_AGENT_POOL = [
+  ["Sergio Ramos","DC",40,73],["Jérôme Boateng","DC",37,68],["Eric Bailly","DC",32,70],
+  ["Shkodran Mustafi","DC",34,69],["Sokratis Papastathopoulos","DC",38,67],["Winston Reid","DC",38,66],
+  ["Marcelo","DG",38,70],["Layvin Kurzawa","DG",34,69],["Ryan Bertrand","DG",36,67],
+  ["Serge Aurier","DD",33,71],["Ashley Young","DD",40,67],["Timothy Fosu-Mensah","DD",28,70],
+  ["Keylor Navas","GB",39,74],["Rui Patrício","GB",38,72],["Fernando Muslera","GB",40,70],["Sergio Rico","GB",32,70],
+  ["Nemanja Matić","MDC",37,72],["Steven N'Zonzi","MDC",37,69],["Nampalys Mendy","MDC",34,70],
+  ["Ivan Rakitić","MC",38,72],["Aaron Ramsey","MC",35,70],["Georginio Wijnaldum","MC",35,72],["Jordan Henderson","MDC",36,71],
+  ["James Rodríguez","MO",35,74],["Christian Eriksen","MO",34,74],["Juan Mata","MO",38,68],
+  ["Jesse Lingard","MO",33,70],["Dele Alli","MO",30,70],["Charly Musonda","MO",30,67],
+  ["Hakim Ziyech","AD",33,73],["Adnan Januzaj","AD",31,71],["Gerard Deulofeu","AD",32,71],
+  ["Alexis Sánchez","AG",37,72],["Ryan Fraser","AG",32,68],["Nathan Redmond","AG",32,70],
+  ["Diego Costa","BU",37,70],["Wissam Ben Yedder","BU",35,73],["Luuk de Jong","BU",35,71],
+  ["Divock Origi","BU",31,71],["Islam Slimani","BU",38,68],["Vincent Aboubakar","BU",34,72],["Isaac Success","BU",30,68]
+];
 FM.makeFreeAgents = function(n, country){
   n = n || 46;
-  const plan = ["GB","DC","DC","DG","DD","MDC","MC","MC","MO","AG","AD","BU","BU"];
+  const used = (FM.state && FM.state.usedFreeAgents) ? FM.state.usedFreeAgents : [];
+  const pool = FM.FREE_AGENT_POOL.filter(fa=>!used.includes(fa[0])).slice();
+  // mélange (sans Math.random : Fisher-Yates via ri)
+  for (let i=pool.length-1;i>0;i--){ const j=ri(0,i); const t=pool[i]; pool[i]=pool[j]; pool[j]=t; }
   const list = [];
-  for (let i=0;i<n;i++){
-    const pos = plan[i % plan.length];
+  const take = Math.min(n, pool.length);
+  for (let i=0;i<take;i++){
+    const [nom,pos,age,note] = pool[i];
+    const p = makeRealPlayer(nom, pos, parseInt(age,10), note);
+    p.contrat = 0;                              // agent libre
+    p.potentiel = p.note;                       // vétérans : plus de marge
+    p.forme = ri(-1,1); p.moral = ri(55,78);
+    p.valeur = playerValue(p.note, p.potentiel, p.age);
+    p.salaire = Math.round((p.valeur*2.2 + p.note*0.3) * 10) / 10;
+    list.push(p);
+  }
+  // Complément : jeunes espoirs libres (générés)
+  const jeunePos = ["GB","DC","DG","DD","MDC","MC","MO","AG","AD","BU"];
+  for (let i=take;i<n;i++){
+    const pos = jeunePos[i % jeunePos.length];
     const p = makePlayer(2, pos, country || pick(["FRA","ESP","POR","BRA","ARG","NED","BEL","ITA","ENG"]));
-    // Profil "agent libre" : plutôt expérimenté, sans club
-    const jeune = i % 8 === 0;
-    p.age = jeune ? ri(18,21) : ri(28,36);
-    p.note = jeune ? ri(62,70) : ri(63,80);
-    p.potentiel = jeune ? Math.min(85, p.note + ri(4,12)) : p.note;
-    p.forme = ri(-1,1); p.moral = ri(55,80);
-    p.contrat = 0;                       // libre
+    p.age = ri(18,22); p.note = ri(60,68);
+    p.potentiel = Math.min(85, p.note + ri(4,12));
+    p.forme = ri(-1,1); p.moral = ri(55,80); p.contrat = 0;
     p.valeur = playerValue(p.note, p.potentiel, p.age);
     p.salaire = Math.round((p.valeur*2.2 + p.note*0.3) * 10) / 10;
     list.push(p);
