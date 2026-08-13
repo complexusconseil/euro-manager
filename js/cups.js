@@ -298,7 +298,7 @@ FM.clearNationFlags = function(team){
         const rempl = team.squad
           .filter(x=>team.starters.indexOf(x.id)<0 && !(x.blessure>0) && !(x.suspension>0))
           .sort((a,b)=> (a.groupe===p.groupe?-1:0)-(b.groupe===p.groupe?-1:0) || b.note-a.note)[0];
-        if (rempl){ team.starters[i]=rempl.id; news.push(`${p.nom} (${p.blessure>0?"blessé":"suspendu"}) est remplacé par ${rempl.nom}`); }
+        if (rempl){ team.starters[i]=rempl.id; news.push(`${p.nom} (${p.blessure>0?FM.t("blessé"):FM.t("suspendu")}) ${FM.t('est remplacé par')} ${rempl.nom}`); }
       }
     });
     team.note = FM.nationXIRating(team);

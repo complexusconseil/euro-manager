@@ -1,6 +1,8 @@
 # ⚽ Euro Manager
 
-**🇫🇷 Français / 🇬🇧 English** — le jeu est entièrement bilingue : choisissez la langue sur l'écran d'accueil (le choix est mémorisé).
+**🇫🇷 Français / 🇬🇧 English** — le jeu est **entièrement bilingue** : choisissez la langue sur l'écran d'accueil (le choix est mémorisé). La traduction couvre **toute** l'interface — menus, tableaux, tactique, mercato, coaching, causeries, objectifs de saison et l'intégralité du **fil d'actualités** (transferts, blessures, cartons, montées/descentes, bilans de fin de saison).
+
+▶️ **Jouable en ligne : https://complexusconseil.github.io/euro-manager/** (mobile et bureau, rien à installer).
 
 
 Jeu de gestion football (à mi-chemin entre FIFA et Football Manager). Jouable **100 % en local** dans un navigateur, sans installation ni connexion internet. **Deux modes de jeu** : Carrière et Master League.
@@ -8,6 +10,8 @@ Jeu de gestion football (à mi-chemin entre FIFA et Football Manager). Jouable *
 ## 🎨 Interface
 
 Habillage « retransmission » : fond nuit de stade, vert pelouse et ambre projecteur, typographie sportive à chiffres alignés, icônes vectorielles (plus d'émojis dans la navigation), écussons aux couleurs du club, tableaux de classement avec zones de qualification, terrain tactique aux rayures de pelouse. Interface responsive (mobile et bureau).
+
+**Polices embarquées** — le jeu utilise ses propres webfonts, **intégrées dans le CSS** (`css/fonts.css`, en base64) : **Inter** pour le texte et **Barlow Condensed** pour les titres et les scores. Aucune requête réseau n'est faite (vérifié : **0 requête externe**), donc le rendu est identique en ligne, hors-ligne et en `file://`. Licence SIL Open Font 1.1 — voir `FONTS-LICENSE.txt`.
 
 ## 🎮 Comment jouer en local
 
@@ -94,20 +98,21 @@ En mode International, **toutes les sélections** (Europe, Amériques, Afrique, 
 
 ## 🛠 Technique
 
-100 % HTML / CSS / JavaScript vanilla. Seule dépendance : **Three.js** (moteur 3D), embarqué dans `js/vendor/` (licence MIT) — aucune connexion internet requise.
+100 % HTML / CSS / JavaScript vanilla. **Aucune dépendance externe, aucun build, aucune connexion internet** : polices comprises, tout est embarqué dans les fichiers du dossier. Le jeu tourne aussi bien depuis un simple double-clic que derrière une URL publique.
 
 | Fichier | Rôle |
 |---|---|
 | `index.html` | Page principale |
+| `css/fonts.css` | Webfonts embarquées en base64 (Inter, Barlow Condensed — SIL OFL) |
 | `css/style.css` | Interface (thème stade) |
+| `js/i18n.js` | Traduction : dictionnaire anglais + bascule FR/EN |
 | `js/realdata.js` | Données réelles : couleurs & effectifs des 253 clubs |
 | `js/data.js` | Base de données : championnats + générateur de joueurs |
 | `js/engine.js` | Moteur : composition, forces d'équipe, simulation de match |
 | `js/game.js` | Carrière : calendrier, classement, mercato, stats, montées/descentes, sauvegarde |
 | `js/natdata.js` | Vraies sélections nationales (50 nations) |
 | `js/cups.js` | Coupes d'Europe (phase de ligue + phase finale), Supercoupe, sélections |
-| `js/match3d.js` | Moteur 3D des matchs (Three.js) |
 | `js/ui.js` | Rendu des écrans et interactions |
-| `js/vendor/three.min.js` | Three.js (MIT) — rendu 3D hors-ligne |
+| `FONTS-LICENSE.txt` | Licence SIL OFL 1.1 des polices embarquées |
 
 Bon jeu ! ⚽
