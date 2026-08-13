@@ -432,103 +432,154 @@ function playMatchFlow(){
 }
 
 /* Déroulé complet d'un match joué par le manager */
-function runInteractiveMatch(dom, ext, opts, onFinish){
-  const my = FM.myClub();
-  const iAmHome = dom.id===my.id;
-  const adv = iAmHome ? ext : dom;
-  FM.clearMatchFlags(my);
-  const hInfo={nom:dom.nom,couleurs:dom.couleurs}, aInfo={nom:ext.nom,couleurs:ext.couleurs};
-
-  openTeamTalk(my, adv, ()=>{
-    // --- 1re mi-temps ---
-    const h1 = FM.simulateHalf(dom, ext, 1);
-    const ev1 = h1.events.map(e=>({min:e.min, joueur:e.joueur, home:e.clubId===dom.id}));
-    watchMatch(hInfo, aInfo, h1.domScore, h1.extScore, ev1,
-      {label:(opts.label||"")+" · 1re mi-temps", minStart:0, minEnd:45, contBtn:"⏸ Aller à la mi-temps"}, ()=>{
-      FM.applyHalfFatigue(my);
-      // --- Pause : décisions du manager ---
-      openHalftime(my, dom, ext, h1, iAmHome, ()=>{
-        // --- 2e mi-temps (avec vos réglages) ---
-        const h2 = FM.simulateHalf(dom, ext, 2);
-        const ev2 = h2.events.map(e=>({min:e.min, joueur:e.joueur, home:e.clubId===dom.id}));
-        const ds = h1.domScore+h2.domScore, es = h1.extScore+h2.extScore;
-        watchMatch(hInfo, aInfo, ds, es, ev2,
-          {label:(opts.label||"")+" · 2e mi-temps", minStart:45, minEnd:90,
-           startHs:h1.domScore, startAs:h1.extScore}, ()=>{
-          FM.clearMatchFlags(my);
-          const total = { domScore:ds, extScore:es, events:h1.events.concat(h2.events).sort((a,b)=>a.min-b.min) };
-          onFinish(total);
+function playMatchHalves(cfg){
+  const mg = cfg.managed;
+  const evMap = e => ({ min:e.min, joueur:e.joueur,
+    home: (cfg.homeId!==undefined && e.clubId!==undefined) ? (e.clubId===cfg.homeId)
+          : (e.home!==undefined ? e.home : (e.side==="a")) });
+  function kickoff(){
+    const h1 = cfg.simHalf(1);
+    watchMatch(cfg.home, cfg.away, h1.hs, h1.as, h1.events.map(evMap),
+      { label:(cfg.label||"")+" · 1re mi-temps", minStart:0, minEnd:45,
+        contBtn:"⏸ Aller à la mi-temps" }, ()=>{
+      applyHalfBreak(mg);
+      openHalftimePanel(mg, cfg, h1, ()=>{
+        const h2 = cfg.simHalf(2);
+        const hs = h1.hs+h2.hs, as = h1.as+h2.as;
+        const all = h1.events.concat(h2.events).sort((a,b)=>a.min-b.min);
+        const endText = cfg.endText ? cfg.endText(hs, as) : undefined;
+        watchMatch(cfg.home, cfg.away, hs, as, h2.events.map(evMap),
+          { label:(cfg.label||"")+" · 2e mi-temps", minStart:45, minEnd:90,
+            startHs:h1.hs, startAs:h1.as, endText }, ()=>{
+          if (mg && mg.club) FM.clearMatchFlags(mg.club);
+          cfg.done(hs, as, all);
         });
       });
     });
-  });
+  }
+  if (mg) openTeamTalkPanel(mg, cfg, kickoff); else kickoff();
 }
 
-/* Causerie d'avant-match */
-function openTeamTalk(my, adv, next){
+/* Fatigue de la pause (club : par joueur ; sélection : global) */
+function applyHalfBreak(mg){
+  if (!mg) return;
+  if (mg.club) FM.applyHalfFatigue(mg.club);
+  else if (mg.tac){ const pr=mg.tac.pressing; mg.tac.tired=(mg.tac.tired||0)+(pr===2?2:pr===1?0.8:0.2); }
+}
+
+/* Causerie d'avant-match (clubs ET sélections) */
+function openTeamTalkPanel(mg, cfg, next){
   const overlay = el("div","overlay");
   const box = el("div","card talk-box");
-  const st = FM.teamStrength(my);
-  const moy = Math.round(my.onze.map(s=>FM.getPlayer(my,s.id)).filter(Boolean).reduce((a,p)=>a+p.moral,0)/11);
-  box.innerHTML = `<h3>🗣️ Causerie d'avant-match</h3>
-    <p>Face à <b>${adv.nom}</b> (note ${FM.squadRating(adv)}). Votre équipe : attaque <b>${Math.round(st.att)}</b> · milieu <b>${Math.round(st.mid)}</b> · défense <b>${Math.round(st.def)}</b> · moral moyen <b>${moy}</b>.</p>
-    <p class="hint">Votre discours modifie le moral des titulaires — et le moral influe sur la performance.</p>`;
-  const opts=[
-    ["calme","😌 Rassurer","Confiance +3 pour tous — sans risque."],
-    ["exigeant","🔥 Hausser le ton","Groupe conquérant : +6. Groupe fragile : −4. Risqué."],
-    ["neutre","😐 Consignes neutres","Aucun effet sur le moral."]
-  ];
-  opts.forEach(([k,lbl,desc])=>{
-    const b=el("button","btn ghost talk-opt",`<b>${lbl}</b><small>${desc}</small>`);
-    b.onclick=()=>{ const r=FM.teamTalk(my,k); toast(r.txt); overlay.remove(); next(); };
+  let head;
+  if (mg.club){
+    const st = FM.teamStrength(mg.club);
+    const xi = mg.club.onze.map(s=>FM.getPlayer(mg.club,s.id)).filter(Boolean);
+    const moy = Math.round(xi.reduce((a,p)=>a+p.moral,0)/(xi.length||1));
+    head = `<p>Face à <b>${cfg.oppName||"l'adversaire"}</b>. Attaque <b>${Math.round(st.att)}</b> · milieu <b>${Math.round(st.mid)}</b> · défense <b>${Math.round(st.def)}</b> · moral moyen <b>${moy}</b>.</p>`;
+  } else {
+    head = `<p>Face à <b>${cfg.oppName||"l'adversaire"}</b>. Sélection <b>${mg.nom}</b> — force <b>${mg.note}</b>.</p>`;
+  }
+  box.innerHTML = `<h3>🗣️ Causerie — ${cfg.label||"match"}</h3>`+head+
+    `<p class="hint">Votre discours influe sur la performance de l'équipe.</p>`;
+  [["calme","😌 Rassurer","Confiance en hausse — sans risque."],
+   ["exigeant","🔥 Hausser le ton","Galvanise un groupe conquérant, crispe un groupe fragile."],
+   ["neutre","😐 Consignes neutres","Aucun effet."]].forEach(([k,lbl,desc])=>{
+    const b = el("button","btn ghost talk-opt",`<b>${lbl}</b><small>${desc}</small>`);
+    b.onclick=()=>{ toast(applyTalk(mg,k)); overlay.remove(); next(); };
     box.appendChild(b);
   });
   overlay.appendChild(box); document.body.appendChild(overlay);
 }
+function applyTalk(mg, choice){
+  if (mg.club) return FM.teamTalk(mg.club, choice).txt;
+  if (choice==="calme"){ mg.tac.moral=(mg.tac.moral||0)+1.5; return "Vous rassurez le groupe : confiance en hausse."; }
+  if (choice==="exigeant"){
+    const up = mg.note>=78;
+    mg.tac.moral=(mg.tac.moral||0)+(up?3:-2);
+    return up ? "Le discours galvanise la sélection !" : "Le ton dur crispe la sélection…";
+  }
+  return "Consignes neutres, le groupe reste concentré.";
+}
 
-/* Écran de mi-temps : réglages tactiques + remplacements (effet réel en 2e MT) */
-function openHalftime(my, dom, ext, h1, iAmHome, next){
+/* Écran de mi-temps (clubs : réglages + remplacements ; sélections : réglages) */
+function openHalftimePanel(mg, cfg, h1, next){
   const overlay = el("div","overlay");
   const box = el("div","card halftime-box");
   let subs = 0;
+  const isClub = !!mg.club;
+  const tac = isClub ? mg.club.tactique : mg.tac;
+  function strengthLine(){
+    if (!isClub) return `Sélection <b>${mg.nom}</b> — vos réglages s'appliquent à la 2e période (le pressing haut fatigue l'équipe).`;
+    const st = FM.teamStrength(mg.club);
+    return `Forces — attaque <b>${Math.round(st.att)}</b> · milieu <b>${Math.round(st.mid)}</b> · défense <b>${Math.round(st.def)}</b>. Le pressing haut fatigue ; les entrants sont frais.`;
+  }
   function render(){
-    const st = FM.teamStrength(my);
-    const mine = iAmHome?h1.domScore:h1.extScore, theirs = iAmHome?h1.extScore:h1.domScore;
+    box.innerHTML="";
+    const mine = cfg.playerIsHome ? h1.hs : h1.as, theirs = cfg.playerIsHome ? h1.as : h1.hs;
     const verdict = mine>theirs ? "Vous menez" : mine<theirs ? "Vous êtes mené" : "Tout reste à faire";
-    box.innerHTML = `<h3>⏸ Mi-temps — ${dom.nom} ${h1.domScore}-${h1.extScore} ${ext.nom}</h3>
-      <p class="ht-verdict ${mine>theirs?'win':mine<theirs?'lose':''}">${verdict}. Ajustez : vos choix comptent pour la 2e période.</p>
-      <p class="hint">Forces actuelles — attaque <b>${Math.round(st.att)}</b> · milieu <b>${Math.round(st.mid)}</b> · défense <b>${Math.round(st.def)}</b>. Un pressing haut use l'équipe ; les entrants sont frais (+).</p>`;
+    box.appendChild(el("h3",null,`⏸ Mi-temps — ${cfg.home.nom} ${h1.hs}-${h1.as} ${cfg.away.nom}`));
+    box.appendChild(el("p","ht-verdict "+(mine>theirs?"win":mine<theirs?"lose":""),
+      `${verdict}. Vos choix comptent pour la 2e période.`));
+    const sl = el("p","hint"); sl.id="htStrength"; sl.innerHTML = strengthLine();
+    box.appendChild(sl);
+    const refresh = ()=>{ const n=document.getElementById("htStrength"); if(n) n.innerHTML=strengthLine(); };
+    const set = (k,v)=>{ if(isClub) FM.setTactic(k,v); else tac[k]=v; refresh(); };
     const row = el("div","tac-row");
-    row.appendChild(sliderTac("Mentalité",["Défensive","Équilibrée","Offensive"],my.tactique.mentalite,v=>{FM.setTactic("mentalite",v); render();}));
-    row.appendChild(sliderTac("Tempo",["Lent","Normal","Rapide"],my.tactique.tempo,v=>{FM.setTactic("tempo",v); render();}));
-    row.appendChild(sliderTac("Pressing",["Bas","Moyen","Haut"],my.tactique.pressing,v=>{FM.setTactic("pressing",v); render();}));
+    row.appendChild(sliderTac("Mentalité",["Défensive","Équilibrée","Offensive"],tac.mentalite,v=>set("mentalite",v)));
+    row.appendChild(sliderTac("Tempo",["Lent","Normal","Rapide"],tac.tempo,v=>set("tempo",v)));
+    row.appendChild(sliderTac("Pressing",["Bas","Moyen","Haut"],tac.pressing,v=>set("pressing",v)));
     box.appendChild(row);
-    // Remplacements
-    box.appendChild(el("h4",null,`🔁 Remplacements (${subs}/3)`));
-    const bench = my.joueurs.filter(p=>!my.onze.some(s=>s.id===p.id)).sort((a,b)=>b.note-a.note).slice(0,12);
-    if (subs<3 && bench.length){
-      const wrap = el("div","ht-subs");
-      my.onze.forEach(s=>{
-        const p = FM.getPlayer(my,s.id); if(!p) return;
-        const line = el("div","ht-sub-row");
-        line.innerHTML = `<span><span class="pos-badge ${p.groupe}">${s.slot}</span> ${p.nom} <b class="note ${noteClass(p.note)}">${p.note}</b>${p._tired?` <small>😮‍💨</small>`:''}</span>`;
-        const sel = el("select");
-        sel.appendChild(new Option("— remplacer par —",""));
-        bench.forEach(b=> sel.appendChild(new Option(`${b.pos} ${b.nom} (${b.note})`, b.id)));
-        sel.onchange=()=>{ if(!sel.value) return;
-          if (FM.substitute(my, p.id, parseInt(sel.value,10))){ subs++; FM.save(); render(); } };
-        line.appendChild(sel);
-        wrap.appendChild(line);
-      });
-      box.appendChild(wrap);
-    } else if (subs>=3) box.appendChild(el("p","hint","Quota de remplacements atteint."));
+    if (isClub){
+      const my = mg.club;
+      box.appendChild(el("h4",null,`🔁 Remplacements (${subs}/3)`));
+      const bench = my.joueurs.filter(p=>!my.onze.some(s=>s.id===p.id)).sort((a,b)=>b.note-a.note).slice(0,12);
+      if (subs<3 && bench.length){
+        const wrap = el("div","ht-subs");
+        my.onze.forEach(s=>{
+          const p = FM.getPlayer(my,s.id); if(!p) return;
+          const line = el("div","ht-sub-row");
+          line.innerHTML = `<span><span class="pos-badge ${p.groupe}">${s.slot}</span> ${p.nom} <b class="note ${noteClass(p.note)}">${p.note}</b>${p._tired?" <small>😮‍💨</small>":""}</span>`;
+          const sel = el("select");
+          sel.appendChild(new Option("— remplacer par —",""));
+          bench.forEach(b=> sel.appendChild(new Option(`${b.pos} ${b.nom} (${b.note})`, b.id)));
+          sel.onchange=()=>{ if(!sel.value) return;
+            if (FM.substitute(my, p.id, parseInt(sel.value,10))){ subs++; FM.save(); render(); } };
+          line.appendChild(sel);
+          wrap.appendChild(line);
+        });
+        box.appendChild(wrap);
+      } else if (subs>=3) box.appendChild(el("p","hint","Quota de remplacements atteint."));
+    }
     const go = el("button","btn primary big","▶ Jouer la 2e mi-temps");
-    go.onclick=()=>{ FM.save(); overlay.remove(); next(); };
+    go.onclick=()=>{ if(FM.state) FM.save(); overlay.remove(); next(); };
     box.appendChild(go);
   }
   render();
   overlay.appendChild(box); document.body.appendChild(overlay);
 }
+
+/* Match de championnat du club géré */
+function runInteractiveMatch(dom, ext, opts, onFinish){
+  const my = FM.myClub();
+  FM.clearMatchFlags(my);
+  const iAmHome = dom.id===my.id;
+  playMatchHalves({
+    home:{nom:dom.nom,couleurs:dom.couleurs}, away:{nom:ext.nom,couleurs:ext.couleurs},
+    label:opts.label, oppName:(iAmHome?ext:dom).nom, playerIsHome:iAmHome,
+    managed:{club:my},
+    homeId:dom.id,
+    simHalf:(h)=>{ const r=FM.simulateHalf(dom,ext,h);
+      return { hs:r.domScore, as:r.extScore, events:r.events }; },     // évènements bruts
+    done:(hs,as,ev)=> onFinish({ domScore:hs, extScore:as, events:ev })
+  });
+}
+
+/* Causerie d'avant-match */
+
+
+/* Écran de mi-temps : réglages tactiques + remplacements (effet réel en 2e MT) */
+
 
 /* ============= EFFECTIF ============= */
 function renderSquad(body){
@@ -930,14 +981,16 @@ function renderLeaguePhase(body, comp){
 function playLeagueMatch(comp){
   const pm = FM.lpPlayerMatch(comp);
   if (!pm){ renderGame(); return; }
-  const m = FM.simLeagueMatch(comp, pm.home, pm.away);   // hs=domicile, as=extérieur
-  const me = FM.myClub();
-  const oppIdx = pm.playerHome?pm.away:pm.home;
-  const opp = { nom:comp.teams[oppIdx].nom, couleurs:comp.teams[oppIdx].couleurs };
   const homeT = comp.teams[pm.home], awayT = comp.teams[pm.away];
-  const evs = m.events.map(ev=>({ min:ev.min, joueur:ev.joueur, home:ev.home }));
-  watchMatch({nom:homeT.nom,couleurs:homeT.couleurs}, {nom:awayT.nom,couleurs:awayT.couleurs}, m.hs, m.as, evs,
-    {label:"Phase de ligue"}, ()=>{ FM.lpResolveRound(comp, { hs:m.hs, as:m.as }); FM.save(); renderGame(); });
+  const dom = FM.clubById(homeT.ref), ext = FM.clubById(awayT.ref);
+  const my = FM.myClub(); FM.clearMatchFlags(my);
+  playMatchHalves({
+    home:{nom:homeT.nom,couleurs:homeT.couleurs}, away:{nom:awayT.nom,couleurs:awayT.couleurs},
+    label:comp.nom+" · phase de ligue", oppName:(pm.playerHome?awayT:homeT).nom,
+    playerIsHome:pm.playerHome, managed:{club:my}, homeId:dom.id,
+    simHalf:(h)=>{ const r=FM.simulateHalf(dom,ext,h); return { hs:r.domScore, as:r.extScore, events:r.events }; },
+    done:(hs,as)=>{ FM.lpResolveRound(comp,{hs,as}); FM.save(); renderGame(); }
+  });
 }
 
 /* Historique des tours d'une compétition (met en avant le club du joueur) */
@@ -986,33 +1039,66 @@ function playCupTie(comp, opts){
   const tie = FM.playerTie(comp);
   if (!tie){ renderGame(); return; }
   const [a,b] = tie;
-  const res = FM.simCupTie(comp, a, b);
-  const playerA = (a===comp.playerSeed);
-  const me = FM.myClub();
-  const oppTeam = comp.teams[playerA?b:a];
-  const opp = { nom:oppTeam.nom, couleurs:oppTeam.couleurs };
-  const finish = ()=>{ FM.resolveTournamentRound(comp, res); if(!opts.noEuropeAdvance) advanceAllCups(true); FM.save(); renderGame(); };
+  const finish = (res)=>{ FM.resolveTournamentRound(comp,res); if(!opts.noEuropeAdvance) advanceAllCups(true); FM.save(); renderGame(); };
+  // Exempt : qualification d'office, pas de match
+  if (comp.teams[a].bye || comp.teams[b].bye){ finish(FM.simCupTie(comp,a,b)); return; }
 
-  const meInfo = {nom:me.nom, couleurs:me.couleurs};
-  if (!res.twoLeg){
-    const selfScore = playerA?res.as:res.es, oppScore = playerA?res.es:res.as;
-    const evs = (res.ev1||[]).map(ev=>({ min:ev.min, joueur:ev.joueur, home:(ev.side==="a")===playerA }));
-    const won = selfScore>oppScore || (selfScore===oppScore && res.pen && ((playerA?res.pen[0]:res.pen[1])>(playerA?res.pen[1]:res.pen[0])));
-    const ptxt = res.pen ? ` (tab ${playerA?res.pen[0]:res.pen[1]}-${playerA?res.pen[1]:res.pen[0]})` : "";
-    watchMatch(meInfo, opp, selfScore, oppScore, evs, {label:comp.nom, endText:(won?"✅ Qualifié":"❌ Éliminé")+ptxt}, finish);
+  const playerA = (a===comp.playerSeed);
+  const my = FM.myClub(); FM.clearMatchFlags(my);
+  const infoOf = i => ({nom:comp.teams[i].nom, couleurs:comp.teams[i].couleurs});
+  const clubOf = i => FM.clubById(comp.teams[i].ref);
+  const oppNom = comp.teams[playerA?b:a].nom;
+  const twoLeg = comp.kind==="club" && !comp.singleLeg && comp.alive.length > 2;
+  const halfOf = (dom,ext) => (h)=>{ const r=FM.simulateHalf(dom,ext,h);
+    return { hs:r.domScore, as:r.extScore, events:r.events }; };
+
+  if (!twoLeg){
+    const dom = clubOf(a), ext = clubOf(b);
+    let pen = null;
+    playMatchHalves({
+      home:infoOf(a), away:infoOf(b), label:comp.nom, oppName:oppNom, playerIsHome:playerA,
+      managed:{club:my}, homeId:dom.id, simHalf: halfOf(dom,ext),
+      endText:(hs,as)=>{
+        if (hs===as) pen = FM.penaltyShootout(comp,a,b);
+        const self = playerA?hs:as, opp = playerA?as:hs;
+        const won = self>opp || (self===opp && pen && ((playerA?pen[0]:pen[1])>(playerA?pen[1]:pen[0])));
+        return (won?"✅ Qualifié":"❌ Éliminé") + (pen?` (tab ${playerA?pen[0]:pen[1]}-${playerA?pen[1]:pen[0]})`:"");
+      },
+      done:(hs,as,ev)=>{
+        const winner = hs>as ? a : as>hs ? b : (pen[0]>pen[1] ? a : b);
+        finish({ as:hs, es:as, pen, winner, twoLeg:false, ev1:ev });
+      }
+    });
     return;
   }
-  // ALLER puis RETOUR, verdict au cumul
-  const l1s = playerA?res.leg1.as:res.leg1.es, l1o = playerA?res.leg1.es:res.leg1.as;
-  const l1ev = (res.leg1.ev||[]).map(ev=>({ min:ev.min, joueur:ev.joueur, home:(ev.home===playerA) }));
-  const l2s = playerA?res.leg2.as:res.leg2.es, l2o = playerA?res.leg2.es:res.leg2.as;
-  const l2ev = (res.leg2.ev||[]).map(ev=>({ min:ev.min, joueur:ev.joueur, home:(ev.home!==playerA) }));
-  const aggS=l1s+l2s, aggO=l1o+l2o;
-  const won = aggS>aggO || (aggS===aggO && res.pen && ((playerA?res.pen[0]:res.pen[1])>(playerA?res.pen[1]:res.pen[0])));
-  const ptxt = res.pen ? ` tab ${playerA?res.pen[0]:res.pen[1]}-${playerA?res.pen[1]:res.pen[0]}` : "";
-  watchMatch(meInfo, opp, l1s, l1o, l1ev, {label:"Aller · "+comp.nom}, ()=>{
-    watchMatch(meInfo, opp, l2s, l2o, l2ev,
-      {label:"Retour", endText:`Cumul ${aggS}-${aggO}${ptxt} · ${won?"✅ Qualifié":"❌ Éliminé"}`}, finish);
+  // ALLER (a reçoit) puis RETOUR (b reçoit) — causerie et mi-temps à chaque manche
+  const dom1 = clubOf(a), ext1 = clubOf(b);
+  playMatchHalves({
+    home:infoOf(a), away:infoOf(b), label:"Aller · "+comp.nom, oppName:oppNom, playerIsHome:playerA,
+    managed:{club:my}, homeId:dom1.id, simHalf: halfOf(dom1,ext1),
+    done:(l1h, l1a)=>{
+      FM.clearMatchFlags(my);
+      const dom2 = clubOf(b), ext2 = clubOf(a);
+      let pen = null;
+      playMatchHalves({
+        home:infoOf(b), away:infoOf(a), label:"Retour · "+comp.nom, oppName:oppNom, playerIsHome:!playerA,
+        managed:{club:my}, homeId:dom2.id, simHalf: halfOf(dom2,ext2),
+        endText:(l2h, l2a)=>{
+          const aggA = l1h + l2a, aggB = l1a + l2h;
+          if (aggA===aggB) pen = FM.penaltyShootout(comp,a,b);
+          const self = playerA?aggA:aggB, opp = playerA?aggB:aggA;
+          const won = self>opp || (self===opp && pen && ((playerA?pen[0]:pen[1])>(playerA?pen[1]:pen[0])));
+          return `Cumul ${self}-${opp}` + (pen?` · tab ${playerA?pen[0]:pen[1]}-${playerA?pen[1]:pen[0]}`:"") +
+                 ` · ${won?"✅ Qualifié":"❌ Éliminé"}`;
+        },
+        done:(l2h, l2a, ev2)=>{
+          const aggA = l1h + l2a, aggB = l1a + l2h;
+          const winner = aggA>aggB ? a : aggB>aggA ? b : (pen[0]>pen[1] ? a : b);
+          finish({ as:aggA, es:aggB, pen, winner, twoLeg:true,
+                   leg1:{as:l1h, es:l1a}, leg2:{as:l2a, es:l2h} });
+        }
+      });
+    }
   });
 }
 
@@ -1278,15 +1364,35 @@ function renderTournament(){
 function playIntlTie(){
   const comp = intlComp;
   const tie = FM.playerTie(comp); if(!tie){ renderTournament(); return; }
-  const [a,b] = tie; const res = FM.simCupMatch(comp,a,b); const playerA=(a===comp.playerSeed);
-  const meN = comp.teams[comp.playerSeed], oppN = comp.teams[playerA?b:a];
-  const selfScore = playerA?res.as:res.es, oppScore = playerA?res.es:res.as;
-  const evs = res.events.map(ev=>({min:ev.min, joueur:ev.joueur, home:(ev.side==="a")===playerA}));
-  const won = selfScore>oppScore || (selfScore===oppScore && res.pen && ((playerA?res.pen[0]:res.pen[1])>(playerA?res.pen[1]:res.pen[0])));
-  const ptxt = res.pen ? ` (tab ${playerA?res.pen[0]:res.pen[1]}-${playerA?res.pen[1]:res.pen[0]})` : "";
-  watchMatch({nom:meN.nom,couleurs:meN.couleurs}, {nom:oppN.nom,couleurs:oppN.couleurs},
-    selfScore, oppScore, evs, {label:comp.nom, endText:(won?"✅ Qualifié":"❌ Éliminé")+ptxt},
-    ()=>{ FM.resolveTournamentRound(comp,res); renderTournament(); });
+  const [a,b] = tie;
+  const A = comp.teams[a], B = comp.teams[b];
+  const playerA = (a===comp.playerSeed);
+  const me = comp.teams[comp.playerSeed], opp = comp.teams[playerA?b:a];
+  comp._tac = comp._tac || { mentalite:1, tempo:1, pressing:1, moral:0, tired:0 };
+  const tac = comp._tac; tac.tired = 0;             // fraîcheur retrouvée à chaque match
+  let pen = null;
+  playMatchHalves({
+    home:{nom:A.nom,couleurs:A.couleurs}, away:{nom:B.nom,couleurs:B.couleurs},
+    label:comp.nom, oppName:opp.nom, playerIsHome:playerA,
+    managed:{ tac, nom:me.nom, note:me.note },
+    simHalf:(h)=>{
+      if (playerA){ const r=FM.simNationHalf(A,B,h,tac);
+        return { hs:r.as, as:r.es, events:r.events.map(e=>({min:e.min,joueur:e.joueur,home:e.side==="a"})) }; }
+      const r=FM.simNationHalf(B,A,h,tac);
+      return { hs:r.es, as:r.as, events:r.events.map(e=>({min:e.min,joueur:e.joueur,home:e.side!=="a"})) };
+    },
+    endText:(hs,as)=>{
+      if (hs===as) pen = FM.penaltyShootout(comp,a,b);
+      const self = playerA?hs:as, o = playerA?as:hs;
+      const won = self>o || (self===o && pen && ((playerA?pen[0]:pen[1])>(playerA?pen[1]:pen[0])));
+      return (won?"✅ Qualifié":"❌ Éliminé") + (pen?` (tab ${playerA?pen[0]:pen[1]}-${playerA?pen[1]:pen[0]})`:"");
+    },
+    done:(hs,as,ev)=>{
+      const winner = hs>as ? a : as>hs ? b : (pen[0]>pen[1] ? a : b);
+      FM.resolveTournamentRound(comp, { as:hs, es:as, pen, winner, twoLeg:false, ev1:ev });
+      renderTournament();
+    }
+  });
 }
 
 /* ============= MERCATO ============= */

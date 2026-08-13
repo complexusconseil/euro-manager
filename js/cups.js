@@ -228,16 +228,48 @@ function simByRating(A, B){
   return { as, es, events };
 }
 function poissonR(lambda){ const L=Math.exp(-lambda); let k=0,p=1; do{k++;p*=FM._rnd();}while(p>L); return Math.min(6,k-1); }
-function addNationGoals(events, team, n, side){
+function addNationGoals(events, team, n, side, half){
   const squad = team.squad || [];
   const weights = squad.map(p=>({p, w: p.groupe==="A"?5:p.groupe==="M"?2:0.4}));
   const tot = weights.reduce((a,x)=>a+x.w,0) || 1;
   for (let i=0;i<n;i++){
     let r=FM._rnd()*tot, ch = squad.length?squad[squad.length-1]:{nom:"?"};
     for (const x of weights){ r-=x.w; if(r<=0){ ch=x.p; break; } }
-    events.push({ min:FM._ri(1,90), joueur: ch.nom, side });
+    const lo = half===2?46:1, hi = half===1?45:90;
+    events.push({ min:FM._ri(lo,hi), joueur: ch.nom, side });
   }
 }
+
+/* Tirs au but entre deux équipes d'un tournoi (règle commune) */
+FM.penaltyShootout = function(comp, ai, bi){
+  const pA = 0.5 + (comp.teams[ai].note - comp.teams[bi].note) * 0.012;
+  const aWin = FM._rnd() < Math.max(0.2, Math.min(0.8, pA));
+  const pen = aWin ? [FM._ri(4,5), FM._ri(2,4)] : [FM._ri(2,4), FM._ri(4,5)];
+  if (pen[0]===pen[1]) pen[aWin?0:1]++;
+  return pen;
+};
+
+/* Une mi-temps d'un match de SÉLECTIONS. tacA = réglages du sélectionneur
+   (mentalité / tempo / moral / fatigue) appliqués à l'équipe A.            */
+FM.simNationHalf = function(A, B, half, tacA){
+  let atkA = A.note, defA = A.note;
+  const atkB = B.note, defB = B.note;
+  if (tacA){
+    const m = (tacA.mentalite-1);
+    atkA += m*3;  defA -= m*2.5;
+    atkA += (tacA.tempo-1)*1.2;
+    atkA += (tacA.moral||0);  defA += (tacA.moral||0)*0.5;
+    atkA -= (tacA.tired||0);  defA -= (tacA.tired||0);
+  }
+  const xgA = Math.max(0.06, (1.25 + (atkA-defB)*0.055) * 0.5);
+  const xgB = Math.max(0.06, (1.25 + (atkB-defA)*0.055) * 0.5);
+  const as = poissonR(xgA), es = poissonR(xgB);
+  const events = [];
+  addNationGoals(events, A, as, "a", half);
+  addNationGoals(events, B, es, "b", half);
+  events.sort((x,y)=>x.min-y.min);
+  return { as, es, events };
+};
 
 /* Résout le tour courant.
    playerRes (optionnel) = résultat déjà calculé du match du joueur, orienté
