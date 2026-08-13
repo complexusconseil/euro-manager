@@ -229,7 +229,11 @@ function simByRating(A, B){
 }
 function poissonR(lambda){ const L=Math.exp(-lambda); let k=0,p=1; do{k++;p*=FM._rnd();}while(p>L); return Math.min(6,k-1); }
 function addNationGoals(events, team, n, side, half){
-  const squad = team.squad || [];
+  let squad = team.squad || [];
+  if (team.starters && team.starters.length){          // seuls les 11 sur le terrain marquent
+    const onField = squad.filter(p=>team.starters.indexOf(p.id)>=0);
+    if (onField.length) squad = onField;
+  }
   const weights = squad.map(p=>({p, w: p.groupe==="A"?5:p.groupe==="M"?2:0.4}));
   const tot = weights.reduce((a,x)=>a+x.w,0) || 1;
   for (let i=0;i<n;i++){
@@ -239,6 +243,44 @@ function addNationGoals(events, team, n, side, half){
     events.push({ min:FM._ri(lo,hi), joueur: ch.nom, side });
   }
 }
+
+/* ---------- SÉLECTIONS : onze sur le terrain, remplacements, fatigue ----------
+   La force de l'équipe découle des 11 titulaires : un remplacement ou la
+   fatigue changent donc RÉELLEMENT le niveau pour la suite du match.        */
+FM.nationXIRating = function(team){
+  const ids = team.starters;
+  if (!ids || !ids.length || !team.squad) return team.note;
+  const xi = team.squad.filter(p=>ids.indexOf(p.id)>=0);
+  if (!xi.length) return team.note;
+  let s = 0;
+  xi.forEach(p=>{ s += p.note + (p._fresh?1.5:0) - (p._tired||0); });
+  return s / xi.length;
+};
+/* Remplacement : sort outId, entre inId (l'entrant est frais) */
+FM.substituteNation = function(team, outId, inId){
+  if (!team.starters || !team.squad) return false;
+  const i = team.starters.indexOf(outId);
+  if (i < 0 || team.starters.indexOf(inId) >= 0) return false;
+  const p = team.squad.find(x=>x.id===inId);
+  if (!p) return false;
+  team.starters[i] = inId; p._fresh = true; delete p._tired;
+  team.note = FM.nationXIRating(team);
+  return true;
+};
+/* Fatigue de mi-temps (selon l'intensité du pressing) */
+FM.applyNationFatigue = function(team, pressing){
+  const cost = pressing===2 ? 2.0 : pressing===1 ? 0.8 : 0.2;
+  (team.starters||[]).forEach(id=>{
+    const p = (team.squad||[]).find(x=>x.id===id);
+    if (p){ p._tired = (p._tired||0) + cost; p._fresh = false; }
+  });
+  team.note = FM.nationXIRating(team);
+};
+/* Remise à zéro avant un match */
+FM.clearNationFlags = function(team){
+  (team.squad||[]).forEach(p=>{ delete p._tired; delete p._fresh; });
+  if (team.starters) team.note = FM.nationXIRating(team);
+};
 
 /* Tirs au but entre deux équipes d'un tournoi (règle commune) */
 FM.penaltyShootout = function(comp, ai, bi){
@@ -259,7 +301,7 @@ FM.simNationHalf = function(A, B, half, tacA){
     atkA += m*3;  defA -= m*2.5;
     atkA += (tacA.tempo-1)*1.2;
     atkA += (tacA.moral||0);  defA += (tacA.moral||0)*0.5;
-    atkA -= (tacA.tired||0);  defA -= (tacA.tired||0);
+    /* la fatigue est désormais portée par chaque joueur (voir applyNationFatigue) */
   }
   const xgA = Math.max(0.06, (1.25 + (atkA-defB)*0.055) * 0.5);
   const xgB = Math.max(0.06, (1.25 + (atkB-defA)*0.055) * 0.5);
@@ -566,7 +608,8 @@ FM.makeNationTournament = function(kind, playerNationName, playerOverride){
   const teams = pool.map(n=>{
     if (playerOverride && n.nom===playerNationName){
       return { key:n.nom, ref:n.nom, nom:n.nom, pays:n.pool, couleurs:natColors(n.nom),
-               note:playerOverride.note, squad:playerOverride.squad };
+               note:playerOverride.note, squad:playerOverride.squad,
+               starters:(playerOverride.starters||[]).slice() };
     }
     const squad = FM.makeNationSquad(n);
     return { key:n.nom, ref:n.nom, nom:n.nom, pays:n.pool, couleurs:natColors(n.nom), note:n.note, squad };

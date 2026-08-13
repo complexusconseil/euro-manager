@@ -464,7 +464,7 @@ function playMatchHalves(cfg){
 function applyHalfBreak(mg){
   if (!mg) return;
   if (mg.club) FM.applyHalfFatigue(mg.club);
-  else if (mg.tac){ const pr=mg.tac.pressing; mg.tac.tired=(mg.tac.tired||0)+(pr===2?2:pr===1?0.8:0.2); }
+  else if (mg.team) FM.applyNationFatigue(mg.team, mg.tac.pressing);
 }
 
 /* Causerie d'avant-match (clubs ET sélections) */
@@ -510,7 +510,10 @@ function openHalftimePanel(mg, cfg, h1, next){
   const isClub = !!mg.club;
   const tac = isClub ? mg.club.tactique : mg.tac;
   function strengthLine(){
-    if (!isClub) return `Sélection <b>${mg.nom}</b> — vos réglages s'appliquent à la 2e période (le pressing haut fatigue l'équipe).`;
+    if (!isClub){
+      const r = mg.team ? Math.round(FM.nationXIRating(mg.team)) : mg.note;
+      return `Sélection <b>${mg.nom}</b> — force du onze <b>${r}</b>. Vos réglages et remplacements s'appliquent à la 2e période (le pressing haut fatigue l'équipe).`;
+    }
     const st = FM.teamStrength(mg.club);
     return `Forces — attaque <b>${Math.round(st.att)}</b> · milieu <b>${Math.round(st.mid)}</b> · défense <b>${Math.round(st.def)}</b>. Le pressing haut fatigue ; les entrants sont frais.`;
   }
@@ -545,6 +548,27 @@ function openHalftimePanel(mg, cfg, h1, next){
           bench.forEach(b=> sel.appendChild(new Option(`${b.pos} ${b.nom} (${b.note})`, b.id)));
           sel.onchange=()=>{ if(!sel.value) return;
             if (FM.substitute(my, p.id, parseInt(sel.value,10))){ subs++; FM.save(); render(); } };
+          line.appendChild(sel);
+          wrap.appendChild(line);
+        });
+        box.appendChild(wrap);
+      } else if (subs>=3) box.appendChild(el("p","hint","Quota de remplacements atteint."));
+    } else if (mg.team && mg.team.starters){
+      // ---- Remplacements en sélection ----
+      const team = mg.team;
+      box.appendChild(el("h4",null,`🔁 Remplacements (${subs}/3)`));
+      const bench = team.squad.filter(p=>team.starters.indexOf(p.id)<0).sort((a,b)=>b.note-a.note);
+      if (subs<3 && bench.length){
+        const wrap = el("div","ht-subs");
+        team.starters.forEach(id=>{
+          const p = team.squad.find(x=>x.id===id); if(!p) return;
+          const line = el("div","ht-sub-row");
+          line.innerHTML = `<span><span class="pos-badge ${p.groupe}">${p.pos}</span> ${p.nom} <b class="note ${noteClass(p.note)}">${p.note}</b>${p._tired?" <small>😮‍💨</small>":""}</span>`;
+          const sel = el("select");
+          sel.appendChild(new Option("— remplacer par —",""));
+          bench.forEach(b=> sel.appendChild(new Option(`${b.pos} ${b.nom} (${b.note})`, b.id)));
+          sel.onchange=()=>{ if(!sel.value) return;
+            if (FM.substituteNation(team, p.id, parseInt(sel.value,10))){ subs++; render(); } };
           line.appendChild(sel);
           wrap.appendChild(line);
         });
@@ -1168,8 +1192,8 @@ let intlCareer = false;                 // tournoi disputé depuis une carrière
 let intlKind = null, intlNation = null;
 
 function startInternational(kind, nation){
-  openSquadPicker(kind, nation, (squad, note)=>{
-    intlComp = FM.makeNationTournament(kind, nation, {squad, note});
+  openSquadPicker(kind, nation, (squad, note, starters)=>{
+    intlComp = FM.makeNationTournament(kind, nation, {squad, note, starters});
     intlCareer = false;
     renderTournament();
   });
@@ -1177,8 +1201,8 @@ function startInternational(kind, nation){
 
 /* Lance le tournoi international depuis une carrière (retour à la carrière ensuite) */
 function startCareerIntl(kind, nation){
-  openSquadPicker(kind, nation, (squad, note)=>{
-    intlComp = FM.makeNationTournament(kind, nation, {squad, note});
+  openSquadPicker(kind, nation, (squad, note, starters)=>{
+    intlComp = FM.makeNationTournament(kind, nation, {squad, note, starters});
     intlCareer = true; intlKind = kind; intlNation = nation;
     renderTournament();
   });
@@ -1368,13 +1392,14 @@ function playIntlTie(){
   const A = comp.teams[a], B = comp.teams[b];
   const playerA = (a===comp.playerSeed);
   const me = comp.teams[comp.playerSeed], opp = comp.teams[playerA?b:a];
-  comp._tac = comp._tac || { mentalite:1, tempo:1, pressing:1, moral:0, tired:0 };
-  const tac = comp._tac; tac.tired = 0;             // fraîcheur retrouvée à chaque match
+  comp._tac = comp._tac || { mentalite:1, tempo:1, pressing:1, moral:0 };
+  const tac = comp._tac;
+  FM.clearNationFlags(me);                          // fraîcheur retrouvée à chaque match
   let pen = null;
   playMatchHalves({
     home:{nom:A.nom,couleurs:A.couleurs}, away:{nom:B.nom,couleurs:B.couleurs},
     label:comp.nom, oppName:opp.nom, playerIsHome:playerA,
-    managed:{ tac, nom:me.nom, note:me.note },
+    managed:{ tac, nom:me.nom, note:me.note, team:me },
     simHalf:(h)=>{
       if (playerA){ const r=FM.simNationHalf(A,B,h,tac);
         return { hs:r.as, as:r.es, events:r.events.map(e=>({min:e.min,joueur:e.joueur,home:e.side==="a"})) }; }
