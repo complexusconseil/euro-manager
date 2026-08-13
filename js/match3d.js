@@ -182,6 +182,8 @@
     // ---- Simulation + statistiques ----
     const evs=(cfg.events||[]).slice().sort((a,b)=>a.min-b.min);
     const MIN0 = cfg.minStart||0, MIN1 = cfg.minEnd||90;
+    const incs=(cfg.incidents||[]).slice().sort((a,b)=>a.min-b.min); let ii=0;
+    const INCICON={injury:"🤕",yellow:"🟨",red:"🟥"};
     let ei=0, hs=cfg.startHs||0, as=cfg.startAs||0;
     let poss=Math.random()<0.5?0:1;
     const target=new THREE.Vector3(0,0.95,0);
@@ -338,6 +340,10 @@
       sun.target.position.set(bx*0.3,0,bz*0.3);
 
       renderer.render(scene,cam);
+      while(ii<incs.length && minute>=incs[ii].min){
+        const c=incs[ii++];
+        feedLine(`${INCICON[c.type]||"•"} <b>${c.joueur}</b> <small>(${c.min}')</small>`, c.home?0:1);
+      }
       if(minute>=MIN1 && !ended){ while(ei<evs.length){ registerGoal(evs[ei]); ei++; } end(); }
     }
     updateDash(); loop();

@@ -316,6 +316,15 @@ function renderHome(body){
     return;
   }
 
+  const indispo = FM.unavailableList(my);
+  if (indispo.length){
+    const w = el("div","card injury-card");
+    w.innerHTML = `<h3>🏥 Infirmerie & suspensions (${indispo.length})</h3>` +
+      indispo.map(p=>`<div class="inj-row"><span class="pos-badge ${p.groupe}">${p.pos}</span> <b>${p.nom}</b> — ${p.blessure>0?"🤕":"🟥"} ${FM.unavailableReason(p)}</div>`).join("");
+    const inXI = my.onze.map(s2=>FM.getPlayer(my,s2.id)).filter(p=>p && !FM.playerAvailable(p));
+    if (inXI.length) w.innerHTML += `<p class="ht-alert">⚠️ ${inXI.length} indisponible(s) dans votre onze — corrigez la composition (onglet Tactique).</p>`;
+    body.appendChild(w);
+  }
   const fx = FM.nextFixture();
   const card = el("div","card match-card");
   if (fx){
@@ -374,7 +383,7 @@ function watchMatch(home, away, hs, as, events, opts, onDone){
   opts = opts || {};
   if (use3D()){ window.FM3D.play({home,away,hs,as,events,label:opts.label,endText:opts.endText,
       minStart:opts.minStart, minEnd:opts.minEnd, startHs:opts.startHs, startAs:opts.startAs,
-      contBtn:opts.contBtn}, onDone); return; }
+      incidents:opts.incidents, contBtn:opts.contBtn}, onDone); return; }
   animate2D(home, away, hs, as, events, opts, onDone);
 }
 
@@ -402,8 +411,14 @@ function animate2D(home, away, hs, as, events, opts, onDone){
     mEl.textContent=(opts.endText?opts.endText+" · ":"")+(MIN1>=90?"Coup de sifflet final ⏱":"Mi-temps ⏸");
     skip.textContent=opts.contBtn||"✔ Continuer"; skip.className="btn primary"; skip.onclick=()=>{ overlay.remove(); onDone&&onDone(); }; }
   skip.onclick=finish;
+  const incs=(opts.incidents||[]).slice().sort((a,b)=>a.min-b.min); let ii=0;
+  const ICON={injury:"🤕",yellow:"🟨",red:"🟥"};
   timer=setInterval(()=>{ minute+=3; if(minute>MIN1){finish();return;}
     mEl.textContent=`${opts.label?opts.label+" · ":""}${minute}'`;
+    while(ii<incs.length && incs[ii].min<=minute){ const c=incs[ii++];
+      const l=el("div","feed-line "+(c.home?"left":"right")+" inc",
+        `<span class="fmin">${c.min}'</span> ${ICON[c.type]||"•"} <b>${c.joueur}</b>`);
+      feed.prepend(l); }
     while(idx<ord.length && ord[idx].min<=minute){ const e=ord[idx++]; if(e.home)s++;else o++;
       sEl.textContent=`${s} - ${o}`; const l=line(e); l.classList.add("flash"); feed.prepend(l); }
   },220);
@@ -432,25 +447,37 @@ function playMatchFlow(){
 }
 
 /* Déroulé complet d'un match joué par le manager */
+let lastIncidents = [];
 function playMatchHalves(cfg){
   const mg = cfg.managed;
   const evMap = e => ({ min:e.min, joueur:e.joueur,
     home: (cfg.homeId!==undefined && e.clubId!==undefined) ? (e.clubId===cfg.homeId)
           : (e.home!==undefined ? e.home : (e.side==="a")) });
+  const incidentsOf = (half)=>{
+    if (!mg || !mg.club || !cfg.homeId) return [];
+    const my = mg.club;
+    const inc = FM.applyIncidents(my, FM.matchIncidents(my, half));
+    if (FM.state) FM.announceIncidents(my, inc);
+    const isHome = (my.id===cfg.homeId);
+    return inc.map(i=>({ min:i.min, joueur:i.nom, type:i.type, home:isHome, suspend:i.suspend }));
+  };
   function kickoff(){
     const h1 = cfg.simHalf(1);
+    const inc1 = incidentsOf(1);
+    lastIncidents = inc1;
     watchMatch(cfg.home, cfg.away, h1.hs, h1.as, h1.events.map(evMap),
       { label:(cfg.label||"")+" · 1re mi-temps", minStart:0, minEnd:45,
-        contBtn:"⏸ Aller à la mi-temps" }, ()=>{
+        incidents:inc1, contBtn:"⏸ Aller à la mi-temps" }, ()=>{
       applyHalfBreak(mg);
       openHalftimePanel(mg, cfg, h1, ()=>{
         const h2 = cfg.simHalf(2);
+        const inc2 = incidentsOf(2);
         const hs = h1.hs+h2.hs, as = h1.as+h2.as;
         const all = h1.events.concat(h2.events).sort((a,b)=>a.min-b.min);
         const endText = cfg.endText ? cfg.endText(hs, as) : undefined;
         watchMatch(cfg.home, cfg.away, hs, as, h2.events.map(evMap),
           { label:(cfg.label||"")+" · 2e mi-temps", minStart:45, minEnd:90,
-            startHs:h1.hs, startAs:h1.as, endText }, ()=>{
+            startHs:h1.hs, startAs:h1.as, incidents:inc2, endText }, ()=>{
           if (mg && mg.club) FM.clearMatchFlags(mg.club);
           cfg.done(hs, as, all);
         });
@@ -526,6 +553,12 @@ function openHalftimePanel(mg, cfg, h1, next){
       `${verdict}. Vos choix comptent pour la 2e période.`));
     const sl = el("p","hint"); sl.id="htStrength"; sl.innerHTML = strengthLine();
     box.appendChild(sl);
+    if (isClub){
+      const out = mg.club.onze.map(s2=>FM.getPlayer(mg.club,s2.id)).filter(p=>p && !FM.playerAvailable(p));
+      if (out.length) box.appendChild(el("p","ht-alert",
+        `⚠️ ${out.map(p=>`<b>${p.nom}</b> (${FM.unavailableReason(p)})`).join(", ")} — remplacez-le${out.length>1?"s":""} pour ne pas jouer diminué.`));
+      if (mg.club._red) box.appendChild(el("p","ht-alert","🟥 Vous êtes en infériorité numérique."));
+    }
     const refresh = ()=>{ const n=document.getElementById("htStrength"); if(n) n.innerHTML=strengthLine(); };
     const set = (k,v)=>{ if(isClub) FM.setTactic(k,v); else tac[k]=v; refresh(); };
     const row = el("div","tac-row");
@@ -542,7 +575,9 @@ function openHalftimePanel(mg, cfg, h1, next){
         my.onze.forEach(s=>{
           const p = FM.getPlayer(my,s.id); if(!p) return;
           const line = el("div","ht-sub-row");
-          line.innerHTML = `<span><span class="pos-badge ${p.groupe}">${s.slot}</span> ${p.nom} <b class="note ${noteClass(p.note)}">${p.note}</b>${p._tired?" <small>😮‍💨</small>":""}</span>`;
+          const ko = !FM.playerAvailable(p);
+          line.innerHTML = `<span><span class="pos-badge ${p.groupe}">${s.slot}</span> ${p.nom} <b class="note ${noteClass(p.note)}">${p.note}</b>${ko?' <span class="inc-badge">'+(p.blessure>0?"🤕":"🟥")+'</span>':""}${p._tired?" <small>😮‍💨</small>":""}</span>`;
+          if (ko) line.classList.add("ko");
           const sel = el("select");
           sel.appendChild(new Option("— remplacer par —",""));
           bench.forEach(b=> sel.appendChild(new Option(`${b.pos} ${b.nom} (${b.note})`, b.id)));
@@ -622,7 +657,7 @@ function renderSquad(body){
     const tr = el("tr", inXI?"in-xi":"");
     tr.innerHTML = `
       <td><span class="pos-badge ${p.groupe}">${p.pos}</span></td>
-      <td><a class="player-link">${inXI?'⭐ ':''}${p.nom}</a></td>
+      <td><a class="player-link">${inXI?'⭐ ':''}${p.nom}</a>${!FM.playerAvailable(p)?' <span class="inc-badge" title="'+FM.unavailableReason(p)+'">'+(p.blessure>0?'🤕':'🟥')+(p.blessure>0?p.blessure:p.suspension)+'</span>':''}${(p.cartons||0)%5===4?' <span class="inc-badge warn" title="Prochain avertissement = suspension">🟨</span>':''}</td>
       <td>${FLAG[p.nat]||''}</td>
       <td>${p.age}</td>
       <td><b class="note ${noteClass(p.note)}">${p.note}</b></td>
@@ -710,6 +745,8 @@ function openPlayerCard(p, clubNom){
       <span>⚽ ${p.buts||0} buts</span><span>🅰️ ${p.passes||0} passes</span>
       <span>👟 ${p.matchs||0} matchs</span><span>🌟 ${p.noteMatchs?avg.toFixed(2):'—'} moy</span>
     </div>
+    ${!FM.playerAvailable(p)?`<p class="pc-out">${p.blessure>0?"🤕 Blessé":"🟥 Suspendu"} — indisponible ${p.blessure>0?p.blessure:p.suspension} journée(s).</p>`:''}
+    ${(p.cartons||0)?`<p class="hint">🟨 Avertissements cette saison : <b>${p.cartons}</b>${(p.cartons%5===4)?" — prochain carton = suspension":""}</p>`:''}
     ${p.selJeunes?`<p class="pc-youth">🎖️ Convoqué en <b>${p.selJeunes.equipe}</b> (${p.selJeunes.matchs} matchs, ${p.selJeunes.buts} buts).</p>`:''}
     <div class="pc-career">
       <h4>Carrière — totaux : ${totMatch} matchs · ${totButs} buts · ${totPasses} passes</h4>
@@ -823,7 +860,7 @@ function openPlayerPicker(slotIdx, slotPos){
   box.appendChild(el("h3",null,`Choisir un joueur — ${FM.POS_LABEL[slotPos]} (${slotPos})`));
   const list = el("div","picker-list");
   const usedIds = new Set(my.onze.filter((_,i)=>i!==slotIdx).map(s=>s.id));
-  my.joueurs.slice().sort((a,b)=>b.note-a.note).forEach(p=>{
+  my.joueurs.slice().sort((a,b)=>(FM.playerAvailable(b)?1:0)-(FM.playerAvailable(a)?1:0) || b.note-a.note).forEach(p=>{
     const row = el("div","picker-row"+(usedIds.has(p.id)?" used":""));
     row.innerHTML = `<span class="pos-badge ${p.groupe}">${p.pos}</span>
       <b>${p.nom}</b> <span class="note ${noteClass(p.note)}">${p.note}</span>

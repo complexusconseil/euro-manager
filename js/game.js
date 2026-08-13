@@ -177,6 +177,14 @@ FM.playMatchday = function(forcedMy){
 
     const isMine = (dom.id===myId || ext.id===myId);
     const res = (isMine && forcedMy) ? forcedMy : FM.simulateMatch(dom, ext);
+    // Blessures / cartons : déjà appliqués si le match a été joué en interactif
+    if (!(isMine && forcedMy)){
+      [dom, ext].forEach(c=>{
+        const inc = FM.applyIncidents(c, FM.matchIncidents(c,1).concat(FM.matchIncidents(c,2)));
+        if (c.id===myId) announceIncidents(c, inc);
+      });
+      delete dom._red; delete ext._red;
+    }
     applyResult(dom, ext, res);
     accumulateStats(dom, ext, res);
     const r = { dom:dom.id, ext:ext.id, ds:res.domScore, es:res.extScore, events:res.events };
@@ -186,10 +194,36 @@ FM.playMatchday = function(forcedMy){
 
   FM.state.resultats[FM.state.journee] = dayResults;
   FM.state.journee++;
+  FM.tickAvailability();                 // blessures/suspensions : une journée de moins
 
   postMatchdayUpdates(myResult);
   FM.save();
   return { dayResults, myResult };
+};
+
+/* Décrémente blessures et suspensions d'une journée (sauf celles du jour) */
+FM.tickAvailability = function(){
+  for (const c of FM.state.db.clubs) for (const p of c.joueurs){
+    if (p._justInjured){ delete p._justInjured; continue; }
+    if (p.blessure>0){ p.blessure--; if(!p.blessure && c.id===FM.state.managedClubId) addNews(`💪 ${p.nom} est de retour de blessure.`); }
+    if (p.suspension>0){ p.suspension--; if(!p.suspension && c.id===FM.state.managedClubId) addNews(`✅ ${p.nom} a purgé sa suspension.`); }
+  }
+};
+
+/* Annonce les incidents du club géré dans le journal */
+function announceIncidents(club, incidents){
+  for (const inc of incidents){
+    if (inc.type==="injury") addNews(`🤕 ${inc.nom} se blesse (${inc.duree} journée${inc.duree>1?'s':''} d'indisponibilité).`);
+    else if (inc.type==="red") addNews(`🟥 ${inc.nom} est expulsé — suspendu pour la suite.`);
+    else if (inc.suspend) addNews(`🟨 ${inc.nom} : 5e avertissement, suspendu la prochaine journée.`);
+  }
+}
+FM.announceIncidents = announceIncidents;
+
+/* Joueurs indisponibles du club géré */
+FM.unavailableList = function(club){
+  club = club || FM.myClub();
+  return club.joueurs.filter(p=>!FM.playerAvailable(p));
 };
 
 function applyResult(dom, ext, res){

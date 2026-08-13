@@ -148,6 +148,19 @@ tbody tr:hover{background:var(--card2)}
 .intl-pick select{padding:8px 10px;border-radius:8px}
 .tag.free{background:#134e2b;color:#7ee2a8;border-color:#1c6b3d}
 .tag.loan-tag{background:#3a2d5c;color:#c9b6ff;border-color:#4c3c7a}
+/* Blessures & suspensions */
+.inc-badge{display:inline-block;background:rgba(239,107,107,.16);border:1px solid #5a2b2b;color:#ffb4b4;
+  font-size:11px;font-weight:800;padding:1px 6px;border-radius:20px;margin-left:4px}
+.inc-badge.warn{background:rgba(240,180,41,.16);border-color:#6b5a1c;color:#f0d98a}
+.injury-card{border-left:3px solid #ef6b6b}
+.inj-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+.inj-row:last-of-type{border-bottom:0}
+.ht-alert{background:rgba(240,180,41,.12);border:1px solid #6b5a1c;border-radius:8px;padding:8px 10px;margin:8px 0;font-size:13.5px}
+.ht-sub-row.ko{background:rgba(239,107,107,.12);border-left:3px solid #ef6b6b}
+.pc-out{background:rgba(239,107,107,.12);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-weight:600}
+.feed-line.inc{opacity:.95;font-style:italic}
+.picker-row.ko,.picker-list .ko{opacity:.55}
+
 /* Fenêtre de mercato */
 .mkt-window{margin-top:8px;padding:9px 12px;border-radius:9px;font-size:14px;border:1px solid var(--line)}
 .mkt-window.open{background:rgba(46,160,67,.12);border-color:var(--accent)}
