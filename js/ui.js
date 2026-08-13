@@ -513,10 +513,10 @@ function playLiveMatch(cfg){
   const ball={x:W/2,y:H/2,tx:W/2,ty:H/2};
   const colH=(cfg.home.couleurs||["#e33"])[0], colA=(cfg.away.couleurs||["#38f"])[0];
   function drawPitch(){
-    g.fillStyle="#14562a"; g.fillRect(0,0,W,H);
-    g.fillStyle="rgba(255,255,255,.028)";
+    g.fillStyle="#2f8f47"; g.fillRect(0,0,W,H);
+    g.fillStyle="rgba(255,255,255,.075)";
     for(let i=0;i<8;i+=2) g.fillRect(i*W/8,0,W/8,H);
-    g.strokeStyle="rgba(255,255,255,.42)"; g.lineWidth=1.5;
+    g.strokeStyle="rgba(255,255,255,.85)"; g.lineWidth=2;
     g.strokeRect(10,10,W-20,H-20);
     g.beginPath(); g.moveTo(W/2,10); g.lineTo(W/2,H-10); g.stroke();
     g.beginPath(); g.arc(W/2,H/2,38,0,7); g.stroke();
@@ -758,8 +758,9 @@ function renderSquad(body){
   card.appendChild(el("h3",null,icon("squad")+`${_t("Effectif")} — ${my.joueurs.length} ${_t("joueurs")} · ${_t("Masse salariale")} ~${my.joueurs.reduce((a,p)=>a+p.salaire,0).toFixed(0)} k€/sem`));
 
   const table = el("table","squad-table");
+  const showNat = my.joueurs.some(p=>p.nat);
   table.innerHTML = `<thead><tr>
-    <th>${_t("Poste")}</th><th>${_t("Nom")}</th><th>${_t("Nat")}</th><th>${_t("Âge")}</th><th>${_t("Note")}</th><th>${_t("Pot")}</th>
+    <th>${_t("Poste")}</th><th>${_t("Nom")}</th>${showNat?`<th>${_t("Nat")}</th>`:""}<th>${_t("Âge")}</th><th>${_t("Note")}</th><th>${_t("Pot")}</th>
     <th>${_t("Valeur")}</th><th>${_t("Forme")}</th><th>${_t("Moral")}</th><th title="${_t("Matchs")}">M</th><th title="${_t("Buts")}">B</th><th title="${_t("Passes déc.")}">PD</th><th title="${_t("Note moyenne")}">${_t("moy")}</th><th></th></tr></thead>`;
   const tb = el("tbody");
   const order = {G:0,D:1,M:2,A:3};
@@ -769,7 +770,7 @@ function renderSquad(body){
     tr.innerHTML = `
       <td><span class="pos-badge ${p.groupe}">${p.pos}</span></td>
       <td><a class="player-link">${inXI?'<span class="starter-mark">★</span>':''}${p.nom}</a>${!FM.playerAvailable(p)?' <span class="inc-badge" title="'+FM.unavailableReason(p)+'">'+(p.blessure>0?_t("BLES."):_t("SUSP."))+' '+(p.blessure>0?p.blessure:p.suspension)+'</span>':''}${(p.cartons||0)%5===4?' <span class="inc-badge warn" title="'+_t("Prochain avertissement = suspension")+'">'+_t("4 CJ")+'</span>':''}</td>
-      <td>${FLAG(p.nat)}</td>
+      ${showNat?`<td>${FLAG(p.nat)}</td>`:""}
       <td>${p.age}</td>
       <td><b class="note ${noteClass(p.note)}">${p.note}</b></td>
       <td>${p.potentiel}</td>

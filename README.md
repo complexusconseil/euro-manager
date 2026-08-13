@@ -9,7 +9,7 @@ Jeu de gestion football (à mi-chemin entre FIFA et Football Manager). Jouable *
 
 ## 🎨 Interface
 
-Identité **« Master League »**, sobre et un peu rétro, dans l'esprit des menus de gestion des années 2000 : fond bleu nuit, **panneaux acier à en-tête biseauté**, accent **bleu glacé**, or pour les trophées, **angles droits** (pas d'arrondis), titres en **capitales condensées** et chiffres alignés.
+Habillage repris des menus de **PES 6** : fond **argent et blanc** balayé d'une **diagonale**, **panneaux clairs biseautés** à bandeau **bleu dégradé** souligné d'**orange**, **onglets en lamelles penchées**, typographie **condensée italique en capitales**, tableaux blancs à en-tête bleu et **ligne sélectionnée en bleu plein**. Accents orange pour les trophées, rouge pour la discipline. Le seul écran sombre est le **bandeau de score** en match, comme dans le jeu.
 
 **Aucun emoji dans l'interface.** Tout ce qui était signalé par un émoji est devenu graphique :
 - **Drapeaux vectoriels** dessinés en SVG (`js/flags.js`) — 110 pays, lisibles partout, là où les drapeaux émoji ne s'affichent tout simplement pas sous Windows ;
