@@ -59,7 +59,7 @@ const EN = {
   "Valeur":"Value", "Forme":"Form", "Moral":"Morale", "Matchs":"Apps", "Buts":"Goals",
   "Passes déc.":"Assists", "Note moyenne":"Avg rating",
   "Vendre":"Sell", "Retirer":"Unlist", "Prêter":"Loan out", "Rendre":"Return", "Signer":"Sign", "Offre":"Bid",
-  "Cliquez sur un nom pour la fiche du joueur. « Prêter » envoie un joueur en prêt une saison ; les prêts entrants portent le badge 🔁.":"Click a name for the player profile. \"Loan out\" sends a player away for the season; incoming loans carry the 🔁 badge.",
+  "Cliquez sur un nom pour la fiche du joueur. « Prêter » envoie un joueur en prêt une saison ; les prêts entrants portent le badge « prêt ».":"Click a name for the player profile. \"Loan out\" sends a player away for the season; incoming loans carry the 🔁 badge.",
   "Joueurs prêtés":"Players out on loan",
   "Rappeler":"Recall", "retour fin de saison":"returns at season's end",
   "Potentiel":"Potential", "Salaire":"Wage", "Contrat":"Contract", "an":"year", "ans":"years",
@@ -218,6 +218,39 @@ const EN = {
   "excellente":"excellent", "bonne":"good", "décevante":"disappointing", "moyenne":"average",
   "Qualifié en":"Qualified for", "Non qualifié en coupe d'Europe.":"Not qualified for Europe.",
   "est remplacé par":"is replaced by",
+  /* ----- Habillage : pastilles, drapeaux, catégories d'actus ----- */
+  "BLES.":"INJ", "SUSP.":"SUS", "FATIGUÉ":"TIRED", "4 CJ":"4 YC",
+  "Prochain avertissement = suspension":"Next booking = suspension",
+  "Moy":"Avg", "GB":"GK", "DEF":"DEF", "MIL":"MID", "ATT":"FWD",
+  "Titre":"Title", "Blessure":"Injury", "Discipline":"Discipline",
+  "Transfert":"Transfer", "Finances":"Finance", "Progression":"Progress",
+  "Baisse":"Decline", "Distinction":"Award",
+  "Agent libre":"Free agent",
+
+  /* ----- Compétitions ----- */
+  "cet été":"this summer",
+  "Prenez en main une sélection nationale et disputez le tournoi (élimination directe), en parallèle de votre carrière.":"Take charge of a national team and play the knockout tournament, alongside your club career.",
+  "Disputer le tournoi":"Play the tournament",
+  "Passer (ne pas participer)":"Skip (do not take part)",
+  "Coupes d'Europe":"European cups",
+  "VAINQUEUR !":"WINNERS!", "VAINQUEUR DE LA COUPE !":"CUP WINNERS!",
+  "Passer":"Skip", "Qualifié !":"Through!",
+  "Fin de l'aller — place au retour":"First leg over — on to the return",
+  "Jouer le retour":"Play the return leg",
+  "prêt":"loan", "jouée":"played", "joué":"played", "tour":"round",
+  "Bravo, c'est VOTRE club !":"Well done — that's YOUR club!",
+  "Avec":"With", "vous êtes sur le toit du monde !":"you are on top of the world!",
+  "Vous dirigiez":"You were managing",
+
+  /* ----- Bande son ----- */
+  "Bande son":"Soundtrack",
+  "Audio indisponible sur ce navigateur.":"Audio not available in this browser.",
+  "votre fichier":"your file",
+  "Piste précédente":"Previous track", "Piste suivante":"Next track",
+  "Lecture":"Play", "Volume":"Volume",
+  "Ajouter mes propres musiques":"Add my own music",
+  "Retirer mes musiques":"Remove my music",
+
   /* ----- Divers ----- */
   "Palmarès / historique":"Honours / history",
   "ouvert — ferme après la journée":"open — closes after matchday",

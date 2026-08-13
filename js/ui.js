@@ -24,26 +24,52 @@ const SVG = {
   pause:'<path d="M8 4v16M16 4v16"/>',
   hospital:'<path d="M12 6v12M6 12h12"/><circle cx="12" cy="12" r="9"/>',
   pin:'<path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
-  target:'<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/>'
+  target:'<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/>',
+  card:'<rect x="6" y="3" width="12" height="18" rx="1.5"/>',
+  swap:'<path d="M4 8h13l-3-3M20 16H7l3 3"/>',
+  coin:'<ellipse cx="12" cy="7" rx="8" ry="3.2"/><path d="M4 7v10c0 1.8 3.6 3.2 8 3.2s8-1.4 8-3.2V7"/><path d="M4 12c0 1.8 3.6 3.2 8 3.2s8-1.4 8-3.2"/>',
+  check:'<path d="m4 12.5 5.5 5.5L20 6"/>',
+  cross:'<path d="M6 6l12 12M18 6 6 18"/>',
+  plane:'<path d="M3 13.5 21 5l-4.5 15-4-5.5-5.5-1z"/>',
+  stadium:'<ellipse cx="12" cy="9" rx="9" ry="4"/><path d="M3 9v6c0 2.2 4 4 9 4s9-1.8 9-4V9"/>',
+  medal:'<circle cx="12" cy="15" r="5.2"/><path d="M8.5 10.2 6 3h12l-2.5 7.2"/>',
+  forward:'<path d="M4 5.5 12 12l-8 6.5zM13 5.5 21 12l-8 6.5z"/>',
+  skip:'<path d="M5 5.5 15 12 5 18.5zM18 5v14"/>',
+  music:'<path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.6"/><circle cx="17.5" cy="16" r="2.6"/>',
+  vol:'<path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/><path d="M15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/>',
+  mute:'<path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/>',
+  prev:'<path d="M19 5.5 9 12l10 6.5zM6 5v14"/>',
+  upload:'<path d="M12 17V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 15v3.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5V15"/>',
+  gloves:'<path d="M7 21V9a2 2 0 0 1 4 0V4.5a1.8 1.8 0 0 1 3.6 0V10l2-1.5a1.7 1.7 0 0 1 2.4 2.3L17 15v6z"/>',
+  shield:'<path d="M12 3 4.5 6v6c0 4.6 3.2 8 7.5 9 4.3-1 7.5-4.4 7.5-9V6z"/>',
+  gear:'<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5"/>',
+  alert:'<path d="M12 3.5 21.5 20h-19z"/><path d="M12 9.5v5M12 17.2v.1"/>'
 };
 function icon(name, cls){
   return `<svg class="${cls||''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SVG[name]||''}</svg>`;
 }
+/* pastilles typographiques (remplacent les anciens emoji d'état) */
+const chip = (cls, txt) => `<span class="chip ${cls}">${txt}</span>`;
+const outChip = p => p.blessure>0 ? chip("inj",_t("BLES.")) : chip("sus",_t("SUSP."));
+/* fil d'actualités : marqueur de catégorie au lieu d'un emoji */
+const NEWS_LBL = {
+  title:"Titre", cup:"Coupe", injury:"Blessure", card:"Discipline", transfer:"Transfert",
+  loan:"Prêt", money:"Finances", intl:"International", season:"Saison", up:"Progression",
+  down:"Baisse", award:"Distinction", match:"Match", info:"Club"
+};
+function newsItem(n, withDate){
+  const k = n.kind || "info";
+  const tag = `<span class="nk">${_t(NEWS_LBL[k]||NEWS_LBL.info)}</span>`;
+  const date = withDate ? `<small>S${n.saison} J${n.j}</small>` : "";
+  return el("p","news-item k-"+k, date+tag+n.txt);
+}
+const compMark = c => (c && c.nat && FM.flag) ? FM.flag(c.nat) : icon((c&&c.ic)||"cup");
+const qualChip = ok => ok ? chip("ok",_t("Qualifié")) : chip("ko",_t("Éliminé"));
 const el = (tag, cls, html) => { const e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e; };
 const money = m => (m>=0? "" : "-") + Math.abs(m).toFixed(1) + " M€";
-const FLAG = {
-  FRA:"🇫🇷",ENG:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",ESP:"🇪🇸",ITA:"🇮🇹",GER:"🇩🇪",POR:"🇵🇹",BRA:"🇧🇷",ARG:"🇦🇷",NED:"🇳🇱",BEL:"🇧🇪",
-  GRE:"🇬🇷",CRO:"🇭🇷",NOR:"🇳🇴",DEN:"🇩🇰",SUI:"🇨🇭",AUT:"🇦🇹",TUR:"🇹🇷",UKR:"🇺🇦",SRB:"🇷🇸",POL:"🇵🇱",
-  SWE:"🇸🇪",SCO:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",HUN:"🇭🇺",CZE:"🇨🇿",WAL:"🏴󠁧󠁢󠁷󠁬󠁳󠁿",ROU:"🇷🇴",URU:"🇺🇾",COL:"🇨🇴",ECU:"🇪🇨",CHI:"🇨🇱",
-  PER:"🇵🇪",PAR:"🇵🇾",MAR:"🇲🇦",SEN:"🇸🇳",NGA:"🇳🇬",EGY:"🇪🇬",ALG:"🇩🇿",CIV:"🇨🇮",CMR:"🇨🇲",GHA:"🇬🇭",
-  TUN:"🇹🇳",JPN:"🇯🇵",KOR:"🇰🇷",IRN:"🇮🇷",AUS:"🇦🇺",KSA:"🇸🇦",MEX:"🇲🇽",USA:"🇺🇸",CAN:"🇨🇦",RUS:"🇷🇺",
-  SVK:"🇸🇰",SVN:"🇸🇮",IRL:"🇮🇪",NIR:"🇬🇧",ISL:"🇮🇸",FIN:"🇫🇮",BIH:"🇧🇦",ALB:"🇦🇱",MKD:"🇲🇰",BUL:"🇧🇬",
-  GEO:"🇬🇪",ISR:"🇮🇱",MNE:"🇲🇪",KOS:"🇽🇰",BLR:"🇧🇾",KAZ:"🇰🇿",VEN:"🇻🇪",BOL:"🇧🇴",RSA:"🇿🇦",MLI:"🇲🇱",
-  BFA:"🇧🇫",COD:"🇨🇩",GUI:"🇬🇳",CPV:"🇨🇻",GAB:"🇬🇦",ZAM:"🇿🇲",ANG:"🇦🇴",QAT:"🇶🇦",IRQ:"🇮🇶",UAE:"🇦🇪",
-  UZB:"🇺🇿",JOR:"🇯🇴",CHN:"🇨🇳",OMA:"🇴🇲",VIE:"🇻🇳",THA:"🇹🇭",CRC:"🇨🇷",PAN:"🇵🇦",JAM:"🇯🇲",HON:"🇭🇳",
-  SLV:"🇸🇻",TRI:"🇹🇹",NZL:"🇳🇿"
-};
+/* Drapeaux : SVG vectoriels (js/flags.js) — plus aucun emoji */
+const FLAG = nat => nat ? FM.flag(nat) : "";
 
 /* ---- Écussons (crests) générés aux couleurs du club ---- */
 function clubMonogram(nom){
@@ -88,9 +114,11 @@ function renderStart(){
   const wrap = el("div","start");
   const brand = el("div","brand");
   brand.innerHTML = `<div class="brand-mark">${icon("ball")}</div>
-    <h1 class="logo">EURO <em>MANAGER</em></h1>`;
+    <h1 class="logo">EURO <em>MANAGER</em></h1>
+    <div class="logo-rule"></div>`;
   wrap.appendChild(brand);
   wrap.appendChild(el("p","tagline",_t("Gérez un club européen — du mercato au terrain.")));
+  wrap.appendChild(audioBar());
 
   // Sélecteur de mode
   const modeSwitch = el("div","mode-switch");
@@ -159,7 +187,7 @@ function renderStart(){
     });
     card.appendChild(kitRow);
 
-    const info = el("p","ml-info","🎮 Vous démarrez dans le <b>championnat de votre choix</b> (sélectionné ci-dessus), à la place de son club le plus faible, avec un effectif « maison » aux <b>noms iconiques (Castolo, Espimas, Minanda…)</b> et un petit budget. Piochez parmi les <b>agents libres</b> ou achetez à d'autres clubs, puis bâtissez une grande équipe au fil des saisons — comme la Ligue des Masters d'antan.");
+    const info = el("p","ml-info","Vous démarrez dans le <b>championnat de votre choix</b> (sélectionné ci-dessus), à la place de son club le plus faible, avec un effectif « maison » aux <b>noms iconiques (Castolo, Espimas, Minanda…)</b> et un petit budget. Piochez parmi les <b>agents libres</b> ou achetez à d'autres clubs, puis bâtissez une grande équipe au fil des saisons — comme la Ligue des Masters d'antan.");
     card.appendChild(info);
 
     const btn = el("button","btn primary big",icon("cup")+_t("Lancer la Master League"));
@@ -189,7 +217,7 @@ function renderStart(){
     };
     compSel.onchange = fillNations; fillNations();
 
-    const info = el("p","ml-info","🌍 Disputez le tournoi à élimination directe avec la sélection de votre choix. La force de chaque nation est réaliste ; les effectifs sont représentatifs (générés).");
+    const info = el("p","ml-info","Disputez le tournoi à élimination directe avec la sélection de votre choix. La force de chaque nation est réaliste ; les effectifs sont représentatifs (générés).");
     card.appendChild(info);
 
     const btn = el("button","btn primary big",icon("globe")+_t("Lancer le tournoi"));
@@ -252,6 +280,7 @@ function renderGame(){
     b.onclick=()=>{ currentTab=k; renderGame(); };
     tabs.appendChild(b);
   });
+  app.appendChild(audioBar());
   app.appendChild(tabs);
 
   const body = el("div","content"); body.id="content";
@@ -288,15 +317,15 @@ function renderAgenda(body){
   card.appendChild(el("h3",null,icon("pin")+_t("Rendez-vous à jouer")));
   cups.forEach(ev=>{
     const row = el("div","agenda-row"+(ev.enRetard?" late":""));
-    row.innerHTML = `<span class="ag-emoji">${ev.emoji}</span>
+    row.innerHTML = `<span class="ag-emoji">${compMark(ev)}</span>
       <span class="ag-txt"><b>${ev.titre}</b><small>${ev.detail}</small></span>
-      ${ev.enRetard?'<span class="ag-badge">à jouer</span>':''}`;
+      ${ev.enRetard?'<span class="ag-badge">'+_t("à jouer")+'</span>':''}`;
     const go = el("button","btn small primary",_t("Y aller"));
     go.onclick=()=>{ currentTab = (ev.kind==="coupe") ? "coupe" : "europe"; renderGame(); };
     row.appendChild(go);
     card.appendChild(row);
   });
-  card.appendChild(el("p","hint","Ces rencontres sont rattachées à votre calendrier : elles apparaissent ici et dans l'onglet Calendrier."));
+  card.appendChild(el("p","hint",_t("Ces rencontres sont rattachées à votre calendrier : elles apparaissent ici et dans l'onglet Calendrier.")));
   body.appendChild(card);
 }
 
@@ -313,19 +342,19 @@ function renderHome(body){
     const wc = pi.kind==="WC";
     const noms = wc ? FM.nationsList() : FM.nationsForEuro();
     const banner = el("div","card intl-banner");
-    banner.innerHTML = `<h3>${wc?"🌍 Coupe du Monde":"🇪🇺 Championnat d'Europe"} — cet été</h3>
-      <p>Prenez en main une sélection nationale et disputez le tournoi (élimination directe), en parallèle de votre carrière.</p>`;
+    banner.innerHTML = `<h3>${icon("globe")}${wc?_t("Coupe du Monde"):_t("Championnat d'Europe")} — ${_t("cet été")}</h3>
+      <p>${_t("Prenez en main une sélection nationale et disputez le tournoi (élimination directe), en parallèle de votre carrière.")}</p>`;
     const row = el("div","intl-pick");
     const sel = el("select");
     noms.forEach(n=> sel.appendChild(new Option(n, n)));
     sel.value = noms.includes(pi.defaultNation) ? pi.defaultNation : noms[0];
-    row.appendChild(el("label",null,"Sélection : "));
+    row.appendChild(el("label",null,_t("Sélection")+" : "));
     row.appendChild(sel);
     banner.appendChild(row);
-    const go = el("button","btn primary big",(wc?"🌍":"🇪🇺")+" Disputer le tournoi");
+    const go = el("button","btn primary big",icon("globe")+_t("Disputer le tournoi"));
     go.onclick=()=> startCareerIntl(pi.kind, sel.value);
     banner.appendChild(go);
-    const skip = el("button","btn ghost","Passer (ne pas participer)");
+    const skip = el("button","btn ghost",_t("Passer (ne pas participer)"));
     skip.onclick=()=>{ FM.state.pendingIntl.fait=true; FM.save(); renderGame(); };
     banner.appendChild(skip);
     body.appendChild(banner);
@@ -335,7 +364,7 @@ function renderHome(body){
     const c = el("div","card center");
     const t = FM.table();
     const rank = FM.myRank();
-    c.innerHTML = `<h2>🏁 Saison ${FM.state.saison} terminée</h2>
+    c.innerHTML = `<h2>${_t("Saison")} ${FM.state.saison} — ${_t("terminée")}</h2>
       <p>Champion : <b>${t[0].nom}</b></p>
       <p>${my.nom} termine <b>${rank}${ord(rank)}</b> avec ${my.pts} pts.</p>`;
     const b = el("button","btn primary big",_t("Saison suivante"));
@@ -348,10 +377,10 @@ function renderHome(body){
   const indispo = FM.unavailableList(my);
   if (indispo.length){
     const w = el("div","card injury-card");
-    w.innerHTML = `<h3>🏥 Infirmerie & suspensions (${indispo.length})</h3>` +
-      indispo.map(p=>`<div class="inj-row"><span class="pos-badge ${p.groupe}">${p.pos}</span> <b>${p.nom}</b> — ${p.blessure>0?"🤕":"🟥"} ${FM.unavailableReason(p)}</div>`).join("");
+    w.innerHTML = `<h3>${icon("hospital")}${_t("Infirmerie & suspensions")} (${indispo.length})</h3>` +
+      indispo.map(p=>`<div class="inj-row"><span class="pos-badge ${p.groupe}">${p.pos}</span> <b>${p.nom}</b> — ${outChip(p)} ${FM.unavailableReason(p)}</div>`).join("");
     const inXI = my.onze.map(s2=>FM.getPlayer(my,s2.id)).filter(p=>p && !FM.playerAvailable(p));
-    if (inXI.length) w.innerHTML += `<p class="ht-alert">⚠️ ${inXI.length} indisponible(s) dans votre onze — corrigez la composition (onglet Tactique).</p>`;
+    if (inXI.length) w.innerHTML += `<p class="ht-alert">${inXI.length} indisponible(s) dans votre onze — corrigez la composition (onglet Tactique).</p>`;
     body.appendChild(w);
   }
   const fx = FM.nextFixture();
@@ -366,7 +395,7 @@ function renderHome(body){
         <div class="vs">VS</div>
         <div class="side ${!iAmHome?'me':''}">${clubCrest(ext,56)}<b>${ext.nom}</b><small>Note ${FM.squadRating(ext)}</small></div>
       </div>
-      <p class="match-loc">${iAmHome?'🏟 À domicile':'✈ À l\'extérieur'} · Vous êtes ${iAmHome?dom.nom:ext.nom}</p>`;
+      <p class="match-loc">${iAmHome?icon("stadium")+_t("À domicile"):icon("plane")+_t("À l'extérieur")} · ${_t("Vous êtes")} ${iAmHome?dom.nom:ext.nom}</p>`;
   }
   const play = el("button","btn primary big",icon("play")+_t("Jouer le match"));
   play.onclick = ()=> playMatchFlow();
@@ -378,7 +407,7 @@ function renderHome(body){
 
   // objectif + offres
   const info = el("div","card");
-  info.innerHTML = `<h3>🎯 Objectif de saison</h3><p>${cap(FM.state.objectif)} — actuellement <b>${FM.myRank()}${ord(FM.myRank())}</b> / ${FM.clubsInMyLeague().length}.</p>`;
+  info.innerHTML = `<h3>${icon("target")}${_t("Objectif de saison")}</h3><p>${cap(FM.state.objectif)} — actuellement <b>${FM.myRank()}${ord(FM.myRank())}</b> / ${FM.clubsInMyLeague().length}.</p>`;
   body.appendChild(info);
 
   if (FM.state.offres.length){
@@ -400,7 +429,7 @@ function renderHome(body){
   // dernières actus
   const news = el("div","card");
   news.appendChild(el("h3",null,icon("news")+_t("Dernières actualités")));
-  FM.state.news.slice(0,5).forEach(n=> news.appendChild(el("p","news-item",n.txt)));
+  FM.state.news.slice(0,5).forEach(n=> news.appendChild(newsItem(n,false)));
   body.appendChild(news);
 }
 
@@ -418,10 +447,10 @@ function renderHome(body){
    + remplacements de la mi-temps sont pris en compte dans la 2e période.      */
 function playMatchFlow(){
   const my = FM.myClub();
-  if (my.onze.filter(s=>!s.id).length){ toast("⚠ Onze incomplet — complétez votre équipe (Tactique)."); currentTab="tactique"; renderGame(); return; }
+  if (my.onze.filter(s=>!s.id).length){ toast(_t("Onze incomplet — complétez votre équipe (Tactique).")); currentTab="tactique"; renderGame(); return; }
   // Un tour de coupe en retard ne doit pas passer à la trappe
   const bloc = FM.blockingEvents();
-  if (bloc.length && !confirm(`${bloc[0].emoji} ${bloc[0].titre} est à jouer avant de poursuivre le championnat.\n\nOK = y aller · Annuler = jouer quand même le championnat`)){
+  if (bloc.length && !confirm(`${bloc[0].titre} est à jouer avant de poursuivre le championnat.\n\nOK = y aller · Annuler = jouer quand même le championnat`)){
     // l'utilisateur choisit de continuer le championnat
   } else if (bloc.length){
     currentTab = (bloc[0].kind==="coupe") ? "coupe" : "europe"; renderGame(); return;
@@ -463,10 +492,11 @@ function playLiveMatch(cfg){
   const $pause=box.querySelector("#lsPause"), $speed=box.querySelector("#lsSpeed"), $skip=box.querySelector("#lsSkip");
   const $coach=box.querySelector("#lsCoach");
 
-  const ICON={goal:"⚽",yellow:"🟨",red:"🟥",injury:"🤕",info:"ℹ️"};
+  const MARK={goal:icon("ball"), yellow:chip("yel","J"), red:chip("sus","R"),
+              injury:chip("inj",_t("BLES.")), info:""};
   function feed(txt, side, type){
     const l=el("div","ls-line "+(side===0?"h":side===1?"a":"n")+(type==="goal"?" goal":""),
-      `<span class="ls-fmin">${minute}'</span> ${ICON[type]||""} ${txt}`);
+      `<span class="ls-fmin">${minute}'</span> ${MARK[type]||""} <span>${txt}</span>`);
     $f.prepend(l); while($f.children.length>40) $f.removeChild($f.lastChild);
   }
 
@@ -483,10 +513,10 @@ function playLiveMatch(cfg){
   const ball={x:W/2,y:H/2,tx:W/2,ty:H/2};
   const colH=(cfg.home.couleurs||["#e33"])[0], colA=(cfg.away.couleurs||["#38f"])[0];
   function drawPitch(){
-    g.fillStyle="#1b7332"; g.fillRect(0,0,W,H);
-    g.fillStyle="rgba(255,255,255,.04)";
+    g.fillStyle="#14562a"; g.fillRect(0,0,W,H);
+    g.fillStyle="rgba(255,255,255,.028)";
     for(let i=0;i<8;i+=2) g.fillRect(i*W/8,0,W/8,H);
-    g.strokeStyle="rgba(255,255,255,.55)"; g.lineWidth=2;
+    g.strokeStyle="rgba(255,255,255,.42)"; g.lineWidth=1.5;
     g.strokeRect(10,10,W-20,H-20);
     g.beginPath(); g.moveTo(W/2,10); g.lineTo(W/2,H-10); g.stroke();
     g.beginPath(); g.arc(W/2,H/2,38,0,7); g.stroke();
@@ -539,8 +569,8 @@ function playLiveMatch(cfg){
         feed(lbl, ev.home?0:1, ev.type);
         if (mg && cfg.isMine && cfg.isMine(ev) && (ev.type==="injury"||ev.type==="red")){
           setPaused(true);
-          feed(ev.type==="injury"?"⏸ Match en pause — pensez à remplacer votre blessé."
-                                 :"⏸ Match en pause — réorganisez votre équipe à 10.", -1, "info");
+          feed(ev.type==="injury"?_t("Match en pause — pensez à remplacer votre blessé.")
+                                 :_t("Match en pause — réorganisez votre équipe à 10."), -1, "info");
           if ($coach) $coach.classList.add("urgent");
         }
       }
@@ -552,7 +582,7 @@ function playLiveMatch(cfg){
     if (ended) return; ended=true; clearInterval(timer); cancelAnimationFrame(raf);
     $s.textContent=`${hs} - ${as}`;
     const et = cfg.endText ? cfg.endText(hs,as) : "";
-    $m.textContent = (et?et+" · ":"")+"Coup de sifflet final ⏱";
+    $m.innerHTML = (et?et+" · ":"")+_t("Coup de sifflet final");
     feed(`<b>Fin du match — ${cfg.home.nom} ${hs}-${as} ${cfg.away.nom}</b>`, -1, "info");
     $pause.style.display="none"; $speed.style.display="none"; if($coach) $coach.style.display="none";
     $skip.textContent=_t("Continuer"); $skip.className="btn primary";
@@ -599,7 +629,7 @@ function openCoaching(mg, onClose){
       const wrap=el("div","ht-subs");
       mg.onField().forEach(p=>{
         const line=el("div","ht-sub-row"+(p.ko?" ko":""));
-        line.innerHTML=`<span><span class="pos-badge ${FM.POS_GROUP[p.pos]||'M'}">${p.pos}</span> ${p.nom} <b class="note ${noteClass(p.note)}">${p.note}</b>${p.ko?' <span class="inc-badge">🤕</span>':""}${p.tired>1.5?" <small>😮‍💨</small>":""}</span>`;
+        line.innerHTML=`<span><span class="pos-badge ${FM.POS_GROUP[p.pos]||'M'}">${p.pos}</span> ${p.nom} <b class="note ${noteClass(p.note)}">${p.note}</b>${p.ko?' <span class="inc-badge">'+_t("BLES.")+'</span>':""}${p.tired>1.5?' <span class="inc-badge warn">'+_t("FATIGUÉ")+'</span>':""}</span>`;
         const sel=el("select"); sel.appendChild(new Option("— remplacer par —",""));
         bench.forEach(b2=> sel.appendChild(new Option(`${b2.pos} ${b2.nom} (${b2.note})`, b2.id)));
         sel.onchange=()=>{ if(!sel.value) return;
@@ -730,7 +760,7 @@ function renderSquad(body){
   const table = el("table","squad-table");
   table.innerHTML = `<thead><tr>
     <th>${_t("Poste")}</th><th>${_t("Nom")}</th><th>${_t("Nat")}</th><th>${_t("Âge")}</th><th>${_t("Note")}</th><th>${_t("Pot")}</th>
-    <th>${_t("Valeur")}</th><th>${_t("Forme")}</th><th>${_t("Moral")}</th><th title="${_t("Matchs")}">M</th><th title="${_t("Buts")}">⚽</th><th title="${_t("Passes déc.")}">🅰️</th><th title="${_t("Note moyenne")}">${_t("moy")}</th><th></th></tr></thead>`;
+    <th>${_t("Valeur")}</th><th>${_t("Forme")}</th><th>${_t("Moral")}</th><th title="${_t("Matchs")}">M</th><th title="${_t("Buts")}">B</th><th title="${_t("Passes déc.")}">PD</th><th title="${_t("Note moyenne")}">${_t("moy")}</th><th></th></tr></thead>`;
   const tb = el("tbody");
   const order = {G:0,D:1,M:2,A:3};
   my.joueurs.slice().sort((a,b)=> order[a.groupe]-order[b.groupe] || b.note-a.note).forEach(p=>{
@@ -738,8 +768,8 @@ function renderSquad(body){
     const tr = el("tr", inXI?"in-xi":"");
     tr.innerHTML = `
       <td><span class="pos-badge ${p.groupe}">${p.pos}</span></td>
-      <td><a class="player-link">${inXI?'⭐ ':''}${p.nom}</a>${!FM.playerAvailable(p)?' <span class="inc-badge" title="'+FM.unavailableReason(p)+'">'+(p.blessure>0?'🤕':'🟥')+(p.blessure>0?p.blessure:p.suspension)+'</span>':''}${(p.cartons||0)%5===4?' <span class="inc-badge warn" title="Prochain avertissement = suspension">🟨</span>':''}</td>
-      <td>${FLAG[p.nat]||''}</td>
+      <td><a class="player-link">${inXI?'<span class="starter-mark">★</span>':''}${p.nom}</a>${!FM.playerAvailable(p)?' <span class="inc-badge" title="'+FM.unavailableReason(p)+'">'+(p.blessure>0?_t("BLES."):_t("SUSP."))+' '+(p.blessure>0?p.blessure:p.suspension)+'</span>':''}${(p.cartons||0)%5===4?' <span class="inc-badge warn" title="'+_t("Prochain avertissement = suspension")+'">'+_t("4 CJ")+'</span>':''}</td>
+      <td>${FLAG(p.nat)}</td>
       <td>${p.age}</td>
       <td><b class="note ${noteClass(p.note)}">${p.note}</b></td>
       <td>${p.potentiel}</td>
@@ -754,7 +784,7 @@ function renderSquad(body){
     tr.querySelector(".player-link").onclick=()=> openPlayerCard(p, my.nom);
     if (p.loan && p.loan.borrowerId===my.id){
       // Joueur prêté chez nous : badge + rendre
-      const badge = el("span","tag loan-tag","🔁 Prêt "+(p.loan.parentNom||''));
+      const badge = el("span","tag loan-tag",_t("Prêt")+" "+(p.loan.parentNom||''));
       tr.lastChild.appendChild(badge);
       const rb = el("button","btn tiny danger-ghost",_t("Rendre"));
       rb.onclick=()=>{ FM.recallLoan(p.id); renderGame(); };
@@ -773,7 +803,7 @@ function renderSquad(body){
   table.appendChild(tb);
   const scroll = el("div","table-scroll"); scroll.appendChild(table);
   card.appendChild(scroll);
-  card.appendChild(el("p","hint","💡 Cliquez sur un nom pour la fiche du joueur. « Prêter » envoie un joueur en prêt une saison ; les prêts entrants portent le badge 🔁."));
+  card.appendChild(el("p","hint",_t("Cliquez sur un nom pour la fiche du joueur. « Prêter » envoie un joueur en prêt une saison ; les prêts entrants portent le badge « prêt ».")));
   body.appendChild(card);
 
   // Prêts sortants en cours (nos joueurs prêtés ailleurs)
@@ -802,14 +832,14 @@ function openPlayerCard(p, clubNom){
   let carrRows = carr.slice().reverse().map(s=>`
     <tr><td>${s.saison}</td><td>${s.club||'—'}</td><td>${s.matchs}</td><td>${s.buts}</td>
     <td>${s.passes||0}</td><td>${s.avg?s.avg.toFixed(2):'—'}</td><td>${s.note}</td>
-    <td>${s.sel?('🎖️ '+s.sel.equipe):''}</td></tr>`).join("");
+    <td>${s.sel?s.sel.equipe:''}</td></tr>`).join("");
   const totMatch = carr.reduce((a,s)=>a+(s.matchs||0),0)+(p.matchs||0);
   const totButs = carr.reduce((a,s)=>a+(s.buts||0),0)+(p.buts||0);
   const totPasses = carr.reduce((a,s)=>a+(s.passes||0),0)+(p.passes||0);
   box.innerHTML = `
     <div class="pc-head">
       <div class="pc-badge ${p.groupe}">${p.pos}</div>
-      <div class="pc-id"><b>${p.nom}</b> ${FLAG[p.nat]||''}
+      <div class="pc-id"><b>${p.nom}</b> ${FLAG(p.nat)}
         <small>${FM.POS_LABEL[p.pos]} · ${p.age} ans${clubNom?(' · '+clubNom):''}</small></div>
       <div class="pc-note ${noteClass(p.note)}">${p.note}</div>
     </div>
@@ -823,16 +853,16 @@ function openPlayerCard(p, clubNom){
     </div>
     <div class="pc-season">
       <h4>Saison en cours</h4>
-      <span>⚽ ${p.buts||0} buts</span><span>🅰️ ${p.passes||0} passes</span>
-      <span>👟 ${p.matchs||0} matchs</span><span>🌟 ${p.noteMatchs?avg.toFixed(2):'—'} moy</span>
+      <span>${p.buts||0} ${_t("buts")}</span><span>${p.passes||0} ${_t("passes")}</span>
+      <span>${p.matchs||0} ${_t("matchs")}</span><span>${p.noteMatchs?avg.toFixed(2):'—'} ${_t("moy")}</span>
     </div>
-    ${!FM.playerAvailable(p)?`<p class="pc-out">${p.blessure>0?"🤕 Blessé":"🟥 Suspendu"} — indisponible ${p.blessure>0?p.blessure:p.suspension} journée(s).</p>`:''}
-    ${(p.cartons||0)?`<p class="hint">🟨 Avertissements cette saison : <b>${p.cartons}</b>${(p.cartons%5===4)?" — prochain carton = suspension":""}</p>`:''}
-    ${p.selJeunes?`<p class="pc-youth">🎖️ Convoqué en <b>${p.selJeunes.equipe}</b> (${p.selJeunes.matchs} matchs, ${p.selJeunes.buts} buts).</p>`:''}
+    ${!FM.playerAvailable(p)?`<p class="pc-out">${p.blessure>0?_t("Blessé"):_t("Suspendu")} — indisponible ${p.blessure>0?p.blessure:p.suspension} journée(s).</p>`:''}
+    ${(p.cartons||0)?`<p class="hint">${_t("Avertissements cette saison")} : <b>${p.cartons}</b>${(p.cartons%5===4)?" — prochain carton = suspension":""}</p>`:''}
+    ${p.selJeunes?`<p class="pc-youth">${_t("Convoqué en")} <b>${p.selJeunes.equipe}</b> (${p.selJeunes.matchs} matchs, ${p.selJeunes.buts} buts).</p>`:''}
     <div class="pc-career">
       <h4>Carrière — totaux : ${totMatch} matchs · ${totButs} buts · ${totPasses} passes</h4>
       ${carr.length?`<div class="table-scroll"><table class="squad-table"><thead><tr>
-        <th>Saison</th><th>Club</th><th>M</th><th>⚽</th><th>🅰️</th><th>Moy</th><th>Note</th><th>Sélection</th>
+        <th>${_t("Saison")}</th><th>Club</th><th>M</th><th>B</th><th>PD</th><th>${_t("Moy")}</th><th>${_t("Note")}</th><th>${_t("Sélection")}</th>
         </tr></thead><tbody>${carrRows}</tbody></table></div>`
         :`<p class="hint">Première saison en cours — l'historique se construira au fil des saisons.</p>`}
     </div>`;
@@ -969,18 +999,18 @@ function renderEurope(body){
     const c=e[k];
     let stat;
     if (c.phase==="league") stat = `Phase de ligue J${c.lp.cur}/${c.lp.rounds}`;
-    else if (FM.compFinished(c)) stat = "🏆 "+FM.compChampionTeam(c).nom;
+    else if (FM.compFinished(c)) stat = FM.compChampionTeam(c).nom;
     else stat = FM.roundName(c.ko.alive.length);
     const pill = el("div","comp-pill"+(e.playerComp===k?" mine":""));
-    pill.innerHTML = `<span class="ce">${c.emoji}</span><div><b>${c.nom}</b><small>${stat}</small></div>`;
+    pill.innerHTML = `<span class="ce">${compMark(c)}</span><div><b>${c.nom}</b><small>${stat}</small></div>`;
     bar.appendChild(pill);
   });
   body.appendChild(bar);
 
   if (!e.playerComp){
     const c = el("div","card");
-    c.innerHTML = `<h3>🏆 Coupes d'Europe</h3><p>Votre club n'est pas qualifié cette saison. Qualifiez-vous via le classement de votre championnat (places attribuées selon le coefficient UEFA de votre pays).</p>
-      <p>🏆 <b>${FM.compChampionTeam(e.UCL)?FM.compChampionTeam(e.UCL).nom:'—'}</b> remporte la Ligue des Champions.</p>`;
+    c.innerHTML = `<h3>${icon("cup")}${_t("Coupes d'Europe")}</h3><p>Votre club n'est pas qualifié cette saison. Qualifiez-vous via le classement de votre championnat (places attribuées selon le coefficient UEFA de votre pays).</p>
+      <p>${icon("cup")} <b>${FM.compChampionTeam(e.UCL)?FM.compChampionTeam(e.UCL).nom:'—'}</b> remporte la Ligue des Champions.</p>`;
     body.appendChild(c);
     if (e.UCL.ko) renderCupHistory(body, e.UCL.ko);
     return;
@@ -993,10 +1023,10 @@ function renderEurope(body){
   // ---- Phase à élimination directe ----
   const ko = comp.ko;
   const card = el("div","card");
-  card.appendChild(el("h3",null,`${comp.emoji} ${comp.nom} — phase finale (${FM.myClub().nom})`));
+  card.appendChild(el("h3",null,`${compMark(comp)}${comp.nom} — ${_t("phase finale")} (${FM.myClub().nom})`));
   if (ko.finished){
     const won = ko.champion===ko.playerSeed;
-    card.innerHTML += `<p class="euro-final ${won?'win':''}">${won?'🏆 VAINQUEUR ! Félicitations !':'Vainqueur : <b>'+ko.teams[ko.champion].nom+'</b>'}</p>`;
+    card.innerHTML += `<p class="euro-final ${won?'win':''}">${won?_t("VAINQUEUR !"):_t("Vainqueur")+' : <b>'+ko.teams[ko.champion].nom+'</b>'}</p>`;
   } else if (ko.playerAlive){
     const tie = FM.playerTie(ko);
     const opp = ko.teams[tie[0]===ko.playerSeed?tie[1]:tie[0]];
@@ -1008,7 +1038,7 @@ function renderEurope(body){
       <div class="vs">VS</div>
       <div class="tie-side">${clubCrest({nom:opp.nom,couleurs:opp.couleurs},52)}<b>${opp.nom}</b><small>${opp.note}</small></div>`;
     card.appendChild(tieBox);
-    const play = el("button","btn primary big","▶ Jouer le match");
+    const play = el("button","btn primary big",icon("play")+_t("Jouer le match"));
     play.onclick=()=> playCupTie(ko);
     card.appendChild(play);
     const sim = el("button","btn ghost",_t("Simuler ce tour"));
@@ -1030,11 +1060,11 @@ function renderDomesticCup(body){
   if (!cup){ body.appendChild(el("div","card",`<p class="hint">La coupe nationale se met en place en début de saison.</p>`)); return; }
   const me = FM.myClub();
   const card = el("div","card");
-  card.appendChild(el("h3",null,`${cup.emoji} ${cup.nom} — ${me.nom}`));
+  card.appendChild(el("h3",null,`${compMark(cup)}${cup.nom} — ${me.nom}`));
 
   if (cup.finished){
     const won = cup.champion===cup.playerSeed;
-    card.innerHTML += `<p class="euro-final ${won?'win':''}">${won?'🏆 VAINQUEUR DE LA COUPE ! Félicitations !':'Vainqueur : <b>'+(cup.teams[cup.champion]?cup.teams[cup.champion].nom:'—')+'</b>'}</p>`;
+    card.innerHTML += `<p class="euro-final ${won?'win':''}">${won?_t("VAINQUEUR DE LA COUPE !"):_t("Vainqueur")+' : <b>'+(cup.teams[cup.champion]?cup.teams[cup.champion].nom:'—')+'</b>'}</p>`;
   } else if (cup.playerAlive){
     const tie = FM.playerTie(cup);
     const oppIdx = tie[0]===cup.playerSeed?tie[1]:tie[0];
@@ -1053,10 +1083,10 @@ function renderDomesticCup(body){
         <div class="vs">VS</div>
         <div class="tie-side">${clubCrest({nom:opp.nom,couleurs:opp.couleurs},52)}<b>${opp.nom}</b><small>${opp.note}</small></div>`;
       card.appendChild(tieBox);
-      const play = el("button","btn primary big","▶ Jouer le match");
+      const play = el("button","btn primary big",icon("play")+_t("Jouer le match"));
       play.onclick=()=> playCupTie(cup, {noEuropeAdvance:true});
       card.appendChild(play);
-      const sim = el("button","btn ghost","⏩ Simuler ce tour");
+      const sim = el("button","btn ghost",icon("forward")+_t("Simuler ce tour"));
       sim.onclick=()=>{ FM.resolveTournamentRound(cup); FM.save(); renderGame(); };
       card.appendChild(sim);
     }
@@ -1073,7 +1103,7 @@ function renderDomesticCup(body){
 /* Phase de ligue : classement + match du joueur */
 function renderLeaguePhase(body, comp){
   const card = el("div","card");
-  card.appendChild(el("h3",null,`${comp.emoji} ${comp.nom} — phase de ligue (J${comp.lp.cur+1}/${comp.lp.rounds})`));
+  card.appendChild(el("h3",null,`${compMark(comp)}${comp.nom} — ${_t("phase de ligue")} (J${comp.lp.cur+1}/${comp.lp.rounds})`));
   const pm = FM.lpPlayerMatch(comp);
   if (pm){
     const me = FM.myClub();
@@ -1081,11 +1111,11 @@ function renderLeaguePhase(body, comp){
     const opp = comp.teams[oppIdx];
     const box = el("div","tie-box");
     box.innerHTML = `
-      <div class="tie-side">${clubCrest(me,52)}<b>${me.nom}</b><small>${pm.playerHome?'🏟 domicile':'✈ extérieur'}</small></div>
+      <div class="tie-side">${clubCrest(me,52)}<b>${me.nom}</b><small>${pm.playerHome?_t("domicile"):_t("extérieur")}</small></div>
       <div class="vs">VS</div>
       <div class="tie-side">${clubCrest({nom:opp.nom,couleurs:opp.couleurs},52)}<b>${opp.nom}</b><small>${opp.note}</small></div>`;
     card.appendChild(box);
-    const play = el("button","btn primary big","▶ Jouer le match");
+    const play = el("button","btn primary big",icon("play")+_t("Jouer le match"));
     play.onclick=()=> playLeagueMatch(comp);
     card.appendChild(play);
     const sim = el("button","btn ghost",_t("Simuler la journée"));
@@ -1115,7 +1145,7 @@ function renderLeaguePhase(body, comp){
   table.appendChild(tb);
   const scroll = el("div","table-scroll"); scroll.appendChild(table);
   tCard.appendChild(scroll);
-  tCard.appendChild(el("p","legend","🟩 Top 16 → phase à élimination directe (aller-retour)"));
+  tCard.appendChild(el("p","legend",_t("Top 16 → phase à élimination directe (aller-retour)")));
   body.appendChild(tCard);
 }
 
@@ -1134,7 +1164,7 @@ function playLeagueMatch(comp){
 function renderCupHistory(body, comp){
   if (!comp.history.length) return;
   const h = el("div","card");
-  h.appendChild(el("h3",null,`${comp.emoji} ${comp.nom} — résultats`));
+  h.appendChild(el("h3",null,`${compMark(comp)}${comp.nom} — ${_t("résultats")}`));
   comp.history.slice().reverse().forEach(rd=>{
     h.appendChild(el("p","cup-round-title",rd.nom));
     const list = el("div","cup-ties");
@@ -1192,7 +1222,7 @@ function playCupTie(comp, opts){
       if (hs===as) pen = FM.penaltyShootout(comp,a,b);
       const self=playerA?hs:as, opp=playerA?as:hs;
       const won = self>opp || (self===opp && pen && ((playerA?pen[0]:pen[1])>(playerA?pen[1]:pen[0])));
-      return (won?"✅ Qualifié":"❌ Éliminé")+(pen?` (tab ${playerA?pen[0]:pen[1]}-${playerA?pen[1]:pen[0]})`:"");
+      return qualChip(won)+(pen?` (tab ${playerA?pen[0]:pen[1]}-${playerA?pen[1]:pen[0]})`:"");
     };
     cfg.done = (hs,as,goals)=>{ cfg.cleanup();
       const winner = hs>as?a : as>hs?b : (pen[0]>pen[1]?a:b);
@@ -1212,7 +1242,7 @@ function playCupTie(comp, opts){
       if (agA===agB) pen = FM.penaltyShootout(comp,a,b);
       const self=playerA?agA:agB, opp=playerA?agB:agA;
       const won = self>opp || (self===opp && pen && ((playerA?pen[0]:pen[1])>(playerA?pen[1]:pen[0])));
-      return `Cumul ${self}-${opp}`+(pen?` · tab ${playerA?pen[0]:pen[1]}-${playerA?pen[1]:pen[0]}`:"")+` · ${won?"✅ Qualifié":"❌ Éliminé"}`;
+      return `Cumul ${self}-${opp}`+(pen?` · tab ${playerA?pen[0]:pen[1]}-${playerA?pen[1]:pen[0]}`:"")+` · `+qualChip(won);
     };
     c2.done = (l2h,l2a)=>{ c2.cleanup();
       const agA=l1h+l2a, agB=l1a+l2h;
@@ -1238,7 +1268,7 @@ function animateMatch(me, opp, selfScore, oppScore, pen, playerA, evs, opts, onD
     <div class="live-min" id="cMin">Coup d'envoi…</div>
     <div class="live-feed" id="cFeed"></div>`;
   overlay.appendChild(box);
-  const skip = el("button","btn ghost","⏭ Passer");
+  const skip = el("button","btn ghost",icon("skip")+_t("Passer"));
   box.appendChild(skip);
   document.body.appendChild(overlay);
 
@@ -1249,9 +1279,9 @@ function animateMatch(me, opp, selfScore, oppScore, pen, playerA, evs, opts, onD
     clearInterval(timer);
     s=selfScore; o=oppScore;
     scoreEl.textContent = `${s} - ${o}`;
-    let txt = "Coup de sifflet final ⏱", verdict=null, cont="✔ Continuer";
+    let txt = _t("Coup de sifflet final"), verdict=null, cont=icon("check")+_t("Continuer");
     if (opts.label==="Aller"){
-      txt = "Fin de l'aller — place au retour"; cont="▶ Jouer le retour";
+      txt = _t("Fin de l'aller — place au retour"); cont=icon("play")+_t("Jouer le retour");
     } else {
       const ag = opts.agg;
       if (ag){
@@ -1264,7 +1294,7 @@ function animateMatch(me, opp, selfScore, oppScore, pen, playerA, evs, opts, onD
       }
     }
     minEl.textContent = txt;
-    if (verdict!==null) feed.innerHTML = `<div class="tie-verdict ${verdict?'win':'lose'}">${verdict?'✅ Qualifié !':'❌ Éliminé'}</div>` + feed.innerHTML;
+    if (verdict!==null) feed.innerHTML = `<div class="tie-verdict ${verdict?'win':'lose'}">${verdict?_t("Qualifié !"):_t("Éliminé")}</div>` + feed.innerHTML;
     skip.textContent=cont; skip.className="btn primary";
     skip.onclick=()=>{ overlay.remove(); onDone(); };
   }
@@ -1277,7 +1307,7 @@ function animateMatch(me, opp, selfScore, oppScore, pen, playerA, evs, opts, onD
       const ev = ordered[idx++];
       if (ev.me) s++; else o++;
       scoreEl.textContent = `${s} - ${o}`;
-      const line = el("div","feed-line "+(ev.me?"left":"right"),`<span class="fmin">${ev.min}'</span> ⚽ <b>${ev.joueur}</b>`);
+      const line = el("div","feed-line "+(ev.me?"left":"right"),`<span class="fmin">${ev.min}'</span>${icon("ball")}<b>${ev.joueur}</b>`);
       line.classList.add("flash"); feed.prepend(line);
     }
   }, 220);
@@ -1315,7 +1345,7 @@ function openSquadPicker(kind, nation, cb){
   const sel = new Map();            // id -> player (effectif)
   const starters = new Set();       // sous-ensemble titulaire
   let fPos = "", fQ = "";           // filtres du vivier
-  const GROUP_LBL={G:"🧤",D:"🛡",M:"⚙",A:"🎯"};
+  const GROUP_LBL={G:_t("GB"),D:_t("DEF"),M:_t("MIL"),A:_t("ATT")};
 
   function byG(g){ return players.filter(p=>p.groupe===g).sort((a,b)=>b.note-a.note); }
   function autoPick(){
@@ -1397,7 +1427,7 @@ function openSquadPicker(kind, nation, cb){
     const q=el("input"); q.type="text"; q.placeholder=_t("Rechercher un joueur…"); q.value=fQ;
     q.oninput=()=>{ fQ=q.value; refreshPool(); };
     bar.appendChild(q);
-    [["","Tous"],["G","🧤"],["D","🛡"],["M","⚙"],["A","🎯"]].forEach(([v,l])=>{
+    [["",_t("Tous")],["G",_t("GB")],["D",_t("DEF")],["M",_t("MIL")],["A",_t("ATT")]].forEach(([v,l])=>{
       const b=el("button","sp-fbtn"+(fPos===v?" on":""),l); b.onclick=()=>{ fPos=v; render(); }; bar.appendChild(b);
     });
     left.appendChild(el("h4",null,`Vivier ${nation} (~500)`));
@@ -1416,7 +1446,7 @@ function openSquadPicker(kind, nation, cb){
     box.appendChild(sb);
     const actions=el("div","sp-actions");
     const auto=el("button","btn ghost",_t("Sélection auto")); auto.onclick=()=>{ autoPick(); render(); };
-    const go=el("button","btn primary big",(kind==="WC"?"🌍":"🇪🇺")+" Valider et jouer"); go.disabled=!validXI();
+    const go=el("button","btn primary big",icon("globe")+_t("Valider et jouer")); go.disabled=!validXI();
     go.onclick=()=>{ if(!validXI())return; const squad=[...sel.values()]; overlay.remove(); cb(squad, teamNote(), [...starters]); };
     const cancel=el("button","btn ghost",_t("Annuler")); cancel.onclick=()=>{ overlay.remove(); if(FM.state){ currentTab="accueil"; renderGame(); } else renderStart(); };
     actions.appendChild(auto); actions.appendChild(go); actions.appendChild(cancel);
@@ -1433,7 +1463,7 @@ function renderTournament(){
 
   const top = el("div","topbar");
   top.innerHTML = `<div class="club-id">${clubCrest(meCrest,46)}
-      <div><b>${meN.nom}</b><small>${comp.emoji} ${comp.nom}</small></div></div>
+      <div><b>${meN.nom}</b><small>${comp.nom}</small></div></div>
     <div class="stats">
       <div><small>Tour</small><b>${comp.finished?'Terminé':FM.roundName(comp.alive.length)}</b></div>
       <div><small>Équipes</small><b>${comp.alive.length}</b></div>
@@ -1443,10 +1473,10 @@ function renderTournament(){
 
   const body = el("div","content"); app.appendChild(body);
   const card = el("div","card");
-  card.appendChild(el("h3",null,`${comp.emoji} ${comp.nom}`));
+  card.appendChild(el("h3",null,`${compMark(comp)}${comp.nom}`));
   if (comp.finished){
     const won = comp.champion===comp.playerSeed;
-    card.innerHTML += `<p class="euro-final ${won?'win':''}">${won?'🏆 CHAMPION ! '+meN.nom+' remporte le tournoi !':'Vainqueur : <b>'+comp.teams[comp.champion].nom+'</b>'}</p>`;
+    card.innerHTML += `<p class="euro-final ${won?'win':''}">${won?_t("CHAMPION !")+' '+meN.nom:_t("Vainqueur")+' : <b>'+comp.teams[comp.champion].nom+'</b>'}</p>`;
     // Carrière : enregistrer le résultat une seule fois
     if (intlCareer && !comp._recorded){
       comp._recorded = true;
@@ -1461,8 +1491,8 @@ function renderTournament(){
       <div class="vs">VS</div>
       <div class="tie-side">${clubCrest({nom:opp.nom,couleurs:opp.couleurs},52)}<b>${opp.nom}</b><small>${opp.note}</small></div>`;
     card.appendChild(tb);
-    const play = el("button","btn primary big","▶ Jouer le match"); play.onclick=()=>playIntlTie(); card.appendChild(play);
-    const sim = el("button","btn ghost","⏩ Simuler ce tour"); sim.onclick=()=>{ FM.resolveTournamentRound(comp); renderTournament(); }; card.appendChild(sim);
+    const play = el("button","btn primary big",icon("play")+_t("Jouer le match")); play.onclick=()=>playIntlTie(); card.appendChild(play);
+    const sim = el("button","btn ghost",icon("forward")+_t("Simuler ce tour")); sim.onclick=()=>{ FM.resolveTournamentRound(comp); renderTournament(); }; card.appendChild(sim);
   } else {
     card.appendChild(el("p","round-name",`${meN.nom} a été éliminé.`));
     const b = el("button","btn ghost",_t("Simuler jusqu'à la fin")); b.onclick=()=>{ let g=0; while(!comp.finished&&g++<10) FM.resolveTournamentRound(comp); renderTournament(); }; card.appendChild(b);
@@ -1493,7 +1523,7 @@ function playIntlTie(){
   const tac = comp._tac; tac.moral = 0;
   const forced = FM.clearNationFlags(me) || [];
   FM.clearNationFlags(opp);
-  if (forced.length) toast("🏥 "+forced.join(" · "));
+  if (forced.length) toast(forced.join(" · "));
   let pen=null;
   playLiveMatch({
     home:{nom:A.nom,couleurs:A.couleurs}, away:{nom:B.nom,couleurs:B.couleurs},
@@ -1506,7 +1536,7 @@ function playIntlTie(){
       if (hs===as) pen = FM.penaltyShootout(comp,a,b);
       const self=playerA?hs:as, o=playerA?as:hs;
       const won = self>o || (self===o && pen && ((playerA?pen[0]:pen[1])>(playerA?pen[1]:pen[0])));
-      return (won?"✅ Qualifié":"❌ Éliminé")+(pen?` (tab ${playerA?pen[0]:pen[1]}-${playerA?pen[1]:pen[0]})`:"");
+      return qualChip(won)+(pen?` (tab ${playerA?pen[0]:pen[1]}-${playerA?pen[1]:pen[0]})`:"");
     },
     done:(hs,as,goals)=>{
       (me.squad||[]).forEach(p=>{ if(p.blessure>0||p.suspension>0) p._justOut=true; });
@@ -1523,9 +1553,9 @@ function renderMarket(body){
   const my = FM.myClub();
   const w = FM.transferWindow();
   const head = el("div","card");
-  head.innerHTML = `<h3>💱 Mercato — Budget : <span class="${my.budget<0?'neg':'pos'}">${money(my.budget)}</span></h3>
+  head.innerHTML = `<h3>${icon("market")}${_t("Mercato")} — Budget : <span class="${my.budget<0?'neg':'pos'}">${money(my.budget)}</span></h3>
     <div class="mkt-window ${w.open?'open':'closed'}">
-      <b>${w.open?'🟢 '+w.nom:'🔴 '+w.nom}</b> — ${w.info}
+      <b><span class="dot ${w.open?'on':'off'}"></span>${w.nom}</b> — ${w.info}
       ${w.open?'':'<small>Aucun achat, vente ou prêt possible pour vous comme pour les clubs IA.</small>'}
     </div>`;
 
@@ -1541,7 +1571,7 @@ function renderMarket(body){
   filters.appendChild(q);
 
   // Type : tous / agents libres / transférables / en prêt
-  filters.appendChild(mkSel([["all","Tous les joueurs"],["libre","🆓 Agents libres"],["transf","Transférables"],["pret","🔁 Disponibles en prêt"]],
+  filters.appendChild(mkSel([["all","Tous les joueurs"],["libre",_t("Agents libres")],["transf","Transférables"],["pret",_t("Disponibles en prêt")]],
     marketFilter.type, v=>marketFilter.type=v));
   // Poste exact
   const posOpts = [["","Tous postes"]].concat(FM.POSITIONS.map(p=>[p, `${p} · ${FM.POS_LABEL[p]}`]));
@@ -1587,10 +1617,10 @@ function refreshMarket(container){
   list.forEach(p=>{
     const tr = el("tr", p.dispo?"listed":"");
     tr.innerHTML = `<td><span class="pos-badge ${p.groupe}">${p.pos}</span></td>
-      <td><a class="player-link">${p.nom}</a> ${FLAG[p.nat]||''}</td><td>${p.clubNom}</td><td>${p.age}</td>
+      <td><a class="player-link">${p.nom}</a> ${FLAG(p.nat)}</td><td>${p.clubNom}</td><td>${p.age}</td>
       <td><b class="note ${noteClass(p.note)}">${p.note}</b></td>
       <td>${loanMode?p.potentiel:(p.valeur.toFixed(1)+' M€')}</td>
-      <td>${loanMode?('<span class="tag loan-tag">🔁 prêt '+FM.loanFee(p).toFixed(1)+' M€</span>')
+      <td>${loanMode?('<span class="tag loan-tag">'+_t("prêt")+' '+FM.loanFee(p).toFixed(1)+' M€</span>')
         :(p.libre?'<span class="tag free">'+_t("Libre")+'</span>':(p.dispo?'<span class="tag">'+_t("Transférables")+'</span>':'—'))}</td><td></td>`;
     tr.querySelector(".player-link").onclick=()=> openPlayerCard(p, p.clubNom);
     const mktOpen = FM.marketOpen();
@@ -1687,9 +1717,9 @@ function renderTable(body){
 function cupMarkersFor(j){
   const out = [];
   const cup = FM.state.coupe, e = FM.state.europe;
-  const mk = (emoji, txt, done) => {
+  const mk = (mark, txt, done) => {
     const d = el("div","fixture cup-marker"+(done?" done":""));
-    d.innerHTML = `<span class="jd">${emoji}</span><span class="cm-txt">${txt}</span>`;
+    d.innerHTML = `<span class="jd">${mark}</span><span class="cm-txt">${txt}</span>`;
     return d;
   };
   if (cup){
@@ -1700,10 +1730,10 @@ function cupMarkersFor(j){
         const t = hist.ties.find(t=>t.a===cup.playerSeed||t.b===cup.playerSeed);
         let txt = `${cup.nom} — ${hist.nom}`;
         if (t){ const win = t.winner===cup.playerSeed;
-          txt += t.bye ? " · exempt" : ` · ${t.as}-${t.es} ${win?"✅":"❌"}`; }
-        out.push(mk(cup.emoji, txt, true));
+          txt += t.bye ? " · "+_t("exempt") : ` · ${t.as}-${t.es} `+qualChip(win); }
+        out.push(mk(compMark(cup), txt, true));
       } else if (!cup.finished && cup.playerAlive){
-        out.push(mk(cup.emoji, `${cup.nom} — ${FM.roundName(cup.alive.length)} · à jouer`, false));
+        out.push(mk(compMark(cup), `${cup.nom} — ${FM.roundName(cup.alive.length)} · ${_t("à jouer")}`, false));
       }
     }
   }
@@ -1712,13 +1742,13 @@ function cupMarkersFor(j){
     for (let r=0; r<comp.lp.rounds; r++){
       if (FM.EURO_FIRST + r*FM.EURO_EVERY !== j) continue;
       const played = r < comp.lp.cur;
-      out.push(mk(comp.emoji, `${comp.nom} — phase de ligue J${r+1}${played?" · jouée":" · à jouer"}`, played));
+      out.push(mk(compMark(comp), `${comp.nom} — ${_t("phase de ligue")} J${r+1}${played?" · "+_t("jouée"):" · "+_t("à jouer")}`, played));
     }
     if (comp.ko){
       for (let r=0; r<4; r++){
         if (FM.EUROKO_FIRST + r*FM.EUROKO_EVERY !== j) continue;
         const played = r < comp.ko.round;
-        out.push(mk(comp.emoji, `${comp.nom} — phase finale, tour ${r+1}${played?" · joué":" · à jouer"}`, played));
+        out.push(mk(compMark(comp), `${comp.nom} — ${_t("phase finale")}, ${_t("tour")} ${r+1}${played?" · "+_t("joué"):" · "+_t("à jouer")}`, played));
       }
     }
   }
@@ -1739,7 +1769,7 @@ function renderCalendar(body){
       const wc = pi.kind==="WC";
       const row = el("div","intl-fixture upcoming");
       row.innerHTML = `<span class="jd">Été</span>
-        <span class="if-t">${wc?"🌍 Coupe du Monde":"🇪🇺 Championnat d'Europe"}</span>
+        <span class="if-t">${wc?_t("Coupe du Monde"):_t("Championnat d'Europe")}</span>
         <span class="if-s">à suivre</span>
         <span class="if-note">facultatif · votre sélection : <b>${pi.defaultNation}</b> · jouable depuis l'Accueil</span>`;
       ic.appendChild(row);
@@ -1748,7 +1778,7 @@ function renderCalendar(body){
       const row = el("div","intl-fixture "+(e.playerWon?"won":"done"));
       row.innerHTML = `<span class="jd">S${e.saison}</span>
         <span class="if-t">${e.tournoi} — ${e.nation}</span>
-        <span class="if-s">${e.playerWon?'🏆 Vainqueur':'Terminé'}</span>
+        <span class="if-s">${e.playerWon?_t("Vainqueur"):_t("Terminé")}</span>
         <span class="if-note">Champion : <b>${e.champion}</b></span>`;
       ic.appendChild(row);
     });
@@ -1791,7 +1821,7 @@ function renderNews(body){
   const card = el("div","card");
   card.appendChild(el("h3",null,icon("news")+_t("Journal du club")));
   if (!FM.state.news.length) card.appendChild(el("p","hint",_t("Rien à signaler pour l'instant.")));
-  FM.state.news.forEach(n=> card.appendChild(el("p","news-item",`<small>S${n.saison} J${n.j}</small> ${n.txt}`)));
+  FM.state.news.forEach(n=> card.appendChild(newsItem(n,true)));
   body.appendChild(card);
 
   // Historique
@@ -1804,9 +1834,54 @@ function renderNews(body){
   }
 }
 
+/* ============= BANDE SON ============= */
+function audioBar(){
+  const bar = el("div","audio-bar");
+  if (!FM.audio || !FM.audio.available()){
+    bar.appendChild(el("small",null,_t("Audio indisponible sur ce navigateur.")));
+    return bar;
+  }
+  const draw = ()=>{
+    bar.innerHTML = "";
+    const on = FM.audio.isPlaying();
+    const cur = FM.audio.current();
+
+    const eq = el("div","eq"+(on?" play":""),"<i></i><i></i><i></i><i></i>");
+    bar.appendChild(eq);
+
+    const title = el("div","ab-title",
+      `<b>${cur?cur.nom:"—"}</b><small>${_t("Bande son")}${cur&&cur.own?" · "+_t("votre fichier"):""}</small>`);
+    bar.appendChild(title);
+
+    const mk = (ic, cls, title2, fn)=>{
+      const b = el("button","audio-btn"+(cls?" "+cls:""), icon(ic));
+      b.title = title2; b.onclick = fn; bar.appendChild(b); return b;
+    };
+    mk("prev","",_t("Piste précédente"), ()=>FM.audio.prev());
+    mk("play", on?"on":"", on?_t("Pause"):_t("Lecture"), ()=>{ FM.audio.toggle(); });
+    if (on) bar.lastChild.innerHTML = icon("pause");
+    mk("skip","",_t("Piste suivante"), ()=>FM.audio.next());
+
+    const vol = el("input"); vol.type="range"; vol.min=0; vol.max=1; vol.step=.05;
+    vol.value = FM.audio.volume(); vol.title=_t("Volume");
+    vol.oninput = ()=> FM.audio.setVolume(parseFloat(vol.value));
+    bar.appendChild(vol);
+
+    const file = el("input"); file.type="file"; file.accept="audio/*";
+    file.multiple = true; file.style.display="none";
+    file.onchange = async ()=>{ await FM.audio.addFiles(Array.from(file.files||[])); };
+    bar.appendChild(file);
+    mk("upload","",_t("Ajouter mes propres musiques"), ()=>file.click());
+    if (FM.audio.hasOwn()) mk("cross","",_t("Retirer mes musiques"), ()=>FM.audio.clearOwn());
+  };
+  FM.audio.onChange(()=>{ if (bar.isConnected) draw(); });
+  draw();
+  return bar;
+}
+
 /* ============= HELPERS UI ============= */
 function noteClass(n){ return n>=82?"elite":n>=75?"good":n>=68?"ok":"low"; }
-function formeIcon(f){ return f>=2?"🔥":f===1?"↗":f===0?"→":f===-1?"↘":"❄"; }
+function formeIcon(f){ return f>=2?"↑↑":f===1?"↑":f===0?"→":f===-1?"↓":"↓↓"; }
 function moralBar(m){ const w=Math.round(m); return `<span class="moral"><span style="width:${w}%"></span></span>`; }
 function shortName(n){ const parts=n.split(" "); return parts.length>1?parts[0][0]+". "+parts.slice(1).join(" "):n; }
 function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
@@ -1821,4 +1896,5 @@ function toast(msg){
 window.addEventListener("DOMContentLoaded", ()=>{
   if (FM.hasSave() && FM.load()) { renderGame(); }
   else renderStart();
+  if (FM.audio) FM.audio.restore();
 });

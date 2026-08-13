@@ -92,7 +92,7 @@ function seedOrder(n){
 /* ---------------- Création d'un tournoi générique ----------------
    teams: [{ ref, nom, pays, couleurs, note, squad? }]  (déjà tries ou non)
    playerRefId: identifiant de l'équipe du joueur (ou null)               */
-FM.makeTournament = function(id, nom, emoji, kind, teams, playerKey){
+FM.makeTournament = function(id, nom, ic, kind, teams, playerKey){
   // tri par note décroissante -> seeds
   const sorted = teams.slice().sort((a,b)=> b.note - a.note);
   const n = sorted.length; // doit être une puissance de 2
@@ -100,7 +100,7 @@ FM.makeTournament = function(id, nom, emoji, kind, teams, playerKey){
   const bracket = order.map(s => s-1); // indices dans sorted, en ordre de bracket
   const playerSeed = playerKey!=null ? sorted.findIndex(t=>t.key===playerKey) : -1;
   return {
-    id, nom, emoji, kind,
+    id, nom, ic, kind,
     teams: sorted,
     alive: bracket,              // indices (dans teams) encore en lice, ordre bracket
     round: 0,
@@ -469,13 +469,13 @@ function buildLeagueSchedule(N, R){
   return sched;
 }
 
-FM.makeClubComp = function(id, nom, emoji, teams, playerKey){
+FM.makeClubComp = function(id, nom, ic, teams, playerKey){
   const sorted = teams.slice().sort((a,b)=>b.note-a.note);
   const N = sorted.length;
   const rounds = N>=32 ? 8 : 6;
   const playerIdx = playerKey!=null ? sorted.findIndex(t=>t.key===playerKey) : -1;
   return {
-    id, nom, emoji, kind:"club",
+    id, nom, ic, kind:"club",
     teams: sorted, playerIdx,
     phase: "league",
     lp: { rounds, cur:0, schedule: buildLeagueSchedule(N, rounds),
@@ -534,7 +534,7 @@ FM.lpFinishToKO = function(comp){
   let playerSeed = -1;
   if(comp.playerIdx>=0){ const pk=comp.teams[comp.playerIdx].key; playerSeed = top.findIndex(t=>t.key===pk); }
   comp.ko = {
-    id:comp.id, nom:comp.nom, emoji:comp.emoji, kind:"club",
+    id:comp.id, nom:comp.nom, ic:comp.ic, nat:comp.nat, kind:"club",
     teams: top, alive: bracket, round:0, roundsTotal:4,
     history:[], playerSeed, playerAlive: playerSeed>=0, finished:false, champion:null
   };
@@ -561,12 +561,13 @@ FM.compChampionTeam = comp => (comp.ko && comp.ko.finished) ? comp.ko.teams[comp
    L'effectif est complété par des « exempts » (byes) pour atteindre une
    puissance de 2 : les têtes de série entrent en jouant un premier tour
    contre un exempt (elles se qualifient d'office).                        */
+/* [nom de la coupe, code pays pour le drapeau vectoriel] */
 FM.CUP_NAMES = {
-  L1:["Coupe de France","🇫🇷"], PL:["FA Cup","🏴󠁧󠁢󠁥󠁮󠁧󠁿"], LL:["Copa del Rey","🇪🇸"],
-  SA:["Coppa Italia","🇮🇹"], BL:["DFB-Pokal","🇩🇪"], POR:["Taça de Portugal","🇵🇹"],
-  NER:["KNVB Beker","🇳🇱"], BEL:["Coupe de Belgique","🇧🇪"], TUR:["Türkiye Kupası","🇹🇷"],
-  SCO:["Scottish Cup","🏴󠁧󠁢󠁳󠁣󠁴󠁿"], RUS:["Coupe de Russie","🇷🇺"], GRE:["Coupe de Grèce","🇬🇷"],
-  SUI:["Coupe de Suisse","🇨🇭"], AUT:["ÖFB-Cup","🇦🇹"], UKR:["Coupe d'Ukraine","🇺🇦"]
+  L1:["Coupe de France","FRA"], PL:["FA Cup","ENG"], LL:["Copa del Rey","ESP"],
+  SA:["Coppa Italia","ITA"], BL:["DFB-Pokal","GER"], POR:["Taça de Portugal","POR"],
+  NER:["KNVB Beker","NED"], BEL:["Coupe de Belgique","BEL"], TUR:["Türkiye Kupası","TUR"],
+  SCO:["Scottish Cup","SCO"], RUS:["Coupe de Russie","RUS"], GRE:["Coupe de Grèce","GRE"],
+  SUI:["Coupe de Suisse","SUI"], AUT:["ÖFB-Cup","AUT"], UKR:["Coupe d'Ukraine","UKR"]
 };
 
 FM.makeDomesticCup = function(leagueId, playerClubId){
@@ -579,9 +580,10 @@ FM.makeDomesticCup = function(leagueId, playerClubId){
   for(let i=0;i<need;i++){
     teams.push({ key:"BYE"+i, ref:null, nom:"Exempt", couleurs:["#2a3342","#4b5563"], note:-1, bye:true });
   }
-  const meta = FM.CUP_NAMES[leagueId] || ["Coupe nationale","🏆"];
+  const meta = FM.CUP_NAMES[leagueId] || ["Coupe nationale",null];
   const playerKey = clubs.some(c=>c.id===playerClubId) ? playerClubId : null;
-  const comp = FM.makeTournament("CUP", meta[0], meta[1], "club", teams, playerKey);
+  const comp = FM.makeTournament("CUP", meta[0], "cup", "club", teams, playerKey);
+  comp.nat = meta[1];
   comp.singleLeg = true;      // match sec à chaque tour (y compris la finale)
   return comp;
 };
@@ -639,9 +641,9 @@ FM.setupEuropeanCups = function(){
 
   st.europe = {
     playerComp,
-    UCL: FM.makeClubComp("UCL",FM.t("Ligue des Champions"),"🏆",ucl.map(toTeam), playerComp==="UCL"?myId:null),
-    UEL: FM.makeClubComp("UEL",FM.t("Ligue Europa"),"🥈",uel.map(toTeam), playerComp==="UEL"?myId:null),
-    UECL:FM.makeClubComp("UECL",FM.t("Ligue Conférence"),"🥉",uecl.map(toTeam), playerComp==="UECL"?myId:null)
+    UCL: FM.makeClubComp("UCL",FM.t("Ligue des Champions"),"cup",ucl.map(toTeam), playerComp==="UCL"?myId:null),
+    UEL: FM.makeClubComp("UEL",FM.t("Ligue Europa"),"medal",uel.map(toTeam), playerComp==="UEL"?myId:null),
+    UECL:FM.makeClubComp("UECL",FM.t("Ligue Conférence"),"shield",uecl.map(toTeam), playerComp==="UECL"?myId:null)
   };
   // Les coupes où le joueur n'est pas sont simulées entièrement (affichage du champion)
   ["UCL","UEL","UECL"].forEach(k=>{ if(playerComp!==k) FM.autoCompleteClubComp(st.europe[k]); });
@@ -713,8 +715,9 @@ FM.makeNationTournament = function(kind, playerNationName, playerOverride){
     return { key:n.nom, ref:n.nom, nom:n.nom, pays:n.pool, couleurs:natColors(n.nom), note:n.note, squad };
   });
   const nom = kind==="EURO" ? FM.t("Championnat d'Europe") : FM.t("Coupe du Monde");
-  const emoji = kind==="EURO" ? "🇪🇺" : "🌍";
-  return FM.makeTournament(kind, nom, emoji, "nation", teams, playerNationName);
+  const comp = FM.makeTournament(kind, nom, "globe", "nation", teams, playerNationName);
+  if (kind==="EURO") comp.nat = "EUR";
+  return comp;
 };
 FM.nationsList = () => NATIONS.map(n=>n[0]);
 FM.nationsForEuro = () => NATIONS.filter(n=>n[2]==="UEFA").map(n=>n[0]);

@@ -9,9 +9,25 @@ Jeu de gestion football (à mi-chemin entre FIFA et Football Manager). Jouable *
 
 ## 🎨 Interface
 
-Habillage « retransmission » : fond nuit de stade, vert pelouse et ambre projecteur, typographie sportive à chiffres alignés, icônes vectorielles (plus d'émojis dans la navigation), écussons aux couleurs du club, tableaux de classement avec zones de qualification, terrain tactique aux rayures de pelouse. Interface responsive (mobile et bureau).
+Identité **« Master League »**, sobre et un peu rétro, dans l'esprit des menus de gestion des années 2000 : fond bleu nuit, **panneaux acier à en-tête biseauté**, accent **bleu glacé**, or pour les trophées, **angles droits** (pas d'arrondis), titres en **capitales condensées** et chiffres alignés.
+
+**Aucun emoji dans l'interface.** Tout ce qui était signalé par un émoji est devenu graphique :
+- **Drapeaux vectoriels** dessinés en SVG (`js/flags.js`) — 110 pays, lisibles partout, là où les drapeaux émoji ne s'affichent tout simplement pas sous Windows ;
+- **Icônes au trait** pour la navigation, les compétitions et les actions ;
+- **Pastilles typographiques** pour les états (BLES., SUSP., QUALIFIÉ, ÉLIMINÉ…) ;
+- **Fil d'actualités catégorisé** : chaque nouvelle porte un marqueur coloré (Transfert, Blessure, Discipline, Coupe, Finances, Prêt…) au lieu d'un émoji.
+
+Interface responsive (mobile et bureau), sans débordement horizontal.
 
 **Polices embarquées** — le jeu utilise ses propres webfonts, **intégrées dans le CSS** (`css/fonts.css`, en base64) : **Inter** pour le texte et **Barlow Condensed** pour les titres et les scores. Aucune requête réseau n'est faite (vérifié : **0 requête externe**), donc le rendu est identique en ligne, hors-ligne et en `file://`. Licence SIL Open Font 1.1 — voir `FONTS-LICENSE.txt`.
+
+## 🎵 Bande son
+
+Le jeu embarque **cinq musiques originales** — *Coup d'envoi, Sous les projecteurs, Fenêtre de transferts, Salle de conseil, Prolongation* — **entièrement synthétisées en Web Audio** : batterie, basse, nappes et mélodie sont générées à la volée, il n'y a **aucun fichier audio** dans le dépôt et **aucune requête réseau**. Lecture, piste précédente/suivante et volume se pilotent depuis la barre présente sur l'écran d'accueil et en cours de partie ; le réglage est mémorisé.
+
+**Vos propres musiques** : le bouton d'import permet de charger vos fichiers audio personnels. Ils sont conservés **localement** (IndexedDB, ils ne quittent jamais votre machine), s'ajoutent à la playlist et sont rejoués aux sessions suivantes.
+
+> Les bandes originales de PES 5 / PES 6 appartiennent à Konami : elles ne peuvent pas être distribuées avec le jeu. Les pistes fournies sont des compositions originales dans le même esprit ; si vous possédez d'autres musiques, l'import local est là pour ça.
 
 ## 🎮 Comment jouer en local
 
@@ -104,6 +120,8 @@ En mode International, **toutes les sélections** (Europe, Amériques, Afrique, 
 |---|---|
 | `index.html` | Page principale |
 | `css/fonts.css` | Webfonts embarquées en base64 (Inter, Barlow Condensed — SIL OFL) |
+| `js/flags.js` | Drapeaux vectoriels (110 pays) dessinés en SVG |
+| `js/audio.js` | Bande son : synthèse Web Audio + import de vos fichiers |
 | `css/style.css` | Interface (thème stade) |
 | `js/i18n.js` | Traduction : dictionnaire anglais + bascule FR/EN |
 | `js/realdata.js` | Données réelles : couleurs & effectifs des 253 clubs |

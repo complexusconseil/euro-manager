@@ -33,9 +33,9 @@ FM.newGame = function(managerName, clubId, seed){
   addNews(`${FM.t('Bienvenue')} ${FM.state.managerName} ! ${FM.t('Vous prenez les rênes de')} ${club.nom}. ${FM.t('Objectif')} : ${FM.state.objectif}.`);
   FM.setupEuropeanCups();
   const pc0 = FM.state.europe.playerComp;
-  if (pc0) addNews(`🏆 ${club.nom} ${FM.t('est engagé en')} ${FM.state.europe[pc0].nom} ${FM.t('cette saison !')}`);
+  if (pc0) addNews(`${club.nom} ${FM.t('est engagé en')} ${FM.state.europe[pc0].nom} ${FM.t('cette saison !')}`, "cup");
   FM.setupDomesticCup();
-  addNews(`${FM.state.coupe.emoji} ${FM.state.coupe.nom} : ${FM.t('le tirage est fait, à vous de jouer !')}`);
+  addNews(`${FM.state.coupe.nom} : ${FM.t('le tirage est fait, à vous de jouer !')}`, "cup");
   FM.state.freeAgents = FM.makeFreeAgents(46, club.pays);
   FM.save();
   return FM.state;
@@ -90,13 +90,13 @@ FM.newMasterLeague = function(managerName, clubName, leagueId, seed, kitColors){
     historique: [],
     objectif: FM.t("assurer le maintien et bâtir votre club")
   };
-  addNews(`⚽ Master League — ${FM.state.managerName} ${FM.t('fonde')} ${mlClub.nom} ${FM.t('et intègre la')} ${lgMeta.nom} (${FM.t('à la place de')} ${removed.nom}). ${FM.t('Budget de départ')} : ${mlClub.budget.toFixed(1)} M€.`);
+  addNews(`Master League — ${FM.state.managerName} ${FM.t('fonde')} ${mlClub.nom} ${FM.t('et intègre la')} ${lgMeta.nom} (${FM.t('à la place de')} ${removed.nom}). ${FM.t('Budget de départ')} : ${mlClub.budget.toFixed(1)} M€.`);
   FM.setupEuropeanCups();                     // (un promu n'est en général pas qualifié)
   FM.setupDomesticCup();                       // engagé en coupe nationale dès la 1re saison
-  addNews(`${FM.state.coupe.emoji} ${FM.t('Engagé en')} ${FM.state.coupe.nom} : ${FM.t('une chance de titre dès cette saison !')}`);
+  addNews(`${FM.t('Engagé en')} ${FM.state.coupe.nom} : ${FM.t('une chance de titre dès cette saison !')}`, "cup");
   // ML : vivier d'agents libres plus fourni pour bâtir l'équipe avec un budget fixé
   FM.state.freeAgents = FM.makeFreeAgents(56, lgMeta.pays);
-  addNews(`🆓 ${FM.state.freeAgents.length} ${FM.t('agents libres disponibles (onglet Mercato).')}`);
+  addNews(`${FM.state.freeAgents.length} ${FM.t('agents libres disponibles (onglet Mercato).')}`, "transfer");
   FM.save();
   return FM.state;
 };
@@ -206,17 +206,17 @@ FM.playMatchday = function(forcedMy){
 FM.tickAvailability = function(){
   for (const c of FM.state.db.clubs) for (const p of c.joueurs){
     if (p._justInjured){ delete p._justInjured; continue; }
-    if (p.blessure>0){ p.blessure--; if(!p.blessure && c.id===FM.state.managedClubId) addNews(`💪 ${p.nom} ${FM.t('est de retour de blessure.')}`); }
-    if (p.suspension>0){ p.suspension--; if(!p.suspension && c.id===FM.state.managedClubId) addNews(`✅ ${p.nom} ${FM.t('a purgé sa suspension.')}`); }
+    if (p.blessure>0){ p.blessure--; if(!p.blessure && c.id===FM.state.managedClubId) addNews(`${p.nom} ${FM.t('est de retour de blessure.')}`, "injury"); }
+    if (p.suspension>0){ p.suspension--; if(!p.suspension && c.id===FM.state.managedClubId) addNews(`${p.nom} ${FM.t('a purgé sa suspension.')}`, "card"); }
   }
 };
 
 /* Annonce les incidents du club géré dans le journal */
 function announceIncidents(club, incidents){
   for (const inc of incidents){
-    if (inc.type==="injury") addNews(`🤕 ${inc.nom} ${FM.t('se blesse')} (${inc.duree} ${FM.t('journées d\'indisponibilité')}).`);
-    else if (inc.type==="red") addNews(`🟥 ${inc.nom} ${FM.t('est expulsé — suspendu pour la suite.')}`);
-    else if (inc.suspend) addNews(`🟨 ${inc.nom} : ${FM.t('5e avertissement, suspendu la prochaine journée.')}`);
+    if (inc.type==="injury") addNews(`${inc.nom} ${FM.t('se blesse')} (${inc.duree} ${FM.t('journées d\'indisponibilité')}).`, "injury");
+    else if (inc.type==="red") addNews(`${inc.nom} ${FM.t('est expulsé — suspendu pour la suite.')}`, "card");
+    else if (inc.suspend) addNews(`${inc.nom} : ${FM.t('5e avertissement, suspendu la prochaine journée.')}`, "card");
   }
 }
 FM.announceIncidents = announceIncidents;
@@ -315,7 +315,7 @@ function postMatchdayUpdates(myResult){
     for (const s of my.onze){ const p=FM.getPlayer(my,s.id); if(p) p.moral=Math.max(30,Math.min(99,p.moral+delta)); }
     const adv = FM.clubById(myResult.dom===my.id?myResult.ext:myResult.dom);
     const s = myResult.dom===my.id ? `${myResult.ds}-${myResult.es}` : `${myResult.es}-${myResult.ds}`;
-    addNews(`J${FM.state.journee} — ${my.nom} ${gagne?FM.t("s'impose"):(nul?FM.t("fait match nul"):FM.t("s'incline"))} ${s} ${FM.t('face à')} ${adv.nom}.`);
+    addNews(`J${FM.state.journee} — ${my.nom} ${gagne?FM.t("s'impose"):(nul?FM.t("fait match nul"):FM.t("s'incline"))} ${s} ${FM.t('face à')} ${adv.nom}.`, "match");
   }
   // Mercato IA : offres pour nos joueurs listés
   generateAIOffers();
@@ -338,7 +338,7 @@ function dueMatchday(kind, r){
 }
 
 /* Liste ordonnée de tous les rendez-vous EN ATTENTE (championnat + coupes).
-   [{ kind, emoji, titre, detail, due, enRetard }]                          */
+   [{ kind, ic, nat, titre, detail, due, enRetard }]                          */
 FM.pendingEvents = function(){
   const out = [];
   const j = FM.state.journee;
@@ -348,7 +348,7 @@ FM.pendingEvents = function(){
   if (fx){
     const dom = FM.clubById(fx.dom), ext = FM.clubById(fx.ext);
     const chezMoi = fx.dom===FM.state.managedClubId;
-    out.push({ kind:"league", emoji:"🏆", titre:`${FM.myClub().ligueNom} — journée ${j+1}`,
+    out.push({ kind:"league", ic:"cup", titre:`${FM.myClub().ligueNom} — journée ${j+1}`,
                detail:`${dom.nom} vs ${ext.nom} (${chezMoi?"domicile":"extérieur"})`, due:j, enRetard:false });
   }
 
@@ -360,7 +360,7 @@ FM.pendingEvents = function(){
       const tie = FM.playerTie(cup);
       let adv = "à jouer";
       if (tie){ const o = cup.teams[tie[0]===cup.playerSeed?tie[1]:tie[0]]; adv = o.bye ? "exempt (qualifié d'office)" : ("contre "+o.nom); }
-      out.push({ kind:"coupe", emoji:cup.emoji, titre:`${cup.nom} — ${FM.roundName(cup.alive.length)}`,
+      out.push({ kind:"coupe", ic:"cup", nat:cup.nat, titre:`${cup.nom} — ${FM.roundName(cup.alive.length)}`,
                  detail:adv, due, enRetard:j>due });
     }
   }
@@ -375,7 +375,7 @@ FM.pendingEvents = function(){
         const pm = FM.lpPlayerMatch(comp);
         let d = `journée ${comp.lp.cur+1}/${comp.lp.rounds} de la phase de ligue`;
         if (pm){ const o = comp.teams[pm.playerHome?pm.away:pm.home]; d = `contre ${o.nom} (${pm.playerHome?"domicile":"extérieur"})`; }
-        out.push({ kind:"euro", emoji:comp.emoji, titre:`${comp.nom} — phase de ligue`, detail:d, due, enRetard:j>due });
+        out.push({ kind:"euro", ic:comp.ic, titre:`${comp.nom} — phase de ligue`, detail:d, due, enRetard:j>due });
       }
     } else if (comp.ko && !comp.ko.finished && comp.ko.playerAlive){
       const due = dueMatchday("euroKo", comp.ko.round);
@@ -383,7 +383,7 @@ FM.pendingEvents = function(){
         const tie = FM.playerTie(comp.ko);
         let d = "à jouer";
         if (tie){ const o = comp.ko.teams[tie[0]===comp.ko.playerSeed?tie[1]:tie[0]]; d = "contre "+o.nom; }
-        out.push({ kind:"euro", emoji:comp.emoji, titre:`${comp.nom} — ${FM.roundName(comp.ko.alive.length)}`, detail:d, due, enRetard:j>due });
+        out.push({ kind:"euro", ic:comp.ic, titre:`${comp.nom} — ${FM.roundName(comp.ko.alive.length)}`, detail:d, due, enRetard:j>due });
       }
     }
   }
@@ -391,7 +391,7 @@ FM.pendingEvents = function(){
   // 4) Tournoi international de l'été (facultatif)
   const pi = FM.state.pendingIntl;
   if (pi && !pi.fait){
-    out.push({ kind:"intl", emoji: pi.kind==="WC"?"🌍":"🇪🇺",
+    out.push({ kind:"intl", ic:"globe", nat: pi.kind==="WC"?null:"EUR",
                titre: (pi.kind==="WC"?"Coupe du Monde":"Championnat d'Europe")+" — cet été",
                detail:`facultatif · sélection : ${pi.defaultNation}`, due:j, enRetard:false, facultatif:true });
   }
@@ -435,7 +435,7 @@ FM.transferWindow = function(){
 FM.marketOpen = () => FM.transferWindow().open;
 function windowClosedMsg(){
   const w = FM.transferWindow();
-  return `⛔ ${w.nom} — ${w.info}.`;
+  return `${w.nom} — ${w.info}.`;
 }
 
 /* ---------- MERCATO ---------- */
@@ -467,7 +467,7 @@ FM.transferMarket = function(filter={}){
   const type = filter.type || "all";
   // Agents libres (sans club) : toujours présentés en tête (hors quota de liste)
   let libres = type==="transf" ? [] : applyFilters((FM.state.freeAgents || [])
-    .map(p=>({ ...p, clubId:null, clubNom:"🆓 Agent libre", dispo:true, libre:true })));
+    .map(p=>({ ...p, clubId:null, clubNom:FM.t("Agent libre"), dispo:true, libre:true })));
   libres.sort(sorter);
   // Joueurs sous contrat dans les autres clubs
   let list = [];
@@ -523,7 +523,7 @@ FM.buyPlayer = function(playerId, offreM){
     fa.transferListe = false; fa.contrat = FM._ri(2,4); fa.moral = Math.min(99, fa.moral+6);
     my.joueurs.push(fa);
     my.onze = FM.autoPickXI(my);
-    addNews(`✍️ ${FM.t('Signature libre')} : ${fa.nom} (${fa.note}) ${FM.t("s'engage avec")} ${my.nom} (${FM.t('prime')} ${offreM.toFixed(1)} M€).`);
+    addNews(`${FM.t('Signature libre')} : ${fa.nom} (${fa.note}) ${FM.t("s'engage avec")} ${my.nom} (${FM.t('prime')} ${offreM.toFixed(1)} M€).`, "transfer");
     FM.save();
     return { ok:true, msg:`${fa.nom} signe librement pour une prime de ${offreM.toFixed(1)} M€ !` };
   }
@@ -559,7 +559,7 @@ FM.buyPlayer = function(playerId, offreM){
   player.moral = Math.min(99, player.moral+8);
   my.joueurs.push(player);
   my.onze = FM.autoPickXI(my);
-  addNews(`✅ ${FM.t('Recrutement')} : ${player.nom} (${player.note}) ${FM.t('rejoint')} ${my.nom} ${FM.t('pour')} ${offreM.toFixed(1)} M€.`);
+  addNews(`${FM.t('Recrutement')} : ${player.nom} (${player.note}) ${FM.t('rejoint')} ${my.nom} ${FM.t('pour')} ${offreM.toFixed(1)} M€.`, "transfer");
   FM.save();
   return { ok:true, msg:`${player.nom} signe pour ${offreM.toFixed(1)} M€ !` };
 };
@@ -590,7 +590,7 @@ FM.acceptOffer = function(offreIndex){
   p.transferListe = false;
   buyer.joueurs.push(p);
   buyer.onze = FM.autoPickXI(buyer);
-  addNews(`💰 ${FM.t('Vente')} : ${p.nom} ${FM.t('rejoint')} ${buyer.nom} ${FM.t('pour')} ${o.montant.toFixed(1)} M€.`);
+  addNews(`${FM.t('Vente')} : ${p.nom} ${FM.t('rejoint')} ${buyer.nom} ${FM.t('pour')} ${o.montant.toFixed(1)} M€.`, "transfer");
   FM.state.offres.splice(offreIndex,1);
   FM.save();
   return { ok:true, msg:`${p.nom} vendu pour ${o.montant.toFixed(1)} M€.` };
@@ -610,7 +610,7 @@ function generateAIOffers(){
       const montant = Math.round(p.valeur*(0.85+FM._rnd()*0.4)*10)/10;
       if (buyer.budget >= montant && !FM.state.offres.some(o=>o.joueurId===p.id)){
         FM.state.offres.push({ joueurId:p.id, joueurNom:p.nom, clubId:buyer.id, clubNom:buyer.nom, montant });
-        addNews(`📩 ${buyer.nom} ${FM.t('propose')} ${montant.toFixed(1)} M€ ${FM.t('pour')} ${p.nom}.`);
+        addNews(`${buyer.nom} ${FM.t('propose')} ${montant.toFixed(1)} M€ ${FM.t('pour')} ${p.nom}.`, "transfer");
       }
     }
   }
@@ -679,7 +679,7 @@ FM.loanIn = function(playerId){
   my.joueurs.push(player); my.onze = FM.autoPickXI(my);
   FM.state.prets = FM.state.prets || [];
   FM.state.prets.push({ playerId, parentId:parent.id, borrowerId:my.id, saison:FM.state.saison, type:"in" });
-  addNews(`🔁 ${FM.t('Prêt')} : ${player.nom} (${player.note}) ${FM.t('arrive de')} ${parent.nom} ${FM.t("jusqu'en fin de saison")} (${fee.toFixed(1)} M€).`);
+  addNews(`${FM.t('Prêt')} : ${player.nom} (${player.note}) ${FM.t('arrive de')} ${parent.nom} ${FM.t("jusqu'en fin de saison")} (${fee.toFixed(1)} M€).`, "loan");
   FM.save();
   return { ok:true, msg:`${player.nom} rejoint ${my.nom} en prêt.` };
 };
@@ -706,7 +706,7 @@ FM.loanOut = function(playerId){
   FM.state.prets.push({ playerId, parentId:my.id, borrowerId:borrower.id, saison:FM.state.saison, type:"out" });
   const fee = Math.round(player.valeur*0.04*10)/10;
   my.budget += fee;
-  addNews(`🔁 ${FM.t('Prêt')} : ${player.nom} ${FM.t('rejoint')} ${borrower.nom} ${FM.t('pour la saison')}${fee>0?` (+${fee.toFixed(1)} M€)`:''}.`);
+  addNews(`${FM.t('Prêt')} : ${player.nom} ${FM.t('rejoint')} ${borrower.nom} ${FM.t('pour la saison')}${fee>0?` (+${fee.toFixed(1)} M€)`:''}.`, "loan");
   FM.save();
   return { ok:true, msg:`${player.nom} est prêté à ${borrower.nom}.` };
 };
@@ -745,7 +745,7 @@ function returnLoan(playerId){
 FM.recallLoan = function(playerId){
   const r = returnLoan(playerId);
   if (r.ok){
-    addNews(`🔁 ${FM.t('Prêt interrompu')} : ${r.player.nom} ${FM.t('retrouve')} ${r.parent?r.parent.nom:FM.t('son club')}.`);
+    addNews(`${FM.t('Prêt interrompu')} : ${r.player.nom} ${FM.t('retrouve')} ${r.parent?r.parent.nom:FM.t('son club')}.`, "loan");
     FM.save();
   }
   return r;
@@ -762,11 +762,11 @@ function processLoansEndSeason(){
       p.potentiel = Math.min(94, p.potentiel + FM._ri(0,1));
       p.note = Math.min(p.potentiel, p.note + FM._ri(0,2));
       p.moral = Math.min(99, p.moral + 4);
-      if (r.parent && r.parent.id===mine) addNews(`🔁 ${FM.t('Retour de prêt')} : ${p.nom} ${FM.t('revient grandi de son expérience')} (${p.note}).`);
+      if (r.parent && r.parent.id===mine) addNews(`${FM.t('Retour de prêt')} : ${p.nom} ${FM.t('revient grandi de son expérience')} (${p.note}).`, "loan");
     } else if (r.parent && r.parent.id===mine){
-      addNews(`🔁 ${FM.t('Fin de prêt')} : ${p.nom} ${FM.t('est de retour au club.')}`);
+      addNews(`${FM.t('Fin de prêt')} : ${p.nom} ${FM.t('est de retour au club.')}`, "loan");
     } else if (r.holder && r.holder.id===mine){
-      addNews(`🔁 ${FM.t('Fin de prêt')} : ${p.nom} ${FM.t('retourne à')} ${r.parent?r.parent.nom:FM.t('son club')}.`);
+      addNews(`${FM.t('Fin de prêt')} : ${p.nom} ${FM.t('retourne à')} ${r.parent?r.parent.nom:FM.t('son club')}.`, "loan");
     }
   }
   FM.state.prets = [];
@@ -811,9 +811,9 @@ FM.endSeason = function(){
     buteur:   pichichi ? { nom:pichichi.nom, club:pichichi.clubNom, buts:pichichi.buts } : null,
     passeur:  passeur ? { nom:passeur.nom, club:passeur.clubNom, passes:passeur.passes||0 } : null
   };
-  if (trophies.buteur) addNews(`👑 ${FM.t('Meilleur buteur')} : ${trophies.buteur.nom} (${trophies.buteur.club}) — ${trophies.buteur.buts} ${FM.t('buts')}.`);
-  if (trophies.passeur) addNews(`🅰️ ${FM.t('Meilleur passeur')} : ${trophies.passeur.nom} (${trophies.passeur.club}) — ${trophies.passeur.passes} ${FM.t('passes')}.`);
-  if (trophies.joueur) addNews(`🌟 ${FM.t('Joueur de la saison')} : ${trophies.joueur.nom} (${trophies.joueur.club}) — ${FM.t('Note moyenne')} ${trophies.joueur.avg}.`);
+  if (trophies.buteur) addNews(`${FM.t('Meilleur buteur')} : ${trophies.buteur.nom} (${trophies.buteur.club}) — ${trophies.buteur.buts} ${FM.t('buts')}.`, "award");
+  if (trophies.passeur) addNews(`${FM.t('Meilleur passeur')} : ${trophies.passeur.nom} (${trophies.passeur.club}) — ${trophies.passeur.passes} ${FM.t('passes')}.`, "award");
+  if (trophies.joueur) addNews(`${FM.t('Joueur de la saison')} : ${trophies.joueur.nom} (${trophies.joueur.club}) — ${FM.t('Note moyenne')} ${trophies.joueur.avg}.`, "award");
 
   const euroPrize = europeanPrize();        // prime selon le parcours européen
   const euroSum = FM.state.europe ? europeSummary() : null;
@@ -834,14 +834,14 @@ FM.endSeason = function(){
     superCup,
     coupe: cupResult
   });
-  addNews(`🏁 ${FM.t('Fin de saison')} ${FM.state.saison} : ${champ.nom} ${FM.t('champion')}. ${FM.myClub().nom} ${FM.t('termine')} ${rank}${rank===1?FM.t("er"):FM.t("e")}.`);
+  addNews(`${FM.t('Fin de saison')} ${FM.state.saison} : ${champ.nom} ${FM.t('champion')}. ${FM.myClub().nom} ${FM.t('termine')} ${rank}${rank===1?FM.t("er"):FM.t("e")}.`, "season");
 
   // Nouvelle saison : reset tables, vieillissement, budget
   const my = FM.myClub();
   let bonus = (rank<=3 ? 30 : rank<=6 ? 15 : rank<=10 ? 5 : 0) + euroPrize;
   if (superCup && superCup.playerWon) bonus += 8;
-  if (cupResult){ bonus += cupResult.playerReward; if (cupResult.playerReward>0) addNews(`💶 ${FM.t('Parcours en')} ${cupResult.nom} : +${cupResult.playerReward} M€.`); }
-  if (euroPrize>0) addNews(`💶 ${FM.t("Recettes des coupes d'Europe")} : +${euroPrize.toFixed(0)} M€.`);
+  if (cupResult){ bonus += cupResult.playerReward; if (cupResult.playerReward>0) addNews(`${FM.t('Parcours en')} ${cupResult.nom} : +${cupResult.playerReward} M€.`, "money"); }
+  if (euroPrize>0) addNews(`${FM.t("Recettes des coupes d'Europe")} : +${euroPrize.toFixed(0)} M€.`, "money");
   // --- Prêts : retour au club parent (+ développement des jeunes prêtés) ---
   processLoansEndSeason();
 
@@ -876,8 +876,8 @@ FM.endSeason = function(){
       // Moral selon la saison
       p.moral = Math.max(35, Math.min(99, p.moral + (perf>0?6:perf<0?-6:0)));
       if (c===my && tag && (p.matchs||0)>=8){
-        if (perf>0) addNews(`📈 ${FM.t('Saison')} ${tag} — ${p.nom} (${FM.t('moy')} ${avg.toFixed(2)}) : ${FM.t('Note')} ${p.note-perf}→${p.note}.`);
-        else addNews(`📉 ${FM.t('Saison')} ${tag} — ${p.nom} (${FM.t('moy')} ${avg.toFixed(2)}) : ${FM.t('Note')} ${p.note-perf}→${p.note}.`);
+        if (perf>0) addNews(`${FM.t('Saison')} ${tag} — ${p.nom} (${FM.t('moy')} ${avg.toFixed(2)}) : ${FM.t('Note')} ${p.note-perf}→${p.note}.`, "up");
+        else addNews(`${FM.t('Saison')} ${tag} — ${p.nom} (${FM.t('moy')} ${avg.toFixed(2)}) : ${FM.t('Note')} ${p.note-perf}→${p.note}.`, "down");
       }
       // Reset des compteurs de la saison
       p.matchs=0; p.buts=0; p.passes=0; p.noteTotale=0; p.noteMatchs=0; p.selJeunes=null;
@@ -914,7 +914,7 @@ FM.endSeason = function(){
   const endedSeason = FM.state.saison - 1;
   const wc = (endedSeason % 2 === 0);
   FM.state.pendingIntl = { kind: wc?"WC":"EURO", defaultNation: FM.nationForCountry(my.pays), fait:false };
-  addNews(`🌍 ${wc?FM.t("Coupe du Monde"):FM.t("Championnat d'Europe")} — ${FM.t('cet été, prenez en main une sélection (onglet Accueil).')}`);
+  addNews(`${wc?FM.t("Coupe du Monde"):FM.t("Championnat d'Europe")} — ${FM.t('cet été, prenez en main une sélection (onglet Accueil).')}`, "intl");
 
   const pc = FM.state.europe.playerComp;
   addNews(`${FM.t('Saison')} ${FM.state.saison} : ${FM.t('nouvel objectif')} — ${FM.state.objectif}. ${FM.t('Budget')} : ${my.budget.toFixed(1)} M€.` +
@@ -942,7 +942,7 @@ function applyYouthCallups(){
       // Boost de développement (expérience internationale jeune)
       if (p.age<=23) p.potentiel = Math.min(94, p.potentiel + (FM._rnd()<0.5?1:0));
       p.moral = Math.min(99, p.moral + 3);
-      if (c===my) addNews(`🎖️ ${p.nom} (${p.age}) ${FM.t('est convoqué en')} ${nation} ${cat} !`);
+      if (c===my) addNews(`${p.nom} (${p.age}) ${FM.t('est convoqué en')} ${nation} ${cat} !`, "intl");
     }
   }
 }
@@ -960,9 +960,9 @@ function finishDomesticCup(){
   const champTeam = cup.champion!=null ? cup.teams[cup.champion] : null;
   const playerWon = cup.champion===cup.playerSeed && cup.playerSeed>=0;
   const playerReward = (playerWon ? 15 : 0) + playerRoundsWon*2;
-  addNews(`${cup.emoji} ${cup.nom} : ${champTeam?champTeam.nom:'—'} ${FM.t('remporte le trophée.')}` +
-    (playerWon ? " 🏆 Bravo, c'est VOTRE club !" : ""));
-  return { nom:cup.nom, emoji:cup.emoji, vainqueur:champTeam?champTeam.nom:'—', playerWon, playerReward };
+  addNews(`${cup.nom} : ${champTeam?champTeam.nom:'—'} ${FM.t('remporte le trophée.')}` +
+    (playerWon ? " "+FM.t("Bravo, c'est VOTRE club !") : ""), "cup");
+  return { nom:cup.nom, ic:cup.ic, nat:cup.nat, vainqueur:champTeam?champTeam.nom:'—', playerWon, playerReward };
 }
 
 /* ---------- Supercoupe d'Europe ----------
@@ -990,7 +990,7 @@ function playSuperCup(){
   const isMe = t => (t.ref===myId || t.key===myId);
   const playerInvolved = isMe(ucl) || isMe(uel);
   const playerWon = isMe(winner);
-  addNews(`🏆⭐ ${FM.t('Supercoupe d\'Europe')} : ${ucl.nom} ${ga}–${gb} ${uel.nom}. ${winner.nom} ${FM.t('soulève le trophée !')}` +
+  addNews(`${FM.t('Supercoupe d\'Europe')} : ${ucl.nom} ${ga}–${gb} ${uel.nom}. ${winner.nom} ${FM.t('soulève le trophée !')}` +
     (playerInvolved ? (playerWon ? " Bravo, c'est VOTRE club !" : " Votre club s'incline de justesse.") : ""));
   return { ucl:ucl.nom, uel:uel.nom, ga, gb, vainqueur:winner.nom, playerInvolved, playerWon };
 }
@@ -1019,8 +1019,8 @@ function applyPromotionRelegation(finalTable){
     promoted.push(club.nom);
   }
   if (relegated.length){
-    addNews(`⬇️ ${FM.t('Relégations')} (${lgMeta.nom}) : ${relegated.map(c=>c.nom).join(", ")}.`);
-    addNews(`⬆️ ${FM.t('Promus')} : ${promoted.join(", ")}.`);
+    addNews(`${FM.t('Relégations')} (${lgMeta.nom}) : ${relegated.map(c=>c.nom).join(", ")}.`, "down");
+    addNews(`${FM.t('Promus')} : ${promoted.join(", ")}.`, "up");
   }
   return { releguees: relegated.map(c=>c.nom), promues: promoted };
 }
@@ -1077,7 +1077,7 @@ function europeSummary(){
   const comp = e[e.playerComp], ko = comp.ko;
   let res;
   if (comp.phase==="league") res = "phase de ligue";
-  else if (ko && ko.finished && ko.champion===ko.playerSeed) res = "Vainqueur 🏆";
+  else if (ko && ko.finished && ko.champion===ko.playerSeed) res = FM.t("Vainqueur");
   else if (ko){
     const lost = ko.history.find(h=>h.ties.some(t=>(t.a===ko.playerSeed||t.b===ko.playerSeed)&&t.winner!==ko.playerSeed));
     res = lost ? ("éliminé en "+lost.nom) : "en cours";
@@ -1091,12 +1091,17 @@ FM.recordIntlResult = function(kind, nation, championNom, playerWon){
   const nomTournoi = kind==="WC" ? "Coupe du Monde" : "Championnat d'Europe";
   FM.state.intlPalmares = FM.state.intlPalmares || [];
   FM.state.intlPalmares.unshift({ saison:FM.state.saison, tournoi:nomTournoi, nation, champion:championNom, playerWon });
-  addNews(`🌍 ${nomTournoi} : ${championNom} ${FM.t('champion')}.` + (playerWon ? ` 🏆 Avec ${nation}, vous êtes sur le toit du monde !` : ` (Vous dirigiez ${nation}.)`));
+  addNews(`${nomTournoi} : ${championNom} ${FM.t('champion')}.` + (playerWon ? ` ${FM.t("Avec")} ${nation}, ${FM.t("vous êtes sur le toit du monde !")}` : ` (${FM.t("Vous dirigiez")} ${nation}.)`), "intl");
   FM.save();
 };
 
 /* ---------- Actualités ---------- */
-function addNews(txt){ FM.state.news.unshift({ txt, saison:FM.state.saison, j:FM.state.journee }); if(FM.state.news.length>60) FM.state.news.pop(); }
+/* kind : catégorie affichée sous forme de marqueur typographique
+   (title, cup, injury, card, transfer, loan, money, intl, season, up, down, award, match) */
+function addNews(txt, kind){
+  FM.state.news.unshift({ txt, kind:kind||"info", saison:FM.state.saison, j:FM.state.journee });
+  if(FM.state.news.length>60) FM.state.news.pop();
+}
 FM.addNews = addNews;
 
 /* ---------- Sauvegarde locale ---------- */
