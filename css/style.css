@@ -391,3 +391,29 @@ tbody tr:hover{background:var(--card2)}
   .spot{width:56px} .spot-name{font-size:10px}
   .pitch{min-height:340px}
 }
+
+/* ================= ÉCRAN DE MATCH EN DIRECT ================= */
+.live-overlay{padding:12px}
+.live-screen{width:min(760px,96vw);max-height:94vh;overflow:auto;background:var(--card,#141a24);
+  border:1px solid var(--line);border-radius:14px;padding:14px}
+.ls-head{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin-bottom:10px}
+.ls-team{display:flex;align-items:center;gap:8px;font-size:15px}
+.ls-team.right{justify-content:flex-end}
+.ls-dot{width:12px;height:12px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.4)}
+.ls-score{text-align:center}
+.ls-score b{display:block;font-size:30px;font-weight:800;letter-spacing:2px}
+.ls-score small{color:var(--accent);font-weight:700}
+.ls-pitch{width:100%;height:auto;display:block;border-radius:10px;border:1px solid var(--line)}
+.ls-ctrl{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:12px 0}
+.ls-ctrl .btn{min-width:104px}
+#lsCoach.urgent{border-color:#f0b429;color:#f0b429;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.55}}
+.ls-feed{max-height:30vh;overflow:auto;display:flex;flex-direction:column;gap:5px}
+.ls-line{background:rgba(255,255,255,.04);border-left:3px solid var(--line);border-radius:7px;padding:6px 9px;font-size:13.5px}
+.ls-line.h{border-left-color:var(--accent)} .ls-line.a{border-left-color:#e0b83a} .ls-line.n{border-left-color:#7d8896}
+.ls-line.goal{background:rgba(46,160,67,.16);font-weight:600}
+.ls-fmin{color:var(--mut);font-weight:700;margin-right:5px}
+/* Panneau de coaching */
+.coach-overlay{z-index:60}
+.coach-box{max-width:660px;width:95%;max-height:92vh;overflow:auto}
+.coach-presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}

@@ -279,8 +279,104 @@ FM.applyNationFatigue = function(team, pressing){
 /* Remise à zéro avant un match */
 FM.clearNationFlags = function(team){
   (team.squad||[]).forEach(p=>{ delete p._tired; delete p._fresh; });
-  if (team.starters) team.note = FM.nationXIRating(team);
+  delete team._red;
+  const news = [];
+  if (team.starters){
+    // Un match de purgé pour les suspendus, une rencontre de moins pour les blessés
+    (team.squad||[]).forEach(p=>{
+      if (p._justOut){ delete p._justOut; return; }
+      if (p.suspension>0) p.suspension--;
+      if (p.blessure>0) p.blessure--;
+    });
+    // Remplacement forcé des indisponibles dans le onze
+    team.starters = team.starters.slice();
+    team.starters.forEach((id,i)=>{
+      const p = team.squad.find(x=>x.id===id);
+      if (p && (p.blessure>0 || p.suspension>0)){
+        const rempl = team.squad
+          .filter(x=>team.starters.indexOf(x.id)<0 && !(x.blessure>0) && !(x.suspension>0))
+          .sort((a,b)=> (a.groupe===p.groupe?-1:0)-(b.groupe===p.groupe?-1:0) || b.note-a.note)[0];
+        if (rempl){ team.starters[i]=rempl.id; news.push(`${p.nom} (${p.blessure>0?"blessé":"suspendu"}) est remplacé par ${rempl.nom}`); }
+      }
+    });
+    team.note = FM.nationXIRating(team);
+  }
+  return news;
 };
+
+/* ---------- SÉLECTIONS EN DIRECT (minute par minute) ----------
+   Mêmes règles que pour les clubs : buts, cartons et blessures, avec les
+   réglages du sélectionneur relus à chaque minute.                          */
+function natOnField(team){
+  if (!team.starters || !team.squad) return team.squad || [];
+  return team.squad.filter(p=>team.starters.indexOf(p.id)>=0);
+}
+function natPickScorer(team){
+  const xi = natOnField(team);
+  if (!xi.length) return null;
+  const w = xi.map(p=>({p, w: p.groupe==="A"?5 : p.groupe==="M"?2.2 : p.groupe==="D"?0.6 : 0.05}));
+  const tot = w.reduce((a,x)=>a+x.w,0);
+  let r = FM._rnd()*tot, ch = w[0].p;
+  for (const x of w){ r-=x.w; if(r<=0){ ch=x.p; break; } }
+  return ch;
+}
+/* Force effective d'une sélection (onze + fatigue + infériorité numérique) */
+function natRating(team, tac){
+  let r = FM.nationXIRating(team);
+  if (team._red) r -= team._red*4.5;
+  if (tac){
+    r += (tac.moral||0);
+  }
+  return r;
+}
+FM.nationLiveTick = function(A, B, minute, tacA, tacB){
+  const out = [];
+  const atkA = natRating(A,tacA) + ((tacA?tacA.mentalite-1:0)*3) + ((tacA?tacA.tempo-1:0)*1.2);
+  const defA = natRating(A,tacA) - ((tacA?tacA.mentalite-1:0)*2.5);
+  const atkB = natRating(B,tacB) + ((tacB?tacB.mentalite-1:0)*3);
+  const defB = natRating(B,tacB) - ((tacB?tacB.mentalite-1:0)*2.5);
+  const xa = Math.max(0.05, 1.25 + (atkA-defB)*0.055) / 90;
+  const xb = Math.max(0.05, 1.25 + (atkB-defA)*0.055) / 90;
+  if (FM._rnd() < xa){ const p=natPickScorer(A); if(p) out.push({type:"goal", home:true,  joueur:p.nom, id:p.id, min:minute}); }
+  if (FM._rnd() < xb){ const p=natPickScorer(B); if(p) out.push({type:"goal", home:false, joueur:p.nom, id:p.id, min:minute}); }
+  [[A,tacA,true],[B,tacB,false]].forEach(([T,tac,isH])=>{
+    const press = 0.7 + ((tac?tac.pressing:1))*0.35;
+    const tempo = 0.85 + ((tac?tac.tempo:1))*0.15;
+    natOnField(T).forEach(p=>{
+      const fat = 1 + (p._tired||0)*0.06;
+      if (FM._rnd() < 0.00022 * press * tempo * fat){
+        const sev = FM._rnd();
+        const duree = sev<0.6 ? 1 : sev<0.9 ? 2 : 3;      // en matchs de tournoi
+        out.push({ type:"injury", home:isH, joueur:p.nom, id:p.id, min:minute, duree });
+      } else if (FM._rnd() < 0.0011 * press * (p.groupe==="D"?1.4:1)){
+        out.push({ type: FM._rnd()<0.06?"red":"yellow", home:isH, joueur:p.nom, id:p.id, min:minute });
+      }
+    });
+  });
+  return out;
+};
+/* Applique un incident à une sélection */
+FM.applyNationIncident = function(team, inc){
+  const p = (team.squad||[]).find(x=>x.id===inc.id);
+  if (!p) return;
+  if (inc.type==="injury"){ p.blessure = Math.max(p.blessure||0, inc.duree); p._tired=(p._tired||0)+3; }
+  else if (inc.type==="red"){
+    p.suspension = (p.suspension||0) + 1;
+    team.starters = (team.starters||[]).filter(id=>id!==inc.id);   // sort du terrain
+    team._red = (team._red||0) + 1;
+    team.note = FM.nationXIRating(team);
+  } else {
+    p.cartons = (p.cartons||0)+1;
+    if (p.cartons % 2 === 0){ p.suspension = (p.suspension||0)+1; inc.suspend = true; }  // 2 jaunes = 1 match (format tournoi)
+  }
+};
+/* Fatigue progressive en sélection */
+FM.nationLiveFatigue = function(team, pressing){
+  const cost = pressing===2 ? 0.65 : pressing===1 ? 0.28 : 0.08;
+  natOnField(team).forEach(p=>{ p._tired=(p._tired||0)+cost; });
+  team.note = FM.nationXIRating(team);
+};
+FM.nationOnField = natOnField;
 
 /* Tirs au but entre deux équipes d'un tournoi (règle commune) */
 FM.penaltyShootout = function(comp, ai, bi){

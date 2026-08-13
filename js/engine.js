@@ -40,10 +40,10 @@ FM.getPlayer = (club, id) => club.joueurs.find(p => p.id === id);
 
 /* Force d'une ligne (déf / milieu / att) à partir du onze */
 FM.teamStrength = function(club){
-  let att=0, mid=0, def=0, gk=0, cnt={A:0,M:0,D:0,G:0};
+  let att=0, mid=0, def=0, gk=0, cnt={A:0,M:0,D:0,G:0}, manquants=0;
   for (const s of club.onze){
     const p = FM.getPlayer(club, s.id);
-    if (!p) continue;
+    if (!p){ manquants++; continue; }
     let eff = p.note * posFit(p.pos, s.slot) + p.forme + (p.moral-70)*0.1;
     if (p._fresh) eff += 1.5;                 // entrant frais (remplaçant)
     if (p._tired) eff -= p._tired;            // fatigue accumulée (pressing intense)
@@ -65,11 +65,9 @@ FM.teamStrength = function(club){
   const pressBonus = (t.pressing-1);
   mid += pressBonus*1.5;
 
-  // Infériorité numérique après une exclusion
-  if (club._red){
-    const k = club._red;
-    att -= k*5; mid -= k*4.5; def -= k*4;
-  }
+  // Infériorité numérique (poste vide après exclusion, ou effectif incomplet)
+  const enMoins = manquants + (club._red||0);
+  if (enMoins){ att -= enMoins*4.5; mid -= enMoins*4.5; def -= enMoins*4.5; }
 
   return {
     att, mid, def,
@@ -152,6 +150,82 @@ FM.applyHalfFatigue = function(club){
 FM.clearMatchFlags = function(club){
   for (const p of club.joueurs){ delete p._tired; delete p._fresh; }
   delete club._red;
+};
+
+/* ---------- MATCH EN DIRECT (minute par minute) ----------
+   À chaque minute on relit les forces ACTUELLES : tout changement de tactique
+   ou remplacement fait pendant la rencontre s'applique immédiatement.       */
+function pickScorer(club){
+  const w = club.onze.map(s=>{
+    const p = FM.getPlayer(club,s.id); if(!p) return null;
+    const g = FM.POS_GROUP[s.slot];
+    return { p, w: g==="A"?5 : g==="M"?2.2 : g==="D"?0.6 : 0.05 };
+  }).filter(Boolean);
+  if (!w.length) return null;
+  const tot = w.reduce((a,x)=>a+x.w,0);
+  let r = FM._rnd()*tot, ch = w[0].p;
+  for (const x of w){ r-=x.w; if(r<=0){ ch=x.p; break; } }
+  return ch;
+}
+
+FM.liveTick = function(dom, ext, minute){
+  const out = [];
+  const sD = FM.teamStrength(dom), sE = FM.teamStrength(ext);
+  const midDiff = (sD.mid - sE.mid);
+  const hx = Math.max(0.05, baseXg(sD.att+3, sE.def) * (1+midDiff*0.012) * tempoMul(dom)) / 90;
+  const ax = Math.max(0.05, baseXg(sE.att, sD.def+1.5) * (1-midDiff*0.012) * tempoMul(ext)) / 90;
+  if (FM._rnd() < hx){ const p=pickScorer(dom); if(p) out.push({type:"goal", home:true,  joueur:p.nom, id:p.id, min:minute, clubId:dom.id, joueurId:p.id}); }
+  if (FM._rnd() < ax){ const p=pickScorer(ext); if(p) out.push({type:"goal", home:false, joueur:p.nom, id:p.id, min:minute, clubId:ext.id, joueurId:p.id}); }
+  [[dom,true],[ext,false]].forEach(([c,isH])=>{
+    const t = c.tactique || {tempo:1,pressing:1};
+    const press = 0.7 + t.pressing*0.35, tempo = 0.85 + t.tempo*0.15;
+    for (const s of c.onze){
+      const p = FM.getPlayer(c, s.id); if(!p) continue;
+      const ageF = p.age>=32 ? 1.5 : p.age<=20 ? 1.2 : 1;
+      const fat = 1 + (p._tired||0)*0.06;
+      if (FM._rnd() < 0.00022 * press * tempo * ageF * fat){
+        const sev = FM._rnd();
+        const duree = sev<0.55 ? FM._ri(1,2) : sev<0.85 ? FM._ri(3,5) : FM._ri(6,12);
+        out.push({ type:"injury", home:isH, joueur:p.nom, id:p.id, min:minute, duree });
+      } else {
+        const rugueux = FM.POS_GROUP[s.slot]==="D" || s.slot==="MDC";
+        if (FM._rnd() < 0.0011 * press * (rugueux?1.4:1))
+          out.push({ type: FM._rnd()<0.06 ? "red":"yellow", home:isH, joueur:p.nom, id:p.id, min:minute });
+      }
+    }
+  });
+  return out;
+};
+
+/* Fatigue progressive (appelée toutes les 15 minutes de jeu) */
+FM.liveFatigue = function(club){
+  const t = club.tactique;
+  const cost = t.pressing===2 ? 0.65 : t.pressing===1 ? 0.28 : 0.08;
+  for (const s of club.onze){
+    const p = FM.getPlayer(club, s.id);
+    if (p){ p._tired = (p._tired||0) + cost; }
+  }
+};
+
+/* Exclusion : le joueur quitte le terrain (l'équipe joue à 10) */
+FM.sendOff = function(club, playerId){
+  const slot = club.onze.find(s=>s.id===playerId);
+  if (slot) slot.id = null;
+};
+/* Recomplète les postes vides après le match */
+FM.refillXI = function(club){
+  const used = new Set(club.onze.filter(s=>s.id).map(s=>s.id));
+  for (const slot of club.onze){
+    if (slot.id) continue;
+    let best=null, bestScore=-1e9;
+    for (const p of club.joueurs){
+      if (used.has(p.id)) continue;
+      let sc = p.note * posFit(p.pos, slot.slot);
+      if (!FM.playerAvailable(p)) sc -= 1000;
+      if (sc>bestScore){ bestScore=sc; best=p; }
+    }
+    if (best){ slot.id=best.id; used.add(best.id); }
+  }
 };
 
 /* ---------- BLESSURES & CARTONS ----------

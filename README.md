@@ -35,9 +35,16 @@ Chaque pays a sa **coupe nationale** en élimination directe (match sec) : Coupe
 
 Chaque **été**, un tournoi international (alterné **Coupe du Monde** / **Championnat d'Europe**) s'invite dans votre carrière **et** en Master League : **facultatif**, il apparaît dans le **Calendrier** comme rendez-vous à suivre. Depuis l'Accueil, prenez en main la **sélection de votre choix** (par défaut celle de votre pays) : à chaque édition, **composez votre effectif de 23** — **11 titulaires + banc (profondeur)** — en piochant dans un **vivier d'environ 500 joueurs de la nation** (vrais internationaux en tête, compatriotes en profondeur), avec **recherche et filtres par poste**. Les noms générés sont **cohérents avec la nationalité** : chaque pays a son propre vivier de prénoms/noms — **93 nationalités** couvrant toutes les confédérations (Europe, Amériques, Afrique, Asie, Océanie). **93 sélections** sont jouables (Coupe du Monde / Euro), des favoris aux nations plus modestes. La force de l'équipe dépend de vos titulaires. Puis disputez l'élimination directe et revenez à votre club. Palmarès international conservé.
 
-## 🎥 Vue tactique 3D + tableau de bord en direct
+## 🎮 Écran de match en direct (avec pause et coaching)
 
-Les matchs se jouent en **vue tactique 3D** (moteur Three.js embarqué, 100 % hors-ligne) façon banc de touche : **terrain 3D visible** (pelouse tondue, surfaces, arcs, stade et tribunes), **pions colorés qui se déplacent** aux couleurs des deux clubs, **ballon qui circule de pion en pion** (jeu de passes) avec anneau du porteur et traînée, mouvements **fluides** et caméra tactique. **Commandes de lecture** (⏸ pause, vitesse 1×/2×/3×) pour suivre le match à votre rythme. Le tout piloté par un vrai **tableau de bord en continu** : score/minute, **barre de possession**, **tirs / cadrés / corners / fautes**, **momentum**, et un **fil de commentaire live**. Bascule possible vers un rendu 2D léger via la case **« Rendu 3D »** de l'écran d'accueil (utile sur machines modestes).
+Les matchs se jouent sur un **écran simple et lisible** : score, minute, **terrain animé** (les pions bougent selon le jeu) et **fil live** (buts, cartons, blessures). Surtout, vous **dirigez vraiment** :
+
+- **⏸ Pause** à tout moment, **vitesse réglable** (1× à 4×), **⏭ fin du match** pour accélérer
+- **🎛️ Coaching en cours de match** : **consignes rapides** (Fermer le jeu / Équilibrer / Tout attaquer), curseurs **mentalité / tempo / pressing**, et jusqu'à **3 remplacements** — en club **comme en sélection**
+- La simulation est recalculée **minute par minute** : chaque changement s'applique **immédiatement** (mesuré : « tout attaquer » 3,65 buts contre 2,58 en « fermer le jeu »)
+- Le match se met **automatiquement en pause** à la mi-temps, et **dès qu'un de vos joueurs se blesse ou est expulsé**
+
+Le jeu ne charge plus de moteur 3D : la page est **beaucoup plus légère** (idéal sur mobile).
 
 ## 🏆 Compétitions européennes (mode Carrière & Master League)
 
