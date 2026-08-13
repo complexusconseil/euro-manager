@@ -2,6 +2,7 @@
    CARRIÈRE — état du jeu, calendrier, classement, mercato, sauvegarde
    ============================================================ */
 var FM = window.FM;
+FM.t = FM.t || (s=>s);   // repli si le module de langue n'est pas chargé
 var SAVE_KEY = "fm_carriere_save_v1";
 
 FM.state = null;
@@ -415,20 +416,20 @@ FM.transferWindow = function(){
   const winterStart = Math.floor(total/2);
   const winterEnd = winterStart + FM.WINDOW_WINTER_LEN;
   if (j < FM.WINDOW_SUMMER_END)
-    return { open:true, type:"ete", nom:"Mercato d'été",
-             info:`ouvert — ferme après la journée ${FM.WINDOW_SUMMER_END}`,
+    return { open:true, type:"ete", nom:FM.t("Mercato d'été"),
+             info:`${FM.t("ouvert — ferme après la journée")} ${FM.WINDOW_SUMMER_END}`,
              ferme: FM.WINDOW_SUMMER_END - j };
   if (j >= winterStart && j < winterEnd)
-    return { open:true, type:"hiver", nom:"Mercato d'hiver",
-             info:`ouvert — ferme après la journée ${winterEnd}`,
+    return { open:true, type:"hiver", nom:FM.t("Mercato d'hiver"),
+             info:`${FM.t("ouvert — ferme après la journée")} ${winterEnd}`,
              ferme: winterEnd - j };
   // Fermé : prochaine ouverture
   if (j < winterStart)
-    return { open:false, nom:"Mercato fermé",
-             info:`réouverture au mercato d'hiver (journée ${winterStart+1})`,
+    return { open:false, nom:FM.t("Mercato fermé"),
+             info:`${FM.t("réouverture au mercato d'hiver (journée")} ${winterStart+1})`,
              ouvre: winterStart - j };
-  return { open:false, nom:"Mercato fermé",
-           info:"réouverture au mercato d'été (saison prochaine)",
+  return { open:false, nom:FM.t("Mercato fermé"),
+           info:FM.t("réouverture au mercato d'été (saison prochaine)"),
            ouvre: total - j };
 };
 FM.marketOpen = () => FM.transferWindow().open;

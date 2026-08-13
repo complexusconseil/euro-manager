@@ -3,6 +3,33 @@
    ============================================================ */
 var FM = window.FM;
 var $ = sel => document.querySelector(sel);
+const _t = s => FM.t(s);
+
+/* Icônes SVG (trait) — remplacent les émojis dans l'interface */
+const SVG = {
+  home:'<path d="M3 10.5 12 3l9 7.5M5.5 9.5V20h13V9.5"/>',
+  squad:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 5.5a3 3 0 0 1 0 5.6M17.5 20c0-2.4-.9-4-2.2-5"/>',
+  tactics:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18M12 4v16"/><circle cx="12" cy="12" r="2.6"/>',
+  market:'<path d="M3 7h13l-1.2 7.5H5.4L3 4H1.5"/><circle cx="7" cy="19" r="1.6"/><circle cx="14" cy="19" r="1.6"/><path d="M18 4v6M21 7h-6"/>',
+  europe:'<path d="M8 4h8v3a4 4 0 0 1-8 0z"/><path d="M8 5H5v2a3 3 0 0 0 3 3M16 5h3v2a3 3 0 0 1-3 3"/><path d="M12 11v5M9 20h6M10 16h4"/>',
+  cup:'<circle cx="12" cy="9" r="5.5"/><path d="M8.5 13.5 7 21l5-2.5 5 2.5-1.5-7.5"/>',
+  table:'<path d="M4 20V9M10 20V4M16 20v-7M22 20H2"/>',
+  calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  news:'<path d="M4 5h13v14a2 2 0 0 0 2 2H5a1 1 0 0 1-1-1z"/><path d="M17 9h3v10a2 2 0 0 1-2 2"/><path d="M7 9h7M7 13h7M7 17h4"/>',
+  career:'<path d="M4 8h16v12H4z"/><path d="M9 8V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V8M4 13h16"/>',
+  globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 3 2.6 15 0 18M12 3c-2.6 3-2.6 15 0 18"/>',
+  ball:'<circle cx="12" cy="12" r="9"/><path d="m12 7.5 3.5 2.6-1.3 4.1h-4.4L8.5 10.1z"/><path d="M12 3v4.5M4.2 9.6l4.3.5M19.8 9.6l-4.3.5M7.2 20l2.6-3.8M16.8 20l-2.6-3.8"/>',
+  whistle:'<circle cx="8" cy="13" r="5"/><path d="M13 11h8v-3M13 13h6"/>',
+  play:'<path d="M7 4.5 19 12 7 19.5z"/>',
+  pause:'<path d="M8 4v16M16 4v16"/>',
+  hospital:'<path d="M12 6v12M6 12h12"/><circle cx="12" cy="12" r="9"/>',
+  pin:'<path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+  target:'<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/>'
+};
+function icon(name, cls){
+  return `<svg class="${cls||''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SVG[name]||''}</svg>`;
+}
 const el = (tag, cls, html) => { const e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e; };
 const money = m => (m>=0? "" : "-") + Math.abs(m).toFixed(1) + " M€";
 const FLAG = {
@@ -59,26 +86,29 @@ function renderStart(){
   const app = $("#app");
   app.innerHTML = "";
   const wrap = el("div","start");
-  wrap.appendChild(el("h1","logo","⚽ Euro Manager"));
-  wrap.appendChild(el("p","tagline","Gérez un club européen — du mercato au terrain."));
+  const brand = el("div","brand");
+  brand.innerHTML = `<div class="brand-mark">${icon("ball")}</div>
+    <h1 class="logo">EURO <em>MANAGER</em></h1>`;
+  wrap.appendChild(brand);
+  wrap.appendChild(el("p","tagline",_t("Gérez un club européen — du mercato au terrain.")));
 
   // Sélecteur de mode
   const modeSwitch = el("div","mode-switch");
-  [["career","🏅 Carrière"],["master","🏆 Master League"],["intl","🌍 International"]].forEach(([m,lbl])=>{
-    const b = el("button","mode-btn"+(startMode===m?" active":""),lbl);
+  [["career","career",_t("Carrière")],["master","cup","Master League"],["intl","globe",_t("International")]].forEach(([m,ic,lbl])=>{
+    const b = el("button","mode-btn"+(startMode===m?" active":""), icon(ic)+"<span>"+lbl+"</span>");
     b.onclick=()=>{ startMode=m; renderStart(); };
     modeSwitch.appendChild(b);
   });
   wrap.appendChild(modeSwitch);
 
   const card = el("div","card start-card");
-  card.appendChild(el("label",null,"Nom du manager"));
+  card.appendChild(el("label",null,_t("Nom du manager")));
   const nameIn = el("input"); nameIn.type="text"; nameIn.value="Manager"; nameIn.id="mgrName";
   card.appendChild(nameIn);
 
   let ligueSel = null;
   if (startMode !== "intl"){
-    card.appendChild(el("label",null,"Choisissez un championnat"));
+    card.appendChild(el("label",null,_t("Choisissez un championnat")));
     ligueSel = el("select"); ligueSel.id="ligueSel";
     FM.LEAGUES.forEach(l=> ligueSel.appendChild(new Option(`${l.nom}`, l.id)));
     card.appendChild(ligueSel);
@@ -86,7 +116,7 @@ function renderStart(){
 
   if (startMode === "career"){
     /* ---- MODE CARRIÈRE : choisir un vrai club ---- */
-    card.appendChild(el("label",null,"Choisissez votre club"));
+    card.appendChild(el("label",null,_t("Choisissez votre club")));
     const clubSel = el("select"); clubSel.id="clubSel";
     card.appendChild(clubSel);
     const fillClubs = ()=>{
@@ -96,7 +126,7 @@ function renderStart(){
     };
     ligueSel.onchange = fillClubs; fillClubs();
 
-    const btn = el("button","btn primary big","🚀 Démarrer la carrière");
+    const btn = el("button","btn primary big",icon("play")+_t("Démarrer la carrière"));
     btn.onclick = ()=>{
       FM.setSeed(20260810);
       const tmp = FM.buildDatabase();
@@ -110,11 +140,11 @@ function renderStart(){
 
   } else if (startMode === "master"){
     /* ---- MODE MASTER LEAGUE : créer son club ---- */
-    card.appendChild(el("label",null,"Nom de votre club"));
+    card.appendChild(el("label",null,_t("Nom de votre club")));
     const clubName = el("input"); clubName.type="text"; clubName.value="FC Master"; clubName.id="mlName";
     card.appendChild(clubName);
 
-    card.appendChild(el("label",null,"Couleurs du maillot (écusson)"));
+    card.appendChild(el("label",null,_t("Couleurs du maillot (écusson)")));
     const kitRow = el("div","kit-row");
     KITS.forEach((k,i)=>{
       const sw = el("button","kit-swatch"+(kitChoice===i?" active":""));
@@ -132,7 +162,7 @@ function renderStart(){
     const info = el("p","ml-info","🎮 Vous démarrez dans le <b>championnat de votre choix</b> (sélectionné ci-dessus), à la place de son club le plus faible, avec un effectif « maison » aux <b>noms iconiques (Castolo, Espimas, Minanda…)</b> et un petit budget. Piochez parmi les <b>agents libres</b> ou achetez à d'autres clubs, puis bâtissez une grande équipe au fil des saisons — comme la Ligue des Masters d'antan.");
     card.appendChild(info);
 
-    const btn = el("button","btn primary big","🏆 Lancer la Master League");
+    const btn = el("button","btn primary big",icon("cup")+_t("Lancer la Master League"));
     btn.onclick = ()=>{
       FM.newMasterLeague(nameIn.value.trim()||"Manager", clubName.value.trim()||"FC Master",
         ligueSel.value, 20260810, KITS[kitChoice]);
@@ -142,13 +172,13 @@ function renderStart(){
 
   } else {
     /* ---- MODE INTERNATIONAL : Euro / Coupe du Monde ---- */
-    card.appendChild(el("label",null,"Compétition"));
+    card.appendChild(el("label",null,_t("Compétition")));
     const compSel = el("select");
-    compSel.appendChild(new Option("Championnat d'Europe (16 nations)","EURO"));
-    compSel.appendChild(new Option("Coupe du Monde (32 nations)","WC"));
+    compSel.appendChild(new Option(_t("Championnat d'Europe (16 nations)"),"EURO"));
+    compSel.appendChild(new Option(_t("Coupe du Monde (32 nations)"),"WC"));
     card.appendChild(compSel);
 
-    card.appendChild(el("label",null,"Choisissez votre sélection"));
+    card.appendChild(el("label",null,_t("Choisissez votre sélection")));
     const natSel = el("select");
     card.appendChild(natSel);
     const fillNations = ()=>{
@@ -162,22 +192,29 @@ function renderStart(){
     const info = el("p","ml-info","🌍 Disputez le tournoi à élimination directe avec la sélection de votre choix. La force de chaque nation est réaliste ; les effectifs sont représentatifs (générés).");
     card.appendChild(info);
 
-    const btn = el("button","btn primary big","🌍 Lancer le tournoi");
+    const btn = el("button","btn primary big",icon("globe")+_t("Lancer le tournoi"));
     btn.onclick = ()=>{ FM.setSeed(20260810 + Math.floor(natSel.selectedIndex*7 + compSel.selectedIndex*13)); startInternational(compSel.value, natSel.value); };
     card.appendChild(btn);
   }
 
   if (FM.hasSave() && startMode!=="intl"){
-    const cont = el("button","btn ghost","▶ Reprendre la partie sauvegardée");
+    const cont = el("button","btn ghost",icon("play")+_t("Reprendre la partie sauvegardée"));
     cont.onclick = ()=>{ if(FM.load()){ currentTab="accueil"; renderGame(); } };
     card.appendChild(cont);
-    const del = el("button","btn danger-ghost","🗑 Supprimer la sauvegarde");
-    del.onclick = ()=>{ if(confirm("Supprimer la sauvegarde ?")){ FM.deleteSave(); renderStart(); } };
+    const del = el("button","btn danger-ghost",_t("Supprimer la sauvegarde"));
+    del.onclick = ()=>{ if(confirm(_t("Supprimer la sauvegarde ?"))){ FM.deleteSave(); renderStart(); } };
     card.appendChild(del);
   }
   wrap.appendChild(card);
 
-  wrap.appendChild(el("p","hint","💾 Partie sauvegardée automatiquement dans votre navigateur (localStorage)."));
+  const langRow = el("div","lang-row");
+  [["fr","Français"],["en","English"]].forEach(([code,lbl])=>{
+    const b=el("button","lang-btn"+(FM.lang()===code?" on":""),lbl);
+    b.onclick=()=>{ FM.setLang(code); renderStart(); };
+    langRow.appendChild(b);
+  });
+  wrap.appendChild(langRow);
+  wrap.appendChild(el("p","hint",_t("Partie sauvegardée automatiquement dans votre navigateur.")));
   app.appendChild(wrap);
 }
 
@@ -189,27 +226,29 @@ function renderGame(){
 
   // Barre supérieure
   const top = el("div","topbar");
+  top.style.setProperty("--kit",(my.couleurs&&my.couleurs[0])||"#1f9d4d");
   top.innerHTML = `
     <div class="club-id">
-      ${clubCrest(my,46)}
-      <div><b>${my.nom}${FM.state.mode==="master"?' <span class="ml-badge">Master League</span>':''}</b><small>${my.ligueNom} · ${FM.state.managerName}</small></div>
+      ${clubCrest(my,48)}
+      <div><span class="cname">${my.nom}${FM.state.mode==="master"?' <span class="ml-badge">Master League</span>':''}</span>
+      <small>${my.ligueNom} · ${FM.state.managerName}</small></div>
     </div>
     <div class="stats">
-      <div><small>Saison</small><b>${FM.state.saison}</b></div>
-      <div><small>Journée</small><b>${Math.min(FM.state.journee+1,FM.totalMatchdays())}/${FM.totalMatchdays()}</b></div>
-      <div><small>Classement</small><b>${FM.myRank()}${ord(FM.myRank())}</b></div>
-      <div><small>Budget</small><b class="${my.budget<0?'neg':'pos'}">${money(my.budget)}</b></div>
-      <div><small>Note effectif</small><b>${FM.squadRating(my)}</b></div>
+      <div><small>${_t("Saison")}</small><b>${FM.state.saison}</b></div>
+      <div><small>${_t("Journée")}</small><b>${Math.min(FM.state.journee+1,FM.totalMatchdays())}/${FM.totalMatchdays()}</b></div>
+      <div><small>${_t("Classement")}</small><b>${FM.myRank()}${ord(FM.myRank())}</b></div>
+      <div><small>${_t("Budget")}</small><b class="${my.budget<0?'neg':'pos'}">${money(my.budget)}</b></div>
+      <div><small>${_t("Note effectif")}</small><b>${FM.squadRating(my)}</b></div>
     </div>`;
   app.appendChild(top);
 
   // Onglets
   const tabs = el("div","tabs");
-  const T = [["accueil","🏠 Accueil"],["effectif","👥 Effectif"],["tactique","📋 Tactique"],
-             ["mercato","💱 Mercato"],["europe","🏆 Europe"],["coupe","🏅 Coupe"],["classement","📊 Classement"],
-             ["calendrier","📅 Calendrier"],["actus","📰 Actus"]];
-  T.forEach(([k,lbl])=>{
-    const b = el("button","tab"+(currentTab===k?" active":""),lbl);
+  const T = [["accueil","home",_t("Accueil")],["effectif","squad",_t("Effectif")],["tactique","tactics",_t("Tactique")],
+             ["mercato","market",_t("Mercato")],["europe","europe",_t("Europe")],["coupe","cup",_t("Coupe")],
+             ["classement","table",_t("Classement")],["calendrier","calendar",_t("Calendrier")],["actus","news",_t("Actus")]];
+  T.forEach(([k,ic,lbl])=>{
+    const b = el("button","tab"+(currentTab===k?" active":""), icon(ic)+"<span>"+lbl+"</span>");
     b.onclick=()=>{ currentTab=k; renderGame(); };
     tabs.appendChild(b);
   });
@@ -232,7 +271,7 @@ function renderGame(){
 
   // pied
   const foot = el("div","footbar");
-  const quit = el("button","btn ghost small","⏻ Menu principal");
+  const quit = el("button","btn ghost small",_t("Menu principal"));
   quit.onclick = ()=>{ renderStart(); };
   foot.appendChild(quit);
   app.appendChild(foot);
@@ -246,13 +285,13 @@ function renderAgenda(body){
   const cups = evs.filter(e=>e.kind!=="league");
   if (!cups.length) return;                                    // rien d'autre que le championnat
   const card = el("div","card agenda-card");
-  card.appendChild(el("h3",null,"📌 Rendez-vous à jouer"));
+  card.appendChild(el("h3",null,icon("pin")+_t("Rendez-vous à jouer")));
   cups.forEach(ev=>{
     const row = el("div","agenda-row"+(ev.enRetard?" late":""));
     row.innerHTML = `<span class="ag-emoji">${ev.emoji}</span>
       <span class="ag-txt"><b>${ev.titre}</b><small>${ev.detail}</small></span>
       ${ev.enRetard?'<span class="ag-badge">à jouer</span>':''}`;
-    const go = el("button","btn small primary","▶ Y aller");
+    const go = el("button","btn small primary",_t("Y aller"));
     go.onclick=()=>{ currentTab = (ev.kind==="coupe") ? "coupe" : "europe"; renderGame(); };
     row.appendChild(go);
     card.appendChild(row);
@@ -299,7 +338,7 @@ function renderHome(body){
     c.innerHTML = `<h2>🏁 Saison ${FM.state.saison} terminée</h2>
       <p>Champion : <b>${t[0].nom}</b></p>
       <p>${my.nom} termine <b>${rank}${ord(rank)}</b> avec ${my.pts} pts.</p>`;
-    const b = el("button","btn primary big","➡ Saison suivante");
+    const b = el("button","btn primary big",_t("Saison suivante"));
     b.onclick=()=>{ FM.endSeason(); currentTab="accueil"; renderGame(); };
     c.appendChild(b);
     body.appendChild(c);
@@ -321,7 +360,7 @@ function renderHome(body){
     const dom = FM.clubById(fx.dom), ext = FM.clubById(fx.ext);
     const iAmHome = fx.dom===my.id;
     card.innerHTML = `
-      <div class="match-header">Journée ${FM.state.journee+1} · ${FM.state.ligueJoueurNom||FM.myClub().ligueNom}</div>
+      <div class="match-header">${_t("Journée")} ${FM.state.journee+1} · ${FM.state.ligueJoueurNom||FM.myClub().ligueNom}</div>
       <div class="match-teams">
         <div class="side ${iAmHome?'me':''}">${clubCrest(dom,56)}<b>${dom.nom}</b><small>Note ${FM.squadRating(dom)}</small></div>
         <div class="vs">VS</div>
@@ -329,10 +368,10 @@ function renderHome(body){
       </div>
       <p class="match-loc">${iAmHome?'🏟 À domicile':'✈ À l\'extérieur'} · Vous êtes ${iAmHome?dom.nom:ext.nom}</p>`;
   }
-  const play = el("button","btn primary big","▶ Jouer le match");
+  const play = el("button","btn primary big",icon("play")+_t("Jouer le match"));
   play.onclick = ()=> playMatchFlow();
   card.appendChild(play);
-  const sim = el("button","btn ghost","⏩ Simuler rapidement");
+  const sim = el("button","btn ghost",_t("Simuler rapidement"));
   sim.onclick = ()=>{ FM.playMatchday(); currentTab="accueil"; renderGame(); };
   card.appendChild(sim);
   body.appendChild(card);
@@ -344,13 +383,13 @@ function renderHome(body){
 
   if (FM.state.offres.length){
     const off = el("div","card");
-    off.appendChild(el("h3",null,"📩 Offres reçues"));
+    off.appendChild(el("h3",null,icon("market")+_t("Offres reçues")));
     FM.state.offres.forEach((o,i)=>{
       const row = el("div","offer-row");
       row.innerHTML = `<span><b>${o.clubNom}</b> offre <b>${o.montant.toFixed(1)} M€</b> pour ${o.joueurNom}</span>`;
-      const ok = el("button","btn small primary","Accepter");
+      const ok = el("button","btn small primary",_t("Accepter"));
       ok.onclick=()=>{ const r=FM.acceptOffer(i); toast(r.msg); renderGame(); };
-      const no = el("button","btn small ghost","Refuser");
+      const no = el("button","btn small ghost",_t("Refuser"));
       no.onclick=()=>{ FM.rejectOffer(i); renderGame(); };
       row.appendChild(ok); row.appendChild(no);
       off.appendChild(row);
@@ -360,7 +399,7 @@ function renderHome(body){
 
   // dernières actus
   const news = el("div","card");
-  news.appendChild(el("h3",null,"📰 Dernières actualités"));
+  news.appendChild(el("h3",null,icon("news")+_t("Dernières actualités")));
   FM.state.news.slice(0,5).forEach(n=> news.appendChild(el("p","news-item",n.txt)));
   body.appendChild(news);
 }
@@ -412,10 +451,10 @@ function playLiveMatch(cfg){
     </div>
     <canvas class="ls-pitch" id="lsPitch" width="640" height="330"></canvas>
     <div class="ls-ctrl">
-      <button class="btn primary" id="lsPause">⏸ Pause</button>
+      <button class="btn primary" id="lsPause">${_t("Pause")}</button>
       <button class="btn ghost" id="lsSpeed">1×</button>
-      ${mg?'<button class="btn ghost" id="lsCoach">🎛️ Coaching</button>':''}
-      <button class="btn ghost" id="lsSkip">⏭ Fin du match</button>
+      ${mg?('<button class="btn ghost" id="lsCoach">'+_t("Coaching")+'</button>'):''}
+      <button class="btn ghost" id="lsSkip">${_t("Fin du match")}</button>
     </div>
     <div class="ls-feed" id="lsFeed"></div>`;
   document.body.appendChild(overlay);
@@ -473,7 +512,7 @@ function playLiveMatch(cfg){
   /* --- horloge du match --- */
   function setPaused(v){
     paused=v;
-    $pause.textContent = paused?"▶ Reprendre":"⏸ Pause";
+    $pause.textContent = paused?_t("Reprendre"):_t("Pause");
     $pause.className = paused?"btn ghost":"btn primary";
     if (paused){ clearInterval(timer); timer=null; } else start();
   }
@@ -506,7 +545,7 @@ function playLiveMatch(cfg){
         }
       }
     }
-    if (minute===45 && !halfDone){ halfDone=true; feed("<b>Mi-temps</b>", -1, "info"); setPaused(true); }
+    if (minute===45 && !halfDone){ halfDone=true; feed("<b>"+_t("Mi-temps")+"</b>", -1, "info"); setPaused(true); }
     if (minute>=90) finish();
   }
   function finish(){
@@ -516,7 +555,7 @@ function playLiveMatch(cfg){
     $m.textContent = (et?et+" · ":"")+"Coup de sifflet final ⏱";
     feed(`<b>Fin du match — ${cfg.home.nom} ${hs}-${as} ${cfg.away.nom}</b>`, -1, "info");
     $pause.style.display="none"; $speed.style.display="none"; if($coach) $coach.style.display="none";
-    $skip.textContent="✔ Continuer"; $skip.className="btn primary";
+    $skip.textContent=_t("Continuer"); $skip.className="btn primary";
     $skip.onclick=()=>{ overlay.remove(); cfg.done(hs, as, goals); };
   }
   $pause.onclick=()=>setPaused(!paused);
@@ -533,14 +572,14 @@ function openCoaching(mg, onClose){
   const box = el("div","card coach-box"); ov.appendChild(box);
   function render(){
     box.innerHTML="";
-    box.appendChild(el("h3",null,"🎛️ Coaching — "+mg.nom));
+    box.appendChild(el("h3",null,icon("whistle")+_t("Coaching")+" — "+mg.nom));
     box.appendChild(el("p","hint",mg.strength()));
     // Consignes rapides
-    box.appendChild(el("h4",null,"Consignes"));
+    box.appendChild(el("h4",null,_t("Consignes")));
     const presets = el("div","coach-presets");
-    [["🛡️ Fermer le jeu",{mentalite:0,tempo:0,pressing:0}],
-     ["⚖️ Équilibrer",{mentalite:1,tempo:1,pressing:1}],
-     ["⚔️ Tout attaquer",{mentalite:2,tempo:2,pressing:2}]].forEach(([lbl,cfgP])=>{
+    [[_t("Fermer le jeu"),{mentalite:0,tempo:0,pressing:0}],
+     [_t("Équilibrer"),{mentalite:1,tempo:1,pressing:1}],
+     [_t("Tout attaquer"),{mentalite:2,tempo:2,pressing:2}]].forEach(([lbl,cfgP])=>{
       const b=el("button","btn ghost small",lbl);
       b.onclick=()=>{ Object.keys(cfgP).forEach(k=>mg.setTac(k,cfgP[k])); render(); };
       presets.appendChild(b);
@@ -554,7 +593,7 @@ function openCoaching(mg, onClose){
     box.appendChild(row);
     const str=el("p","hint coach-str",mg.strength()); box.appendChild(str);
     // Remplacements
-    box.appendChild(el("h4",null,`🔁 Remplacements (${3-mg.subsLeft()}/3)`));
+    box.appendChild(el("h4",null,`${_t("Remplacements")} (${3-mg.subsLeft()}/3)`));
     const bench = mg.bench();
     if (mg.subsLeft()>0 && bench.length){
       const wrap=el("div","ht-subs");
@@ -569,7 +608,7 @@ function openCoaching(mg, onClose){
       });
       box.appendChild(wrap);
     } else box.appendChild(el("p","hint", mg.subsLeft()>0?"Aucun remplaçant disponible.":"Quota de remplacements atteint."));
-    const go=el("button","btn primary big","▶ Reprendre le match");
+    const go=el("button","btn primary big",icon("play")+_t("Reprendre le match"));
     go.onclick=()=>{ ov.remove(); onClose&&onClose(); };
     box.appendChild(go);
   }
@@ -623,11 +662,11 @@ function openTeamTalkPanel(mg, cfg, next){
   } else {
     head = `<p>Face à <b>${cfg.oppName||"l'adversaire"}</b>. Sélection <b>${mg.nom}</b> — force <b>${mg.note}</b>.</p>`;
   }
-  box.innerHTML = `<h3>🗣️ Causerie — ${cfg.label||"match"}</h3>`+head+
-    `<p class="hint">Votre discours influe sur la performance de l'équipe.</p>`;
-  [["calme","😌 Rassurer","Confiance en hausse — sans risque."],
-   ["exigeant","🔥 Hausser le ton","Galvanise un groupe conquérant, crispe un groupe fragile."],
-   ["neutre","😐 Consignes neutres","Aucun effet."]].forEach(([k,lbl,desc])=>{
+  box.innerHTML = `<h3>${icon("whistle")}${_t("Causerie")} — ${cfg.label||""}</h3>`+head+
+    `<p class="hint">${_t("Votre discours influe sur la performance de l'équipe.")}</p>`;
+  [["calme",_t("Rassurer"),_t("Confiance en hausse — sans risque.")],
+   ["exigeant",_t("Hausser le ton"),_t("Galvanise un groupe conquérant, crispe un groupe fragile.")],
+   ["neutre",_t("Consignes neutres"),_t("Aucun effet.")]].forEach(([k,lbl,desc])=>{
     const b = el("button","btn ghost talk-opt",`<b>${lbl}</b><small>${desc}</small>`);
     b.onclick=()=>{ toast(applyTalk(mg,k)); overlay.remove(); next(); };
     box.appendChild(b);
@@ -686,12 +725,12 @@ function runInteractiveMatch(dom, ext, opts, onFinish){
 function renderSquad(body){
   const my = FM.myClub();
   const card = el("div","card");
-  card.appendChild(el("h3",null,`👥 Effectif — ${my.joueurs.length} joueurs · Masse salariale ~${my.joueurs.reduce((a,p)=>a+p.salaire,0).toFixed(0)} k€/sem`));
+  card.appendChild(el("h3",null,icon("squad")+`${_t("Effectif")} — ${my.joueurs.length} ${_t("joueurs")} · ${_t("Masse salariale")} ~${my.joueurs.reduce((a,p)=>a+p.salaire,0).toFixed(0)} k€/sem`));
 
   const table = el("table","squad-table");
   table.innerHTML = `<thead><tr>
-    <th>Poste</th><th>Nom</th><th>Nat</th><th>Âge</th><th>Note</th><th>Pot</th>
-    <th>Valeur</th><th>Forme</th><th>Moral</th><th title="Matchs">M</th><th title="Buts">⚽</th><th title="Passes déc.">🅰️</th><th title="Note moyenne">Moy</th><th></th></tr></thead>`;
+    <th>${_t("Poste")}</th><th>${_t("Nom")}</th><th>${_t("Nat")}</th><th>${_t("Âge")}</th><th>${_t("Note")}</th><th>${_t("Pot")}</th>
+    <th>${_t("Valeur")}</th><th>${_t("Forme")}</th><th>${_t("Moral")}</th><th title="${_t("Matchs")}">M</th><th title="${_t("Buts")}">⚽</th><th title="${_t("Passes déc.")}">🅰️</th><th title="${_t("Note moyenne")}">${_t("moy")}</th><th></th></tr></thead>`;
   const tb = el("tbody");
   const order = {G:0,D:1,M:2,A:3};
   my.joueurs.slice().sort((a,b)=> order[a.groupe]-order[b.groupe] || b.note-a.note).forEach(p=>{
@@ -717,15 +756,15 @@ function renderSquad(body){
       // Joueur prêté chez nous : badge + rendre
       const badge = el("span","tag loan-tag","🔁 Prêt "+(p.loan.parentNom||''));
       tr.lastChild.appendChild(badge);
-      const rb = el("button","btn tiny danger-ghost","Rendre");
+      const rb = el("button","btn tiny danger-ghost",_t("Rendre"));
       rb.onclick=()=>{ FM.recallLoan(p.id); renderGame(); };
       tr.lastChild.appendChild(rb);
     } else {
       const btn = el("button","btn tiny "+(p.transferListe?"danger-ghost":"ghost"), p.transferListe?"Retirer":"Vendre");
       btn.onclick=()=>{ FM.toggleTransferList(p.id); renderGame(); };
       tr.lastChild.appendChild(btn);
-      const lb = el("button","btn tiny ghost","Prêter");
-      if(!FM.marketOpen()){ lb.disabled=true; lb.title="Hors période de mercato"; }
+      const lb = el("button","btn tiny ghost",_t("Prêter"));
+      if(!FM.marketOpen()){ lb.disabled=true; lb.title=_t("Hors période de mercato"); }
       lb.onclick=()=>{ const r=FM.loanOut(p.id); toast(r.msg); renderGame(); };
       tr.lastChild.appendChild(lb);
     }
@@ -741,11 +780,11 @@ function renderSquad(body){
   const loans = FM.myLoans();
   if (loans.out.length){
     const lc = el("div","card");
-    lc.appendChild(el("h3",null,`🔁 Joueurs prêtés (${loans.out.length})`));
+    lc.appendChild(el("h3",null,`${_t("Joueurs prêtés")} (${loans.out.length})`));
     loans.out.forEach(p=>{
       const row = el("div","offer-row");
       row.innerHTML = `<span><span class="pos-badge ${p.groupe}">${p.pos}</span> <b>${p.nom}</b> (${p.note}) → <b>${p.holderNom}</b> · retour fin de saison</span>`;
-      const rb = el("button","btn small ghost","Rappeler");
+      const rb = el("button","btn small ghost",_t("Rappeler"));
       rb.onclick=()=>{ FM.recallLoan(p.id); renderGame(); };
       row.appendChild(rb);
       lc.appendChild(row);
@@ -797,7 +836,7 @@ function openPlayerCard(p, clubNom){
         </tr></thead><tbody>${carrRows}</tbody></table></div>`
         :`<p class="hint">Première saison en cours — l'historique se construira au fil des saisons.</p>`}
     </div>`;
-  const close = el("button","btn ghost","Fermer");
+  const close = el("button","btn ghost",_t("Fermer"));
   close.onclick=()=>overlay.remove();
   box.appendChild(close);
   overlay.appendChild(box);
@@ -811,7 +850,7 @@ function renderTactics(body){
 
   // Formation + réglages
   const setup = el("div","card");
-  setup.appendChild(el("h3",null,"📋 Formation & consignes"));
+  setup.appendChild(el("h3",null,icon("tactics")+_t("Formation & consignes")));
   const row = el("div","tac-row");
   const fLabel = el("label",null,"Formation");
   const fSel = el("select");
@@ -826,14 +865,14 @@ function renderTactics(body){
   row.appendChild(sliderTac("Pressing", ["Bas","Moyen","Haut"], my.tactique.pressing, v=>{FM.setTactic("pressing",v);}));
   setup.appendChild(row);
 
-  const auto = el("button","btn ghost small","🔄 Composer automatiquement");
+  const auto = el("button","btn ghost small",_t("Composer automatiquement"));
   auto.onclick=()=>{ my.onze=FM.autoPickXI(my); FM.save(); renderGame(); };
   setup.appendChild(auto);
   body.appendChild(setup);
 
   // Terrain visuel
   const pitchCard = el("div","card");
-  pitchCard.appendChild(el("h3",null,"🟩 Composition sur le terrain"));
+  pitchCard.appendChild(el("h3",null,icon("tactics")+_t("Composition sur le terrain")));
   const st = FM.teamStrength(my);
   pitchCard.appendChild(el("p","strength-line",
     `Attaque <b>${Math.round(st.att)}</b> · Milieu <b>${Math.round(st.mid)}</b> · Défense <b>${Math.round(st.def)}</b> · Global <b>${st.global}</b>`));
@@ -865,7 +904,7 @@ function renderTactics(body){
     pitch.appendChild(line);
   });
   pitchCard.appendChild(pitch);
-  pitchCard.appendChild(el("p","hint","Cliquez sur un poste pour changer le joueur titulaire."));
+  pitchCard.appendChild(el("p","hint",_t("Cliquez sur un poste pour changer le joueur titulaire.")));
   body.appendChild(pitchCard);
 }
 
@@ -972,12 +1011,12 @@ function renderEurope(body){
     const play = el("button","btn primary big","▶ Jouer le match");
     play.onclick=()=> playCupTie(ko);
     card.appendChild(play);
-    const sim = el("button","btn ghost","⏩ Simuler ce tour");
+    const sim = el("button","btn ghost",_t("Simuler ce tour"));
     sim.onclick=()=>{ FM.resolveTournamentRound(ko); FM.save(); renderGame(); };
     card.appendChild(sim);
   } else {
     card.appendChild(el("p","round-name","Vous avez été éliminé."));
-    const b = el("button","btn ghost","⏩ Voir la suite");
+    const b = el("button","btn ghost",_t("Voir la suite"));
     b.onclick=()=>{ let g=0; while(!ko.finished&&g++<8) FM.resolveTournamentRound(ko); FM.save(); renderGame(); };
     card.appendChild(b);
   }
@@ -1004,7 +1043,7 @@ function renderDomesticCup(body){
     if (opp.bye){
       // Exempt ce tour : qualification d'office
       card.appendChild(el("p","hint",`Votre club est <b>exempt</b> ce tour : qualifié d'office pour le tour suivant.`));
-      const go = el("button","btn primary big","⏭ Tour suivant");
+      const go = el("button","btn primary big",_t("Tour suivant"));
       go.onclick=()=>{ FM.resolveTournamentRound(cup); FM.save(); renderGame(); };
       card.appendChild(go);
     } else {
@@ -1023,7 +1062,7 @@ function renderDomesticCup(body){
     }
   } else {
     card.appendChild(el("p","round-name","Vous avez été éliminé de la coupe."));
-    const b = el("button","btn ghost","⏩ Voir le vainqueur");
+    const b = el("button","btn ghost",_t("Voir le vainqueur"));
     b.onclick=()=>{ FM.autoCompleteCup(cup); FM.save(); renderGame(); };
     card.appendChild(b);
   }
@@ -1049,10 +1088,10 @@ function renderLeaguePhase(body, comp){
     const play = el("button","btn primary big","▶ Jouer le match");
     play.onclick=()=> playLeagueMatch(comp);
     card.appendChild(play);
-    const sim = el("button","btn ghost","⏩ Simuler la journée");
+    const sim = el("button","btn ghost",_t("Simuler la journée"));
     sim.onclick=()=>{ FM.lpResolveRound(comp); FM.save(); renderGame(); };
     card.appendChild(sim);
-    const simAll = el("button","btn ghost","⏩⏩ Simuler toute la phase");
+    const simAll = el("button","btn ghost",_t("Simuler toute la phase"));
     simAll.onclick=()=>{ let g=0; while(comp.phase==="league"&&g++<40) FM.lpResolveRound(comp); FM.save(); renderGame(); };
     card.appendChild(simAll);
   }
@@ -1339,9 +1378,9 @@ function openSquadPicker(kind, nation, cb){
       const oa=({G:0,D:1,M:2,A:3})[A.groupe], ob=({G:0,D:1,M:2,A:3})[B.groupe];
       return (starters.has(b)?1:0)-(starters.has(a)?1:0) || oa-ob || B.note-A.note; });
     const stIds=ids.filter(id=>starters.has(id)), bIds=ids.filter(id=>!starters.has(id));
-    side.appendChild(el("h4",null,`⭐ Titulaires (${stIds.length}/11)`));
+    side.appendChild(el("h4",null,`${_t("Titulaires")} (${stIds.length}/11)`));
     stIds.forEach(id=>side.appendChild(mk(id)));
-    side.appendChild(el("h4",null,`🔁 Remplaçants (${bIds.length})`));
+    side.appendChild(el("h4",null,`${_t("Remplaçants")} (${bIds.length})`));
     if(!bIds.length) side.appendChild(el("p","hint","Ajoutez des remplaçants pour la profondeur de banc."));
     bIds.forEach(id=>side.appendChild(mk(id)));
     return side;
@@ -1349,13 +1388,13 @@ function openSquadPicker(kind, nation, cb){
 
   function render(){
     box.innerHTML="";
-    box.appendChild(el("h3",null,`${kind==="WC"?"🌍 Coupe du Monde":"🇪🇺 Euro"} — Composez votre ${nation}`));
+    box.appendChild(el("h3",null,icon("globe")+`${kind==="WC"?_t("Coupe du Monde"):_t("Championnat d'Europe")} — ${_t("Composez votre")} ${nation}`));
     box.appendChild(el("p","hint","Choisissez 11 titulaires + des remplaçants (23 max) parmi ~500 joueurs. ★ = titulaire, ✕ = retirer."));
     const cols=el("div","sp-cols");
     // --- Vivier (gauche) ---
     const left=el("div","sp-pool");
     const bar=el("div","sp-filters");
-    const q=el("input"); q.type="text"; q.placeholder="Rechercher un joueur…"; q.value=fQ;
+    const q=el("input"); q.type="text"; q.placeholder=_t("Rechercher un joueur…"); q.value=fQ;
     q.oninput=()=>{ fQ=q.value; refreshPool(); };
     bar.appendChild(q);
     [["","Tous"],["G","🧤"],["D","🛡"],["M","⚙"],["A","🎯"]].forEach(([v,l])=>{
@@ -1376,10 +1415,10 @@ function openSquadPicker(kind, nation, cb){
       <span>Force du onze : <b class="note ${noteClass(teamNote())}">${teamNote()}</b></span>`;
     box.appendChild(sb);
     const actions=el("div","sp-actions");
-    const auto=el("button","btn ghost","↻ Sélection auto"); auto.onclick=()=>{ autoPick(); render(); };
+    const auto=el("button","btn ghost",_t("Sélection auto")); auto.onclick=()=>{ autoPick(); render(); };
     const go=el("button","btn primary big",(kind==="WC"?"🌍":"🇪🇺")+" Valider et jouer"); go.disabled=!validXI();
     go.onclick=()=>{ if(!validXI())return; const squad=[...sel.values()]; overlay.remove(); cb(squad, teamNote(), [...starters]); };
-    const cancel=el("button","btn ghost","Annuler"); cancel.onclick=()=>{ overlay.remove(); if(FM.state){ currentTab="accueil"; renderGame(); } else renderStart(); };
+    const cancel=el("button","btn ghost",_t("Annuler")); cancel.onclick=()=>{ overlay.remove(); if(FM.state){ currentTab="accueil"; renderGame(); } else renderStart(); };
     actions.appendChild(auto); actions.appendChild(go); actions.appendChild(cancel);
     box.appendChild(actions);
   }
@@ -1426,18 +1465,18 @@ function renderTournament(){
     const sim = el("button","btn ghost","⏩ Simuler ce tour"); sim.onclick=()=>{ FM.resolveTournamentRound(comp); renderTournament(); }; card.appendChild(sim);
   } else {
     card.appendChild(el("p","round-name",`${meN.nom} a été éliminé.`));
-    const b = el("button","btn ghost","⏩ Simuler jusqu'à la fin"); b.onclick=()=>{ let g=0; while(!comp.finished&&g++<10) FM.resolveTournamentRound(comp); renderTournament(); }; card.appendChild(b);
+    const b = el("button","btn ghost",_t("Simuler jusqu'à la fin")); b.onclick=()=>{ let g=0; while(!comp.finished&&g++<10) FM.resolveTournamentRound(comp); renderTournament(); }; card.appendChild(b);
   }
   body.appendChild(card);
   renderCupHistory(body, comp);
 
   const foot = el("div","footbar");
   if (intlCareer){
-    const r = el("button","btn ghost small","⬅ Retour à la carrière");
+    const r = el("button","btn ghost small",_t("Retour à la carrière"));
     r.onclick=()=>{ currentTab="accueil"; renderGame(); };
     foot.appendChild(r);
   } else {
-    const q = el("button","btn ghost small","⏻ Menu principal"); q.onclick=()=>renderStart();
+    const q = el("button","btn ghost small",_t("Menu principal")); q.onclick=()=>renderStart();
     foot.appendChild(q);
   }
   app.appendChild(foot);
@@ -1497,7 +1536,7 @@ function renderMarket(body){
     opts.forEach(([v,l])=>s.appendChild(new Option(l,v)));
     s.value=cur; s.onchange=()=>{ on(s.value); refreshMarket(listBox); }; return s;
   };
-  const q = el("input"); q.type="text"; q.placeholder="Nom du joueur…"; q.value=marketFilter.q;
+  const q = el("input"); q.type="text"; q.placeholder=_t("Nom du joueur…"); q.value=marketFilter.q;
   q.oninput=()=>{ marketFilter.q=q.value; refreshMarket(listBox); };
   filters.appendChild(q);
 
@@ -1543,7 +1582,7 @@ function refreshMarket(container){
         q: marketFilter.q, limit:80
       });
   const table = el("table","squad-table");
-  table.innerHTML = `<thead><tr><th>Poste</th><th>Nom</th><th>Club</th><th>Âge</th><th>Note</th><th>${loanMode?'Pot':'Valeur'}</th><th>Statut</th><th></th></tr></thead>`;
+  table.innerHTML = `<thead><tr><th>${_t("Poste")}</th><th>${_t("Nom")}</th><th>${_t("Club")}</th><th>${_t("Âge")}</th><th>${_t("Note")}</th><th>${loanMode?_t("Pot"):_t("Valeur")}</th><th>${_t("Statut")}</th><th></th></tr></thead>`;
   const tb = el("tbody");
   list.forEach(p=>{
     const tr = el("tr", p.dispo?"listed":"");
@@ -1552,16 +1591,16 @@ function refreshMarket(container){
       <td><b class="note ${noteClass(p.note)}">${p.note}</b></td>
       <td>${loanMode?p.potentiel:(p.valeur.toFixed(1)+' M€')}</td>
       <td>${loanMode?('<span class="tag loan-tag">🔁 prêt '+FM.loanFee(p).toFixed(1)+' M€</span>')
-        :(p.libre?'<span class="tag free">🆓 Libre</span>':(p.dispo?'<span class="tag">Transférable</span>':'—'))}</td><td></td>`;
+        :(p.libre?'<span class="tag free">'+_t("Libre")+'</span>':(p.dispo?'<span class="tag">'+_t("Transférables")+'</span>':'—'))}</td><td></td>`;
     tr.querySelector(".player-link").onclick=()=> openPlayerCard(p, p.clubNom);
     const mktOpen = FM.marketOpen();
     if (loanMode){
-      const btn = el("button","btn tiny primary","Prêter chez moi");
-      if(!mktOpen){ btn.disabled=true; btn.title="Hors période de mercato"; }
+      const btn = el("button","btn tiny primary",_t("Prêter chez moi"));
+      if(!mktOpen){ btn.disabled=true; btn.title=_t("Hors période de mercato"); }
       btn.onclick=()=>{ const r=FM.loanIn(p.id); toast(r.msg); renderGame(); };
       tr.lastChild.appendChild(btn);
     } else {
-      const btn = el("button","btn tiny primary",p.libre?"Signer":"Offre");
+      const btn = el("button","btn tiny primary",p.libre?_t("Signer"):_t("Offre"));
       if(!mktOpen){ btn.disabled=true; btn.title="Hors période de mercato"; }
       btn.onclick=()=> openBid(p);
       tr.lastChild.appendChild(btn);
@@ -1586,7 +1625,7 @@ function openBid(p){
   box.appendChild(el("label",null,p.libre?"Prime à la signature (M€)":"Montant de l'offre (M€)"));
   box.appendChild(inp);
   const msg = el("p","bid-msg","");
-  const send = el("button","btn primary","💰 Soumettre l'offre");
+  const send = el("button","btn primary",_t("Soumettre l'offre"));
   send.onclick=()=>{
     const r = FM.buyPlayer(p.id, parseFloat(inp.value));
     msg.textContent = r.msg; msg.className = "bid-msg "+(r.ok?"ok":"ko");
@@ -1605,10 +1644,10 @@ function openBid(p){
 /* ============= CLASSEMENT ============= */
 function renderTable(body){
   const card = el("div","card");
-  card.appendChild(el("h3",null,`🏆 ${FM.myClub().ligueNom} — Saison ${FM.state.saison}`));
+  card.appendChild(el("h3",null,icon("table")+`${FM.myClub().ligueNom} — ${_t("Saison")} ${FM.state.saison}`));
   const t = FM.table();
   const table = el("table","rank-table");
-  table.innerHTML = `<thead><tr><th>#</th><th>Club</th><th>J</th><th>G</th><th>N</th><th>P</th><th>BP</th><th>BC</th><th>Diff</th><th>Pts</th></tr></thead>`;
+  table.innerHTML = `<thead><tr><th>#</th><th>${_t("Club")}</th><th>J</th><th>G</th><th>N</th><th>P</th><th>BP</th><th>BC</th><th>Diff</th><th>Pts</th></tr></thead>`;
   const tb = el("tbody");
   t.forEach((c,i)=>{
     const tr = el("tr", c.id===FM.state.managedClubId?"me":"");
@@ -1623,7 +1662,7 @@ function renderTable(body){
   table.appendChild(tb);
   const scroll = el("div","table-scroll"); scroll.appendChild(table);
   card.appendChild(scroll);
-  card.appendChild(el("p","legend","🟩 Ligue des Champions (1-3) · 🟦 Europa (4-6) · 🟥 Relégation (3 derniers)"));
+  card.appendChild(el("p","legend",_t("Ligue des Champions (1-3) · Europa (4-6) · Relégation (3 derniers)")));
   body.appendChild(card);
 
   // Classements individuels : buteurs, passeurs, notes
@@ -1638,9 +1677,9 @@ function renderTable(body){
     sc.appendChild(ol);
     boards.appendChild(sc);
   }
-  board("👟 Meilleurs buteurs", lb.buteurs, p=>`<b>${p.buts}</b> — ${p.nom} <small>(${p.clubNom})</small>`);
-  board("🅰️ Meilleurs passeurs", lb.passeurs, p=>`<b>${p.passes||0}</b> — ${p.nom} <small>(${p.clubNom})</small>`);
-  board("🌟 Meilleures notes", lb.notes, p=>`<b>${FM.playerAvgNote(p).toFixed(2)}</b> — ${p.nom} <small>(${p.clubNom}, ${p.noteMatchs} m)</small>`);
+  board(icon("ball")+_t("Meilleurs buteurs"), lb.buteurs, p=>`<b>${p.buts}</b> — ${p.nom} <small>(${p.clubNom})</small>`);
+  board(icon("squad")+_t("Meilleurs passeurs"), lb.passeurs, p=>`<b>${p.passes||0}</b> — ${p.nom} <small>(${p.clubNom})</small>`);
+  board(icon("target")+_t("Meilleures notes"), lb.notes, p=>`<b>${FM.playerAvgNote(p).toFixed(2)}</b> — ${p.nom} <small>(${p.clubNom}, ${p.noteMatchs} m)</small>`);
   body.appendChild(boards);
 }
 
@@ -1695,7 +1734,7 @@ function renderCalendar(body){
   const pal = FM.state.intlPalmares || [];
   if ((pi && !pi.fait) || pal.length){
     const ic = el("div","card intl-cal");
-    ic.appendChild(el("h3",null,"🌍 Rendez-vous internationaux"));
+    ic.appendChild(el("h3",null,icon("globe")+_t("Rendez-vous internationaux")));
     if (pi && !pi.fait){
       const wc = pi.kind==="WC";
       const row = el("div","intl-fixture upcoming");
@@ -1717,7 +1756,7 @@ function renderCalendar(body){
   }
 
   const card = el("div","card");
-  card.appendChild(el("h3",null,"📅 Calendrier & résultats"));
+  card.appendChild(el("h3",null,icon("calendar")+_t("Calendrier & résultats")));
   const list = el("div","fixtures");
   FM.state.calendrier.forEach((jd, i)=>{
     const m = jd.find(x=>x.dom===my.id||x.ext===my.id);
@@ -1750,15 +1789,15 @@ function renderCalendar(body){
 /* ============= ACTUS ============= */
 function renderNews(body){
   const card = el("div","card");
-  card.appendChild(el("h3",null,"📰 Journal du club"));
-  if (!FM.state.news.length) card.appendChild(el("p","hint","Rien à signaler pour l'instant."));
+  card.appendChild(el("h3",null,icon("news")+_t("Journal du club")));
+  if (!FM.state.news.length) card.appendChild(el("p","hint",_t("Rien à signaler pour l'instant.")));
   FM.state.news.forEach(n=> card.appendChild(el("p","news-item",`<small>S${n.saison} J${n.j}</small> ${n.txt}`)));
   body.appendChild(card);
 
   // Historique
   if (FM.state.historique.length){
     const h = el("div","card");
-    h.appendChild(el("h3",null,"📚 Palmarès / historique"));
+    h.appendChild(el("h3",null,icon("cup")+_t("Palmarès / historique")));
     FM.state.historique.forEach(s=> h.appendChild(el("p","news-item",
       `Saison ${s.saison} — ${FM.myClub().nom} : ${s.classement}${ord(s.classement)} · Champion : ${s.champion}`)));
     body.appendChild(h);

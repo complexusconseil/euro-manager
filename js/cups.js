@@ -4,6 +4,7 @@
    ============================================================ */
 var FM = window.FM || {};
 window.FM = FM;
+FM.t = FM.t || (s=>s);   // repli si le module de langue n'est pas chargé
 
 /* ---------------- Sélections nationales ----------------
    [nom, note, confédération, poolNoms]  (note 0-99)                */
@@ -114,14 +115,15 @@ FM.makeTournament = function(id, nom, emoji, kind, teams, playerKey){
 
 /* Nom du tour selon le nombre d'équipes restantes */
 FM.roundName = function(aliveCount){
+  const T = FM.t || (x=>x);
   switch(aliveCount){
-    case 2: return "Finale";
-    case 4: return "Demi-finales";
-    case 8: return "Quarts de finale";
-    case 16: return "Huitièmes de finale";
-    case 32: return "Seizièmes de finale";
-    case 64: return "Trente-deuxièmes";
-    default: return "Tour à "+aliveCount;
+    case 2: return T("Finale");
+    case 4: return T("Demi-finales");
+    case 8: return T("Quarts de finale");
+    case 16: return T("Huitièmes de finale");
+    case 32: return T("Seizièmes de finale");
+    case 64: return T("Trente-deuxièmes");
+    default: return T("Tour à ")+aliveCount;
   }
 };
 
@@ -637,9 +639,9 @@ FM.setupEuropeanCups = function(){
 
   st.europe = {
     playerComp,
-    UCL: FM.makeClubComp("UCL","Ligue des Champions","🏆",ucl.map(toTeam), playerComp==="UCL"?myId:null),
-    UEL: FM.makeClubComp("UEL","Ligue Europa","🥈",uel.map(toTeam), playerComp==="UEL"?myId:null),
-    UECL:FM.makeClubComp("UECL","Ligue Conférence","🥉",uecl.map(toTeam), playerComp==="UECL"?myId:null)
+    UCL: FM.makeClubComp("UCL",FM.t("Ligue des Champions"),"🏆",ucl.map(toTeam), playerComp==="UCL"?myId:null),
+    UEL: FM.makeClubComp("UEL",FM.t("Ligue Europa"),"🥈",uel.map(toTeam), playerComp==="UEL"?myId:null),
+    UECL:FM.makeClubComp("UECL",FM.t("Ligue Conférence"),"🥉",uecl.map(toTeam), playerComp==="UECL"?myId:null)
   };
   // Les coupes où le joueur n'est pas sont simulées entièrement (affichage du champion)
   ["UCL","UEL","UECL"].forEach(k=>{ if(playerComp!==k) FM.autoCompleteClubComp(st.europe[k]); });
@@ -710,7 +712,7 @@ FM.makeNationTournament = function(kind, playerNationName, playerOverride){
     const squad = FM.makeNationSquad(n);
     return { key:n.nom, ref:n.nom, nom:n.nom, pays:n.pool, couleurs:natColors(n.nom), note:n.note, squad };
   });
-  const nom = kind==="EURO" ? "Championnat d'Europe" : "Coupe du Monde";
+  const nom = kind==="EURO" ? FM.t("Championnat d'Europe") : FM.t("Coupe du Monde");
   const emoji = kind==="EURO" ? "🇪🇺" : "🌍";
   return FM.makeTournament(kind, nom, emoji, "nation", teams, playerNationName);
 };

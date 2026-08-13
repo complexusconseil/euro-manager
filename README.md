@@ -1,6 +1,13 @@
 # ⚽ Euro Manager
 
+**🇫🇷 Français / 🇬🇧 English** — le jeu est entièrement bilingue : choisissez la langue sur l'écran d'accueil (le choix est mémorisé).
+
+
 Jeu de gestion football (à mi-chemin entre FIFA et Football Manager). Jouable **100 % en local** dans un navigateur, sans installation ni connexion internet. **Deux modes de jeu** : Carrière et Master League.
+
+## 🎨 Interface
+
+Habillage « retransmission » : fond nuit de stade, vert pelouse et ambre projecteur, typographie sportive à chiffres alignés, icônes vectorielles (plus d'émojis dans la navigation), écussons aux couleurs du club, tableaux de classement avec zones de qualification, terrain tactique aux rayures de pelouse. Interface responsive (mobile et bureau).
 
 ## 🎮 Comment jouer en local
 
