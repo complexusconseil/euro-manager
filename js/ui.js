@@ -250,9 +250,33 @@ function renderGame(){
 
 function ord(n){ return n===1?"er":"e"; }
 
+/* Agenda unifié : championnat + coupes, avec les tours en retard mis en avant */
+function renderAgenda(body){
+  const evs = FM.pendingEvents().filter(e=>e.kind!=="intl");   // l'intl a sa propre bannière
+  const cups = evs.filter(e=>e.kind!=="league");
+  if (!cups.length) return;                                    // rien d'autre que le championnat
+  const card = el("div","card agenda-card");
+  card.appendChild(el("h3",null,"📌 Rendez-vous à jouer"));
+  cups.forEach(ev=>{
+    const row = el("div","agenda-row"+(ev.enRetard?" late":""));
+    row.innerHTML = `<span class="ag-emoji">${ev.emoji}</span>
+      <span class="ag-txt"><b>${ev.titre}</b><small>${ev.detail}</small></span>
+      ${ev.enRetard?'<span class="ag-badge">à jouer</span>':''}`;
+    const go = el("button","btn small primary","▶ Y aller");
+    go.onclick=()=>{ currentTab = (ev.kind==="coupe") ? "coupe" : "europe"; renderGame(); };
+    row.appendChild(go);
+    card.appendChild(row);
+  });
+  card.appendChild(el("p","hint","Ces rencontres sont rattachées à votre calendrier : elles apparaissent ici et dans l'onglet Calendrier."));
+  body.appendChild(card);
+}
+
 /* ============= ACCUEIL ============= */
 function renderHome(body){
   const my = FM.myClub();
+
+  // Agenda unifié : tous les rendez-vous (championnat + coupes) au même endroit
+  renderAgenda(body);
 
   // Bannière : tournoi international de l'été (Coupe du Monde / Euro) à disputer
   const pi = FM.state.pendingIntl;
@@ -348,7 +372,9 @@ function use3D(){ return localStorage.getItem("fm_render2d")!=="1" && window.FM3
 /* Répartiteur : home/away = {nom,couleurs} ; events = [{min,joueur,home:bool}] */
 function watchMatch(home, away, hs, as, events, opts, onDone){
   opts = opts || {};
-  if (use3D()){ window.FM3D.play({home,away,hs,as,events,label:opts.label,endText:opts.endText}, onDone); return; }
+  if (use3D()){ window.FM3D.play({home,away,hs,as,events,label:opts.label,endText:opts.endText,
+      minStart:opts.minStart, minEnd:opts.minEnd, startHs:opts.startHs, startAs:opts.startAs,
+      contBtn:opts.contBtn}, onDone); return; }
   animate2D(home, away, hs, as, events, opts, onDone);
 }
 
@@ -368,30 +394,140 @@ function animate2D(home, away, hs, as, events, opts, onDone){
   document.body.appendChild(overlay);
   const feed=box.querySelector("#lF"), sEl=box.querySelector("#lS"), mEl=box.querySelector("#lM");
   const ord = events.slice().sort((a,b)=>a.min-b.min);
-  let s=0,o=0,idx=0,minute=0,timer;
+  const MIN0 = opts.minStart||0, MIN1 = opts.minEnd||90;
+  let s=opts.startHs||0,o=opts.startAs||0,idx=0,minute=MIN0,timer;
+  sEl.textContent=`${s} - ${o}`;
   const line = e => el("div","feed-line "+(e.home?"left":"right"),`<span class="fmin">${e.min}'</span> ⚽ <b>${e.joueur}</b>`);
   function finish(){ clearInterval(timer); s=hs;o=as; sEl.textContent=`${s} - ${o}`;
-    mEl.textContent=(opts.endText?opts.endText+" · ":"")+"Coup de sifflet final ⏱";
-    skip.textContent="✔ Continuer"; skip.className="btn primary"; skip.onclick=()=>{ overlay.remove(); onDone&&onDone(); }; }
+    mEl.textContent=(opts.endText?opts.endText+" · ":"")+(MIN1>=90?"Coup de sifflet final ⏱":"Mi-temps ⏸");
+    skip.textContent=opts.contBtn||"✔ Continuer"; skip.className="btn primary"; skip.onclick=()=>{ overlay.remove(); onDone&&onDone(); }; }
   skip.onclick=finish;
-  timer=setInterval(()=>{ minute+=3; if(minute>90){finish();return;}
+  timer=setInterval(()=>{ minute+=3; if(minute>MIN1){finish();return;}
     mEl.textContent=`${opts.label?opts.label+" · ":""}${minute}'`;
     while(idx<ord.length && ord[idx].min<=minute){ const e=ord[idx++]; if(e.home)s++;else o++;
       sEl.textContent=`${s} - ${o}`; const l=line(e); l.classList.add("flash"); feed.prepend(l); }
   },220);
 }
 
-/* Match de championnat du joueur */
+/* ============= MATCH INTERACTIF (causerie → 1re MT → pause → 2e MT) =============
+   Vos choix ont un effet RÉEL : la causerie modifie le moral, et les réglages
+   + remplacements de la mi-temps sont pris en compte dans la 2e période.      */
 function playMatchFlow(){
   const my = FM.myClub();
   if (my.onze.filter(s=>!s.id).length){ toast("⚠ Onze incomplet — complétez votre équipe (Tactique)."); currentTab="tactique"; renderGame(); return; }
-  const res = FM.playMatchday();
-  const mr = res.myResult;
-  if (!mr){ renderGame(); return; }
-  const dom = FM.clubById(mr.dom), ext = FM.clubById(mr.ext);
-  const events = mr.events.map(e=>({ min:e.min, joueur:e.joueur, home:e.clubId===dom.id }));
-  watchMatch({nom:dom.nom,couleurs:dom.couleurs}, {nom:ext.nom,couleurs:ext.couleurs}, mr.ds, mr.es, events,
-    {label:`${dom.ligueNom}`}, ()=>{ currentTab="accueil"; renderGame(); });
+  // Un tour de coupe en retard ne doit pas passer à la trappe
+  const bloc = FM.blockingEvents();
+  if (bloc.length && !confirm(`${bloc[0].emoji} ${bloc[0].titre} est à jouer avant de poursuivre le championnat.\n\nOK = y aller · Annuler = jouer quand même le championnat`)){
+    // l'utilisateur choisit de continuer le championnat
+  } else if (bloc.length){
+    currentTab = (bloc[0].kind==="coupe") ? "coupe" : "europe"; renderGame(); return;
+  }
+  const fx = FM.nextFixture();
+  if (!fx){ renderGame(); return; }
+  const dom = FM.clubById(fx.dom), ext = FM.clubById(fx.ext);
+  runInteractiveMatch(dom, ext, {label:dom.ligueNom}, (total)=>{
+    FM.playMatchday(total);                       // le reste de la journée se joue autour du nôtre
+    currentTab="accueil"; renderGame();
+  });
+}
+
+/* Déroulé complet d'un match joué par le manager */
+function runInteractiveMatch(dom, ext, opts, onFinish){
+  const my = FM.myClub();
+  const iAmHome = dom.id===my.id;
+  const adv = iAmHome ? ext : dom;
+  FM.clearMatchFlags(my);
+  const hInfo={nom:dom.nom,couleurs:dom.couleurs}, aInfo={nom:ext.nom,couleurs:ext.couleurs};
+
+  openTeamTalk(my, adv, ()=>{
+    // --- 1re mi-temps ---
+    const h1 = FM.simulateHalf(dom, ext, 1);
+    const ev1 = h1.events.map(e=>({min:e.min, joueur:e.joueur, home:e.clubId===dom.id}));
+    watchMatch(hInfo, aInfo, h1.domScore, h1.extScore, ev1,
+      {label:(opts.label||"")+" · 1re mi-temps", minStart:0, minEnd:45, contBtn:"⏸ Aller à la mi-temps"}, ()=>{
+      FM.applyHalfFatigue(my);
+      // --- Pause : décisions du manager ---
+      openHalftime(my, dom, ext, h1, iAmHome, ()=>{
+        // --- 2e mi-temps (avec vos réglages) ---
+        const h2 = FM.simulateHalf(dom, ext, 2);
+        const ev2 = h2.events.map(e=>({min:e.min, joueur:e.joueur, home:e.clubId===dom.id}));
+        const ds = h1.domScore+h2.domScore, es = h1.extScore+h2.extScore;
+        watchMatch(hInfo, aInfo, ds, es, ev2,
+          {label:(opts.label||"")+" · 2e mi-temps", minStart:45, minEnd:90,
+           startHs:h1.domScore, startAs:h1.extScore}, ()=>{
+          FM.clearMatchFlags(my);
+          const total = { domScore:ds, extScore:es, events:h1.events.concat(h2.events).sort((a,b)=>a.min-b.min) };
+          onFinish(total);
+        });
+      });
+    });
+  });
+}
+
+/* Causerie d'avant-match */
+function openTeamTalk(my, adv, next){
+  const overlay = el("div","overlay");
+  const box = el("div","card talk-box");
+  const st = FM.teamStrength(my);
+  const moy = Math.round(my.onze.map(s=>FM.getPlayer(my,s.id)).filter(Boolean).reduce((a,p)=>a+p.moral,0)/11);
+  box.innerHTML = `<h3>🗣️ Causerie d'avant-match</h3>
+    <p>Face à <b>${adv.nom}</b> (note ${FM.squadRating(adv)}). Votre équipe : attaque <b>${Math.round(st.att)}</b> · milieu <b>${Math.round(st.mid)}</b> · défense <b>${Math.round(st.def)}</b> · moral moyen <b>${moy}</b>.</p>
+    <p class="hint">Votre discours modifie le moral des titulaires — et le moral influe sur la performance.</p>`;
+  const opts=[
+    ["calme","😌 Rassurer","Confiance +3 pour tous — sans risque."],
+    ["exigeant","🔥 Hausser le ton","Groupe conquérant : +6. Groupe fragile : −4. Risqué."],
+    ["neutre","😐 Consignes neutres","Aucun effet sur le moral."]
+  ];
+  opts.forEach(([k,lbl,desc])=>{
+    const b=el("button","btn ghost talk-opt",`<b>${lbl}</b><small>${desc}</small>`);
+    b.onclick=()=>{ const r=FM.teamTalk(my,k); toast(r.txt); overlay.remove(); next(); };
+    box.appendChild(b);
+  });
+  overlay.appendChild(box); document.body.appendChild(overlay);
+}
+
+/* Écran de mi-temps : réglages tactiques + remplacements (effet réel en 2e MT) */
+function openHalftime(my, dom, ext, h1, iAmHome, next){
+  const overlay = el("div","overlay");
+  const box = el("div","card halftime-box");
+  let subs = 0;
+  function render(){
+    const st = FM.teamStrength(my);
+    const mine = iAmHome?h1.domScore:h1.extScore, theirs = iAmHome?h1.extScore:h1.domScore;
+    const verdict = mine>theirs ? "Vous menez" : mine<theirs ? "Vous êtes mené" : "Tout reste à faire";
+    box.innerHTML = `<h3>⏸ Mi-temps — ${dom.nom} ${h1.domScore}-${h1.extScore} ${ext.nom}</h3>
+      <p class="ht-verdict ${mine>theirs?'win':mine<theirs?'lose':''}">${verdict}. Ajustez : vos choix comptent pour la 2e période.</p>
+      <p class="hint">Forces actuelles — attaque <b>${Math.round(st.att)}</b> · milieu <b>${Math.round(st.mid)}</b> · défense <b>${Math.round(st.def)}</b>. Un pressing haut use l'équipe ; les entrants sont frais (+).</p>`;
+    const row = el("div","tac-row");
+    row.appendChild(sliderTac("Mentalité",["Défensive","Équilibrée","Offensive"],my.tactique.mentalite,v=>{FM.setTactic("mentalite",v); render();}));
+    row.appendChild(sliderTac("Tempo",["Lent","Normal","Rapide"],my.tactique.tempo,v=>{FM.setTactic("tempo",v); render();}));
+    row.appendChild(sliderTac("Pressing",["Bas","Moyen","Haut"],my.tactique.pressing,v=>{FM.setTactic("pressing",v); render();}));
+    box.appendChild(row);
+    // Remplacements
+    box.appendChild(el("h4",null,`🔁 Remplacements (${subs}/3)`));
+    const bench = my.joueurs.filter(p=>!my.onze.some(s=>s.id===p.id)).sort((a,b)=>b.note-a.note).slice(0,12);
+    if (subs<3 && bench.length){
+      const wrap = el("div","ht-subs");
+      my.onze.forEach(s=>{
+        const p = FM.getPlayer(my,s.id); if(!p) return;
+        const line = el("div","ht-sub-row");
+        line.innerHTML = `<span><span class="pos-badge ${p.groupe}">${s.slot}</span> ${p.nom} <b class="note ${noteClass(p.note)}">${p.note}</b>${p._tired?` <small>😮‍💨</small>`:''}</span>`;
+        const sel = el("select");
+        sel.appendChild(new Option("— remplacer par —",""));
+        bench.forEach(b=> sel.appendChild(new Option(`${b.pos} ${b.nom} (${b.note})`, b.id)));
+        sel.onchange=()=>{ if(!sel.value) return;
+          if (FM.substitute(my, p.id, parseInt(sel.value,10))){ subs++; FM.save(); render(); } };
+        line.appendChild(sel);
+        wrap.appendChild(line);
+      });
+      box.appendChild(wrap);
+    } else if (subs>=3) box.appendChild(el("p","hint","Quota de remplacements atteint."));
+    const go = el("button","btn primary big","▶ Jouer la 2e mi-temps");
+    go.onclick=()=>{ FM.save(); overlay.remove(); next(); };
+    box.appendChild(go);
+  }
+  render();
+  overlay.appendChild(box); document.body.appendChild(overlay);
 }
 
 /* ============= EFFECTIF ============= */
@@ -437,6 +573,7 @@ function renderSquad(body){
       btn.onclick=()=>{ FM.toggleTransferList(p.id); renderGame(); };
       tr.lastChild.appendChild(btn);
       const lb = el("button","btn tiny ghost","Prêter");
+      if(!FM.marketOpen()){ lb.disabled=true; lb.title="Hors période de mercato"; }
       lb.onclick=()=>{ const r=FM.loanOut(p.id); toast(r.msg); renderGame(); };
       tr.lastChild.appendChild(lb);
     }
@@ -552,18 +689,25 @@ function renderTactics(body){
   let si=0;
   rows.forEach(count=>{
     const line = el("div","pitch-line");
+    // Ordonne la ligne de gauche à droite (DG/AG à gauche, DD/AD à droite)
+    const cells=[];
     for (let k=0;k<count;k++){
-      const slotIdx=si;
+      const slotIdx=si+k;
+      const slot = (my.onze[slotIdx] && my.onze[slotIdx].slot) || slots[slotIdx];
+      cells.push({ slotIdx, slot, lat: lateralRank(slot), ord:k });
+    }
+    cells.sort((a,b)=> a.lat-b.lat || a.ord-b.ord);
+    cells.forEach(({slotIdx, slot})=>{
       const s = my.onze[slotIdx];
       const p = s && s.id ? FM.getPlayer(my,s.id) : null;
       const spot = el("div","spot"+(p?"":" empty"));
       spot.innerHTML = p
-        ? `<div class="spot-pos">${slots[slotIdx]}</div><div class="spot-note ${noteClass(p.note)}">${p.note}</div><div class="spot-name">${shortName(p.nom)}</div>`
-        : `<div class="spot-pos">${slots[slotIdx]}</div><div class="spot-add">+</div>`;
-      spot.onclick=()=> openPlayerPicker(slotIdx, slots[slotIdx]);
+        ? `<div class="spot-pos">${slot}</div><div class="spot-note ${noteClass(p.note)}">${p.note}</div><div class="spot-name">${shortName(p.nom)}</div>`
+        : `<div class="spot-pos">${slot}</div><div class="spot-add">+</div>`;
+      spot.onclick=()=> openPlayerPicker(slotIdx, slot);
       line.appendChild(spot);
-      si++;
-    }
+    });
+    si+=count;
     pitch.appendChild(line);
   });
   pitchCard.appendChild(pitch);
@@ -579,6 +723,13 @@ function sliderTac(title, labels, val, onchange){
   inp.oninput=()=>{ out.textContent=labels[inp.value]; onchange(parseInt(inp.value,10)); };
   box.appendChild(inp); box.appendChild(out);
   return box;
+}
+
+/* Rang latéral d'un poste pour l'affichage : 0 = gauche, 1 = axe, 2 = droite */
+function lateralRank(slot){
+  if (slot==="DG" || slot==="AG") return 0;
+  if (slot==="DD" || slot==="AD") return 2;
+  return 1;
 }
 
 function pitchRows(formation){
@@ -1142,8 +1293,13 @@ function playIntlTie(){
 let marketFilter = { type:"all", poste:"", posteExact:"", noteMin:0, potMin:0, ageMax:40, valeurMax:0, sort:"note", q:"" };
 function renderMarket(body){
   const my = FM.myClub();
+  const w = FM.transferWindow();
   const head = el("div","card");
-  head.innerHTML = `<h3>💱 Mercato — Budget : <span class="${my.budget<0?'neg':'pos'}">${money(my.budget)}</span></h3>`;
+  head.innerHTML = `<h3>💱 Mercato — Budget : <span class="${my.budget<0?'neg':'pos'}">${money(my.budget)}</span></h3>
+    <div class="mkt-window ${w.open?'open':'closed'}">
+      <b>${w.open?'🟢 '+w.nom:'🔴 '+w.nom}</b> — ${w.info}
+      ${w.open?'':'<small>Aucun achat, vente ou prêt possible pour vous comme pour les clubs IA.</small>'}
+    </div>`;
 
   const listBox = el("div","card"); listBox.id="marketList";
   const filters = el("div","market-filters");
@@ -1209,12 +1365,15 @@ function refreshMarket(container){
       <td>${loanMode?('<span class="tag loan-tag">🔁 prêt '+FM.loanFee(p).toFixed(1)+' M€</span>')
         :(p.libre?'<span class="tag free">🆓 Libre</span>':(p.dispo?'<span class="tag">Transférable</span>':'—'))}</td><td></td>`;
     tr.querySelector(".player-link").onclick=()=> openPlayerCard(p, p.clubNom);
+    const mktOpen = FM.marketOpen();
     if (loanMode){
       const btn = el("button","btn tiny primary","Prêter chez moi");
+      if(!mktOpen){ btn.disabled=true; btn.title="Hors période de mercato"; }
       btn.onclick=()=>{ const r=FM.loanIn(p.id); toast(r.msg); renderGame(); };
       tr.lastChild.appendChild(btn);
     } else {
       const btn = el("button","btn tiny primary",p.libre?"Signer":"Offre");
+      if(!mktOpen){ btn.disabled=true; btn.title="Hors période de mercato"; }
       btn.onclick=()=> openBid(p);
       tr.lastChild.appendChild(btn);
     }
@@ -1296,6 +1455,48 @@ function renderTable(body){
   body.appendChild(boards);
 }
 
+/* Marqueurs de coupe programmés sur la journée `j` du championnat */
+function cupMarkersFor(j){
+  const out = [];
+  const cup = FM.state.coupe, e = FM.state.europe;
+  const mk = (emoji, txt, done) => {
+    const d = el("div","fixture cup-marker"+(done?" done":""));
+    d.innerHTML = `<span class="jd">${emoji}</span><span class="cm-txt">${txt}</span>`;
+    return d;
+  };
+  if (cup){
+    for (let r=0; r<=cup.round && r<8; r++){
+      if (FM.CUP_FIRST + r*FM.CUP_EVERY !== j) continue;
+      const hist = cup.history[r];
+      if (hist){
+        const t = hist.ties.find(t=>t.a===cup.playerSeed||t.b===cup.playerSeed);
+        let txt = `${cup.nom} — ${hist.nom}`;
+        if (t){ const win = t.winner===cup.playerSeed;
+          txt += t.bye ? " · exempt" : ` · ${t.as}-${t.es} ${win?"✅":"❌"}`; }
+        out.push(mk(cup.emoji, txt, true));
+      } else if (!cup.finished && cup.playerAlive){
+        out.push(mk(cup.emoji, `${cup.nom} — ${FM.roundName(cup.alive.length)} · à jouer`, false));
+      }
+    }
+  }
+  if (e && e.playerComp){
+    const comp = e[e.playerComp];
+    for (let r=0; r<comp.lp.rounds; r++){
+      if (FM.EURO_FIRST + r*FM.EURO_EVERY !== j) continue;
+      const played = r < comp.lp.cur;
+      out.push(mk(comp.emoji, `${comp.nom} — phase de ligue J${r+1}${played?" · jouée":" · à jouer"}`, played));
+    }
+    if (comp.ko){
+      for (let r=0; r<4; r++){
+        if (FM.EUROKO_FIRST + r*FM.EUROKO_EVERY !== j) continue;
+        const played = r < comp.ko.round;
+        out.push(mk(comp.emoji, `${comp.nom} — phase finale, tour ${r+1}${played?" · joué":" · à jouer"}`, played));
+      }
+    }
+  }
+  return out;
+}
+
 /* ============= CALENDRIER ============= */
 function renderCalendar(body){
   const my = FM.myClub();
@@ -1333,6 +1534,8 @@ function renderCalendar(body){
     const m = jd.find(x=>x.dom===my.id||x.ext===my.id);
     if (!m) return;
     const dom = FM.clubById(m.dom), ext = FM.clubById(m.ext);
+    // Rendez-vous de coupe rattachés à cette journée
+    cupMarkersFor(i).forEach(mk=> list.appendChild(mk));
     const res = FM.state.resultats[i];
     let scoreTxt = "—", cls="upcoming";
     if (res){

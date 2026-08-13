@@ -181,7 +181,8 @@
 
     // ---- Simulation + statistiques ----
     const evs=(cfg.events||[]).slice().sort((a,b)=>a.min-b.min);
-    let ei=0, hs=0, as=0;
+    const MIN0 = cfg.minStart||0, MIN1 = cfg.minEnd||90;
+    let ei=0, hs=cfg.startHs||0, as=cfg.startAs||0;
     let poss=Math.random()<0.5?0:1;
     const target=new THREE.Vector3(0,0.95,0);
     let goalActive=false, goalEvent=null, celebrateUntil=0, kickoffAt=0, phaseAt=0, passAt=0;
@@ -189,6 +190,7 @@
     let possAcc=[0.1,0.1], momentum=0;         // momentum: -1 (away) .. +1 (home)
     const stat={h:{t:0,c:0,k:0,f:0}, a:{t:0,c:0,k:0,f:0}};
     const scoreEl=hud.querySelector("#m3dScore"), minEl=hud.querySelector("#m3dMin");
+    scoreEl.textContent=`${hs} - ${as}`;
     const el=id=>document.getElementById(id);
     const MIN_RATE=2.0; let simT=0; const clock=new THREE.Clock(); let raf=0, ended=false;
 
@@ -248,7 +250,7 @@
       if(ended) return; ended=true; cancelAnimationFrame(raf); finishScores(); updateDash();
       minEl.textContent = (cfg.endText? cfg.endText+" · " : "") + "Coup de sifflet final ⏱";
       feedLine(`⏱ <b>Fin du match — ${cfg.home.nom} ${hs}-${as} ${cfg.away.nom}</b>`, -1);
-      btn.textContent="✔ Continuer"; btn.className="btn primary m3d-skip";
+      btn.textContent=cfg.contBtn||"✔ Continuer"; btn.className="btn primary m3d-skip";
       btn.onclick=()=>{ cleanup(); onDone&&onDone(); };
     }
     function cleanup(){ cancelAnimationFrame(raf); try{ renderer.dispose(); renderer.forceContextLoss&&renderer.forceContextLoss(); }catch(e){} overlay.remove(); window.removeEventListener("resize",onResize); }
@@ -264,7 +266,7 @@
       const rdt=Math.min(clock.getDelta(),0.05);       // temps réel écoulé (rendu)
       const dt=rdt*speedMul;                            // temps simulé (0 si pause)
       simT+=dt;
-      const minute=Math.min(90, simT*MIN_RATE);
+      const minute=Math.min(MIN1, MIN0 + simT*MIN_RATE);
       minEl.textContent=`${cfg.label?cfg.label+" · ":""}${Math.floor(minute)}'`;
 
       if(dt>0){
@@ -336,7 +338,7 @@
       sun.target.position.set(bx*0.3,0,bz*0.3);
 
       renderer.render(scene,cam);
-      if(minute>=90 && !ended){ while(ei<evs.length){ registerGoal(evs[ei]); ei++; } end(); }
+      if(minute>=MIN1 && !ended){ while(ei<evs.length){ registerGoal(evs[ei]); ei++; } end(); }
     }
     updateDash(); loop();
   };

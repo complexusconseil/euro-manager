@@ -233,13 +233,14 @@ const POS_LABEL = {
 };
 
 /* ---------- Formations : postes requis ---------- */
+/* Chaque ligne est ordonnée de GAUCHE à DROITE (comme à l'écran), gardien d'abord */
 const FORMATIONS = {
-  "4-4-2":  ["GB","DD","DC","DC","DG","AD","MC","MC","AG","BU","BU"],
-  "4-3-3":  ["GB","DD","DC","DC","DG","MDC","MC","MC","AD","BU","AG"],
-  "4-2-3-1":["GB","DD","DC","DC","DG","MDC","MDC","AD","MO","AG","BU"],
-  "3-5-2":  ["GB","DC","DC","DC","AD","MC","MDC","MC","AG","BU","BU"],
-  "5-3-2":  ["GB","DD","DC","DC","DC","DG","MC","MDC","MC","BU","BU"],
-  "4-5-1":  ["GB","DD","DC","DC","DG","AD","MC","MDC","MC","AG","BU"]
+  "4-4-2":  ["GB","DG","DC","DC","DD","AG","MC","MC","AD","BU","BU"],
+  "4-3-3":  ["GB","DG","DC","DC","DD","MC","MDC","MC","AG","BU","AD"],
+  "4-2-3-1":["GB","DG","DC","DC","DD","MDC","MDC","AG","MO","AD","BU"],
+  "3-5-2":  ["GB","DC","DC","DC","AG","MC","MDC","MC","AD","BU","BU"],
+  "5-3-2":  ["GB","DG","DC","DC","DC","DD","MC","MDC","MC","BU","BU"],
+  "4-5-1":  ["GB","DG","DC","DC","DD","AG","MC","MDC","MC","AD","BU"]
 };
 
 /* ---------- Clubs européens (réels) avec réputation & budget ----------

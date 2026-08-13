@@ -159,20 +159,24 @@ FM.nextFixture = function(){
   return jd.find(m => m.dom===FM.state.managedClubId || m.ext===FM.state.managedClubId) || null;
 };
 
-/* ---------- Jouer une journée complète ---------- */
-FM.playMatchday = function(){
+/* ---------- Jouer une journée complète ----------
+   forcedMy (optionnel) = résultat DÉJÀ calculé du match du joueur
+   {domScore, extScore, events} — utilisé par le match interactif (mi-temps). */
+FM.playMatchday = function(forcedMy){
   if (FM.state.journee >= FM.totalMatchdays()) return null;
   const jd = FM.state.calendrier[FM.state.journee];
   const dayResults = [];
   let myResult = null;
+  const myId = FM.state.managedClubId;
 
   for (const m of jd){
     const dom = FM.clubById(m.dom), ext = FM.clubById(m.ext);
     // L'IA reconstruit son onze (le club du joueur garde son onze choisi)
-    if (dom.id !== FM.state.managedClubId) dom.onze = FM.autoPickXI(dom);
-    if (ext.id !== FM.state.managedClubId) ext.onze = FM.autoPickXI(ext);
+    if (dom.id !== myId) dom.onze = FM.autoPickXI(dom);
+    if (ext.id !== myId) ext.onze = FM.autoPickXI(ext);
 
-    const res = FM.simulateMatch(dom, ext);
+    const isMine = (dom.id===myId || ext.id===myId);
+    const res = (isMine && forcedMy) ? forcedMy : FM.simulateMatch(dom, ext);
     applyResult(dom, ext, res);
     accumulateStats(dom, ext, res);
     const r = { dom:dom.id, ext:ext.id, ds:res.domScore, es:res.extScore, events:res.events };
@@ -282,6 +286,123 @@ function postMatchdayUpdates(myResult){
   generateAIOffers();
 }
 
+/* ============================================================
+   AGENDA UNIFIÉ — toutes les compétitions dans le même calendrier
+   Chaque tour de coupe est rattaché à une journée de championnat, pour que
+   rien ne puisse être « oublié » faute d'aller sur le bon onglet.
+   ============================================================ */
+FM.CUP_FIRST = 3;   FM.CUP_EVERY = 5;    // coupe nationale : J4, J9, J14…
+FM.EURO_FIRST = 2;  FM.EURO_EVERY = 3;   // phase de ligue : J3, J6, J9…
+FM.EUROKO_FIRST = 20; FM.EUROKO_EVERY = 4; // phase finale : J21, J25…
+
+/* Journée à laquelle le tour `r` (0-indexé) d'une compétition est programmé */
+function dueMatchday(kind, r){
+  if (kind==="coupe") return FM.CUP_FIRST + r*FM.CUP_EVERY;
+  if (kind==="euroLp") return FM.EURO_FIRST + r*FM.EURO_EVERY;
+  return FM.EUROKO_FIRST + r*FM.EUROKO_EVERY;
+}
+
+/* Liste ordonnée de tous les rendez-vous EN ATTENTE (championnat + coupes).
+   [{ kind, emoji, titre, detail, due, enRetard }]                          */
+FM.pendingEvents = function(){
+  const out = [];
+  const j = FM.state.journee;
+
+  // 1) Match de championnat de la journée courante
+  const fx = FM.nextFixture();
+  if (fx){
+    const dom = FM.clubById(fx.dom), ext = FM.clubById(fx.ext);
+    const chezMoi = fx.dom===FM.state.managedClubId;
+    out.push({ kind:"league", emoji:"🏆", titre:`${FM.myClub().ligueNom} — journée ${j+1}`,
+               detail:`${dom.nom} vs ${ext.nom} (${chezMoi?"domicile":"extérieur"})`, due:j, enRetard:false });
+  }
+
+  // 2) Coupe nationale : tour dû ?
+  const cup = FM.state.coupe;
+  if (cup && !cup.finished && cup.playerAlive){
+    const due = dueMatchday("coupe", cup.round);
+    if (j >= due){
+      const tie = FM.playerTie(cup);
+      let adv = "à jouer";
+      if (tie){ const o = cup.teams[tie[0]===cup.playerSeed?tie[1]:tie[0]]; adv = o.bye ? "exempt (qualifié d'office)" : ("contre "+o.nom); }
+      out.push({ kind:"coupe", emoji:cup.emoji, titre:`${cup.nom} — ${FM.roundName(cup.alive.length)}`,
+                 detail:adv, due, enRetard:j>due });
+    }
+  }
+
+  // 3) Coupe d'Europe : phase de ligue ou phase finale
+  const e = FM.state.europe;
+  if (e && e.playerComp){
+    const comp = e[e.playerComp];
+    if (comp.phase==="league" && comp.lp.cur < comp.lp.rounds){
+      const due = dueMatchday("euroLp", comp.lp.cur);
+      if (j >= due){
+        const pm = FM.lpPlayerMatch(comp);
+        let d = `journée ${comp.lp.cur+1}/${comp.lp.rounds} de la phase de ligue`;
+        if (pm){ const o = comp.teams[pm.playerHome?pm.away:pm.home]; d = `contre ${o.nom} (${pm.playerHome?"domicile":"extérieur"})`; }
+        out.push({ kind:"euro", emoji:comp.emoji, titre:`${comp.nom} — phase de ligue`, detail:d, due, enRetard:j>due });
+      }
+    } else if (comp.ko && !comp.ko.finished && comp.ko.playerAlive){
+      const due = dueMatchday("euroKo", comp.ko.round);
+      if (j >= due){
+        const tie = FM.playerTie(comp.ko);
+        let d = "à jouer";
+        if (tie){ const o = comp.ko.teams[tie[0]===comp.ko.playerSeed?tie[1]:tie[0]]; d = "contre "+o.nom; }
+        out.push({ kind:"euro", emoji:comp.emoji, titre:`${comp.nom} — ${FM.roundName(comp.ko.alive.length)}`, detail:d, due, enRetard:j>due });
+      }
+    }
+  }
+
+  // 4) Tournoi international de l'été (facultatif)
+  const pi = FM.state.pendingIntl;
+  if (pi && !pi.fait){
+    out.push({ kind:"intl", emoji: pi.kind==="WC"?"🌍":"🇪🇺",
+               titre: (pi.kind==="WC"?"Coupe du Monde":"Championnat d'Europe")+" — cet été",
+               detail:`facultatif · sélection : ${pi.defaultNation}`, due:j, enRetard:false, facultatif:true });
+  }
+  // Les rendez-vous en retard d'abord (à ne pas manquer), puis par échéance
+  out.sort((a,b)=> (b.enRetard?1:0)-(a.enRetard?1:0) || a.due-b.due);
+  return out;
+};
+
+/* Y a-t-il un tour de coupe à jouer avant de poursuivre le championnat ? */
+FM.blockingEvents = () => FM.pendingEvents().filter(ev=>ev.kind!=="league" && !ev.facultatif && ev.enRetard);
+
+/* ---------- PÉRIODES DE MERCATO ----------
+   Deux fenêtres par saison : le mercato d'ÉTÉ (avant-saison, jusqu'à la 3e
+   journée) et le mercato d'HIVER (à la trêve, autour de la mi-saison).
+   En dehors, aucun transfert ni prêt n'est possible (ni pour vous, ni pour l'IA). */
+FM.WINDOW_SUMMER_END = 3;      // fermé APRÈS la 3e journée
+FM.WINDOW_WINTER_LEN = 3;      // durée de la fenêtre hivernale (journées)
+
+FM.transferWindow = function(){
+  const j = FM.state.journee;                       // journées déjà jouées
+  const total = FM.totalMatchdays();
+  const winterStart = Math.floor(total/2);
+  const winterEnd = winterStart + FM.WINDOW_WINTER_LEN;
+  if (j < FM.WINDOW_SUMMER_END)
+    return { open:true, type:"ete", nom:"Mercato d'été",
+             info:`ouvert — ferme après la journée ${FM.WINDOW_SUMMER_END}`,
+             ferme: FM.WINDOW_SUMMER_END - j };
+  if (j >= winterStart && j < winterEnd)
+    return { open:true, type:"hiver", nom:"Mercato d'hiver",
+             info:`ouvert — ferme après la journée ${winterEnd}`,
+             ferme: winterEnd - j };
+  // Fermé : prochaine ouverture
+  if (j < winterStart)
+    return { open:false, nom:"Mercato fermé",
+             info:`réouverture au mercato d'hiver (journée ${winterStart+1})`,
+             ouvre: winterStart - j };
+  return { open:false, nom:"Mercato fermé",
+           info:"réouverture au mercato d'été (saison prochaine)",
+           ouvre: total - j };
+};
+FM.marketOpen = () => FM.transferWindow().open;
+function windowClosedMsg(){
+  const w = FM.transferWindow();
+  return `⛔ ${w.nom} — ${w.info}.`;
+}
+
 /* ---------- MERCATO ---------- */
 FM.transferMarket = function(filter={}){
   const my = FM.myClub();
@@ -351,6 +472,7 @@ FM.freeAgentPrime = function(fa, buyerRep){
 /* Acheter : renvoie {ok, msg} */
 FM.buyPlayer = function(playerId, offreM){
   const my = FM.myClub();
+  if (!FM.marketOpen()) return { ok:false, msg:windowClosedMsg() };
 
   // 1) Agent libre : signature contre une simple prime (pas d'indemnité de transfert)
   const fa = (FM.state.freeAgents || []).find(x=>x.id===playerId);
@@ -421,6 +543,7 @@ FM.toggleTransferList = function(playerId){
 FM.acceptOffer = function(offreIndex){
   const o = FM.state.offres[offreIndex];
   if (!o) return { ok:false, msg:"Offre expirée." };
+  if (!FM.marketOpen()) return { ok:false, msg:windowClosedMsg() };
   const my = FM.myClub();
   const p = my.joueurs.find(x=>x.id===o.joueurId);
   if (!p) return { ok:false, msg:"Joueur déjà parti." };
@@ -440,6 +563,7 @@ FM.acceptOffer = function(offreIndex){
 FM.rejectOffer = function(i){ FM.state.offres.splice(i,1); FM.save(); };
 
 function generateAIOffers(){
+  if (!FM.marketOpen()) return;        // pas d'offres hors periode de mercato
   const my = FM.myClub();
   const listed = my.joueurs.filter(p=>p.transferListe);
   for (const p of listed){
@@ -495,6 +619,7 @@ FM.loanFee = p => Math.max(0.1, Math.round(p.valeur*0.06*10)/10);
 /* Emprunter un joueur (prêt entrant) */
 FM.loanIn = function(playerId){
   const my = FM.myClub();
+  if (!FM.marketOpen()) return { ok:false, msg:windowClosedMsg() };
   if (my.joueurs.length >= 30) return { ok:false, msg:"Effectif complet (30 max)." };
   let parent=null, player=null;
   for (const c of FM.state.db.clubs){
@@ -527,6 +652,7 @@ FM.loanIn = function(playerId){
 /* Prêter un de nos joueurs à un club preneur (prêt sortant) */
 FM.loanOut = function(playerId){
   const my = FM.myClub();
+  if (!FM.marketOpen()) return { ok:false, msg:windowClosedMsg() };
   const player = my.joueurs.find(x=>x.id===playerId);
   if (!player) return { ok:false, msg:"Joueur introuvable." };
   if (player.loan) return { ok:false, msg:"Ce joueur est déjà concerné par un prêt." };

@@ -148,6 +148,34 @@ tbody tr:hover{background:var(--card2)}
 .intl-pick select{padding:8px 10px;border-radius:8px}
 .tag.free{background:#134e2b;color:#7ee2a8;border-color:#1c6b3d}
 .tag.loan-tag{background:#3a2d5c;color:#c9b6ff;border-color:#4c3c7a}
+/* Fenêtre de mercato */
+.mkt-window{margin-top:8px;padding:9px 12px;border-radius:9px;font-size:14px;border:1px solid var(--line)}
+.mkt-window.open{background:rgba(46,160,67,.12);border-color:var(--accent)}
+.mkt-window.closed{background:rgba(239,107,107,.10);border-color:#5a2b2b}
+.mkt-window small{display:block;color:var(--mut);margin-top:3px}
+/* Agenda unifié (accueil) */
+.agenda-card .agenda-row{display:flex;align-items:center;gap:10px;padding:9px 11px;margin:6px 0;border-radius:9px;
+  background:rgba(255,255,255,.04);border-left:3px solid var(--line)}
+.agenda-row.late{border-left-color:#f0b429;background:rgba(240,180,41,.10)}
+.agenda-row .ag-emoji{font-size:20px}
+.agenda-row .ag-txt{flex:1;display:flex;flex-direction:column}
+.agenda-row .ag-txt small{color:var(--mut)}
+.agenda-row .ag-badge{background:#f0b429;color:#1a1200;font-weight:800;font-size:11px;padding:3px 8px;border-radius:20px}
+/* Marqueurs de coupe dans le calendrier */
+.fixture.cup-marker{background:rgba(124,92,255,.10);border-left:3px solid #7c5cff}
+.fixture.cup-marker.done{opacity:.62}
+.fixture.cup-marker .cm-txt{flex:1;font-size:13px}
+/* Causerie & mi-temps */
+.talk-box,.halftime-box{max-width:660px;width:95%;max-height:90vh;overflow:auto}
+.talk-opt{display:flex;flex-direction:column;align-items:flex-start;text-align:left;width:100%;margin:6px 0;padding:10px 12px}
+.talk-opt small{color:var(--mut);font-weight:400}
+.ht-verdict{font-weight:700}
+.ht-verdict.win{color:var(--accent)} .ht-verdict.lose{color:#ef6b6b}
+.ht-subs{max-height:34vh;overflow:auto;margin-bottom:10px}
+.ht-sub-row{display:flex;align-items:center;gap:10px;padding:6px 9px;margin:4px 0;border-radius:8px;background:rgba(255,255,255,.04)}
+.ht-sub-row>span{flex:1}
+.ht-sub-row select{max-width:230px;padding:5px 8px;border-radius:7px}
+
 /* Composition d'équipe nationale (vivier ~500 + effectif 23) */
 .squad-picker{max-width:960px;width:97%;max-height:90vh;overflow:auto}
 .sp-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}

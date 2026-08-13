@@ -38,7 +38,9 @@ FM.teamStrength = function(club){
   for (const s of club.onze){
     const p = FM.getPlayer(club, s.id);
     if (!p) continue;
-    const eff = p.note * posFit(p.pos, s.slot) + p.forme + (p.moral-70)*0.1;
+    let eff = p.note * posFit(p.pos, s.slot) + p.forme + (p.moral-70)*0.1;
+    if (p._fresh) eff += 1.5;                 // entrant frais (remplaçant)
+    if (p._tired) eff -= p._tired;            // fatigue accumulée (pressing intense)
     const g = FM.POS_GROUP[s.slot];
     if (g==="G"){ gk += eff; cnt.G++; }
     else if (g==="D"){ def += eff; cnt.D++; }
@@ -106,7 +108,65 @@ function poisson(lambda){
   return Math.min(7, k-1);
 }
 
-function addGoalEvents(events, club, n, isHome){
+/* ---------- MATCH INTERACTIF (mi-temps par mi-temps) ----------
+   Rejoue 45 minutes avec les réglages ACTUELS du club : changer de mentalité,
+   de tempo, de pressing ou faire des remplacements à la pause a donc un
+   effet réel sur la seconde période.                                        */
+FM.simulateHalf = function(dom, ext, half){
+  const homeAdv = 3;
+  const sD = FM.teamStrength(dom), sE = FM.teamStrength(ext);
+  const midDiff = (sD.mid - sE.mid);
+  const homeXg = baseXg(sD.att + homeAdv, sE.def) * (1 + midDiff*0.012) * tempoMul(dom) * 0.5;
+  const awayXg = baseXg(sE.att, sD.def + homeAdv*0.5) * (1 - midDiff*0.012) * tempoMul(ext) * 0.5;
+  const domScore = poisson(Math.max(0.08, homeXg));
+  const extScore = poisson(Math.max(0.08, awayXg));
+  const events = [];
+  addGoalEvents(events, dom, domScore, true, half);
+  addGoalEvents(events, ext, extScore, false, half);
+  events.sort((a,b)=>a.min-b.min);
+  return { domScore, extScore, events, ratingDom:sD.global, ratingExt:sE.global };
+};
+
+/* Fatigue de fin de mi-temps : un pressing haut use l'équipe pour la suite */
+FM.applyHalfFatigue = function(club){
+  const t = club.tactique;
+  const cost = t.pressing===2 ? 2.0 : t.pressing===1 ? 0.8 : 0.2;
+  for (const s of club.onze){
+    const p = FM.getPlayer(club, s.id);
+    if (p){ p._tired = (p._tired||0) + cost; p._fresh = false; }
+  }
+};
+/* Nettoie les marqueurs temporaires de match */
+FM.clearMatchFlags = function(club){
+  for (const p of club.joueurs){ delete p._tired; delete p._fresh; }
+};
+/* Remplacement : sort `outId`, entre `inId` (le remplaçant est frais) */
+FM.substitute = function(club, outId, inId){
+  const slot = club.onze.find(s=>s.id===outId);
+  if (!slot) return false;
+  if (club.onze.some(s=>s.id===inId)) return false;
+  const p = FM.getPlayer(club, inId);
+  if (!p) return false;
+  slot.id = inId; p._fresh = true; delete p._tired;
+  return true;
+};
+
+/* Causerie d'avant-match : influe sur le moral (donc sur la performance) */
+FM.teamTalk = function(club, choice){
+  const xi = club.onze.map(s=>FM.getPlayer(club,s.id)).filter(Boolean);
+  let delta = 0, txt = "";
+  if (choice==="calme"){ delta = 3; txt="Vous rassurez le groupe : confiance en hausse."; }
+  else if (choice==="exigeant"){
+    // Risqué : galvanise un groupe au moral haut, plombe un groupe fragile
+    const moyMoral = xi.reduce((a,p)=>a+p.moral,0)/(xi.length||1);
+    delta = moyMoral>=72 ? 6 : -4;
+    txt = delta>0 ? "Le discours galvanise un groupe déjà conquérant !" : "Le ton dur crispe un groupe fragile…";
+  } else { delta = 0; txt="Consignes neutres, le groupe reste concentré."; }
+  xi.forEach(p=> p.moral = Math.max(30, Math.min(99, p.moral + delta)));
+  return { delta, txt };
+};
+
+function addGoalEvents(events, club, n, isHome, half){
   // Buteurs pondérés par poste (attaquants plus probables)
   const weights = club.onze.map(s=>{
     const p = FM.getPlayer(club,s.id); if(!p) return null;
@@ -115,9 +175,10 @@ function addGoalEvents(events, club, n, isHome){
     return { p, w };
   }).filter(Boolean);
   const total = weights.reduce((a,x)=>a+x.w,0);
+  const lo = half===2 ? 46 : 1, hi = half===1 ? 45 : 90;
   for (let i=0;i<n;i++){
     let r = FM._rnd()*total, chosen=weights[0].p;
     for (const x of weights){ r-=x.w; if(r<=0){ chosen=x.p; break; } }
-    events.push({ min: FM._ri(1,90), club: club.nom, clubId: club.id, joueur: chosen.nom, joueurId: chosen.id, isHome });
+    events.push({ min: FM._ri(lo,hi), club: club.nom, clubId: club.id, joueur: chosen.nom, joueurId: chosen.id, isHome });
   }
 }
