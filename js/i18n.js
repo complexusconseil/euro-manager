@@ -250,6 +250,28 @@ const EN = {
 
   "naviguer":"navigate", "valider":"confirm", "Entrée":"Enter",
 
+  /* ----- Sauvegarde, finances, centre de formation ----- */
+  "Sauvegarde impossible":"Cannot save",
+  "La mémoire du navigateur est pleine : votre progression n'est plus enregistrée.":"Browser storage is full: your progress is no longer being saved.",
+  "Le navigateur refuse d'enregistrer la partie.":"The browser refuses to store the game.",
+  "Sauvegarde illisible":"Corrupted save",
+  "La partie enregistrée est incomplète ou abîmée":"The stored game is incomplete or damaged",
+  "Exporter la partie":"Export game", "Importer une partie":"Import a game",
+  "Partie exportée.":"Game exported.", "Partie importée.":"Game imported.",
+  "Export impossible.":"Export failed.",
+  "Fichier de partie invalide":"Invalid game file",
+  "Finances":"Finances", "Budget de transfert":"Transfer budget",
+  "Recettes de la saison":"Season revenue", "Salaires versés":"Wages paid",
+  "Solde de la saison":"Season balance", "Recettes annuelles":"Annual revenue",
+  "sem":"wk",
+  "Les salaires sont prélevés à chaque journée et les recettes encaissées de même. Un effectif surpayé finit dans le rouge ; un bon classement fait rentrer davantage.":"Wages are paid and revenue collected on every matchday. An overpaid squad ends up in the red; a good league finish brings in more.",
+  "Vos comptes sont dans le rouge : la masse salariale dépasse vos recettes.":"Your accounts are in the red: the wage bill exceeds your revenue.",
+  "Centre de formation":"Academy",
+  "Ces joueurs viennent d'être intégrés à votre effectif. Leur potentiel indique jusqu'où ils peuvent monter.":"These players have just joined your squad. Their potential shows how far they can go.",
+  "Potentiel":"Potential", "ans":"yrs",
+  "raccroche les crampons.":"has retired.",
+  "quitte le club en fin de contrat.":"leaves the club at the end of their contract.",
+
   /* ----- Bande son ----- */
   "Bande son":"Soundtrack",
   "Audio indisponible sur ce navigateur.":"Audio not available in this browser.",

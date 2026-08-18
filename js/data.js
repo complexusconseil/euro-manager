@@ -433,6 +433,29 @@ function playerValue(ov, pot, age){
 }
 FM.playerValue = playerValue;
 
+/* Jeune issu du centre de formation : note modeste, potentiel large.
+   La réputation du club tire les deux vers le haut. */
+FM.makeYouth = function(club){
+  const rep = club && club.rep ? club.rep : 2;
+  const p = makePlayer(rep, undefined, club && club.pays);
+  p.age = ri(16, 18);
+  /* Le jeune se cale sur le NIVEAU RÉEL de l'effectif, pas sur la seule
+     réputation : sinon, à mesure que les joueurs réels raccrochent, la note
+     médiane du monde glisse vers le barème du générateur.               */
+  const notes = (club && club.joueurs && club.joueurs.length)
+    ? club.joueurs.map(j=>j.note).sort((a,b)=>a-b) : null;
+  const niveau = notes ? notes[Math.floor(notes.length/2)] : 40 + rep*6;
+  p.note = Math.max(45, Math.min(80, niveau - ri(6, 18)));
+  p.potentiel = Math.min(94, Math.max(p.note + 4, niveau + ri(-2, 9) + (rep>=4 ? 3 : 0)));
+  p.valeur = playerValue(p.note, p.potentiel, p.age);
+  p.salaire = Math.round((p.valeur*2.2 + p.note*0.3)*10)/10;
+  p.contrat = ri(3, 5);
+  p.forme = ri(-1, 2); p.moral = ri(70, 92);
+  p.jeune = true;                       /* marque « formé au club »          */
+  p.buts=0; p.passes=0; p.matchs=0; p.transferListe=false; p.carriere=[];
+  return p;
+};
+
 /* ---------- Génération d'un effectif équilibré (~22 joueurs) ---------- */
 function makeSquad(rep, country){
   const plan = ["GB","GB","DD","DD","DG","DG","DC","DC","DC","DC",

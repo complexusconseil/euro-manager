@@ -86,6 +86,30 @@ Le terrain n'affiche pas des pions qui glissent vers le ballon : chaque joueur a
 
 Le jeu ne charge plus de moteur 3D : la page est **beaucoup plus légère** (idéal sur mobile).
 
+## 💶 Économie du club
+
+Les **salaires sont prélevés à chaque journée** et les **recettes encaissées** de même : billetterie et droits, modulés de −15 % à +15 % par votre place au classement. La carte **Finances** de l'Accueil montre le budget de transfert, la masse salariale hebdomadaire, les recettes et salaires cumulés de la saison, et le solde.
+
+Les recettes de référence sont calées sur les masses salariales réelles de la base (21 / 29 / 42 / 66 / 128 M€ par saison selon la réputation du club) : **un effectif conforme au rang du club équilibre ses comptes**, un effectif surpayé passe dans le rouge, un bon classement dégage une marge pour le mercato. Les clubs gérés par l'ordinateur tiennent une comptabilité simplifiée et bornée — ni faillite en spirale, ni magot infini.
+
+## 👶 Renouvellement des générations
+
+- **Fins de carrière** : à partir de 33 ans, chaque joueur peut raccrocher (certitude à 38). Plus personne ne joue à 50 ans.
+- **Centre de formation** : chaque club fait éclore **1 à 3 jeunes de 16 à 18 ans par saison**, avec une note calée sur le niveau réel de l'effectif et un **potentiel** qui peut monter très haut. Les vôtres apparaissent sur l'Accueil avec leur note et leur potentiel.
+- Les effectifs restent dans des bornes saines (18 à 28 joueurs) : les jeunes entrent, les plus faibles partent en fin de contrat.
+
+Mesuré sur 10 saisons : âge moyen stable autour de 25 ans (contre 36 auparavant), plus de 1 700 joueurs de 21 ans ou moins dans la base, aucun joueur au-delà de 39 ans.
+
+## 💾 Sauvegarde
+
+La partie est enregistrée dans le navigateur à chaque journée. Trois garde-fous :
+
+- **Taille bornée** : l'historique de carrière est limité (12 saisons pour votre effectif, 3 ailleurs) et les champs à leur valeur par défaut ne sont pas écrits. La sauvegarde se stabilise autour de **2,6 Mo** au lieu de dépasser le quota de 5 Mo dès la 8e saison.
+- **Alerte visible** : si le navigateur refuse d'écrire, un **bandeau rouge** le dit et propose d'**exporter la partie** en fichier `.json`. Plus de progression perdue en silence.
+- **Contrôle au chargement** : une sauvegarde vide, tronquée ou étrangère est **refusée proprement** avec un message, au lieu de faire planter le jeu. Les sauvegardes d'anciennes versions sont migrées automatiquement.
+
+Boutons **Exporter / Importer** disponibles depuis le menu principal et la carte Finances.
+
 ## 🏆 Compétitions européennes (mode Carrière & Master League)
 
 Onglet **Europe** : qualification par **coefficient UEFA** — chaque pays reçoit un nombre de places selon son rang (les grands championnats 4 en C1, les intermédiaires 2, etc.), attribuées d'après le classement final. **Ligue des Champions** (36), **Ligue Europa** (36), **Ligue Conférence** (24), multi-pays avec les vrais clubs.
@@ -141,7 +165,7 @@ En mode International, **toutes les sélections** (Europe, Amériques, Afrique, 
 | `js/realdata.js` | Données réelles : couleurs & effectifs des 253 clubs |
 | `js/data.js` | Base de données : championnats + générateur de joueurs |
 | `js/engine.js` | Moteur : composition, forces d'équipe, simulation de match |
-| `js/game.js` | Carrière : calendrier, classement, mercato, stats, montées/descentes, sauvegarde |
+| `js/game.js` | Carrière : calendrier, classement, mercato, économie, retraites, formation, sauvegarde |
 | `js/natdata.js` | Vraies sélections nationales (50 nations) |
 | `js/cups.js` | Coupes d'Europe (phase de ligue + phase finale), Supercoupe, sélections |
 | `js/ui.js` | Rendu des écrans et interactions |

@@ -130,6 +130,19 @@ function renderStart(){
   wrap.appendChild(top);
   wrap.appendChild(el("div","logo-rule"));
 
+  /* --- sauvegarde présente mais inexploitable : on le dit, on ne plante pas --- */
+  if (FM.hasSave() && FM.loadError && FM.loadError!=="absente"){
+    const w = el("div","save-alert");
+    w.innerHTML = `<span class="sa-txt"><b>${_t("Sauvegarde illisible")}</b> `
+      + _t("La partie enregistrée est incomplète ou abîmée") + ` (${FM.loadError}).</span>`;
+    const imp = el("button","btn small", icon("upload")+_t("Importer une partie"));
+    imp.onclick = ()=> importSaveFile(()=>{ currentTab="accueil"; renderGame(); });
+    const del = el("button","btn small danger-ghost", _t("Supprimer la sauvegarde"));
+    del.onclick = ()=>{ FM.deleteSave(); FM.loadError=null; renderStart(); };
+    w.appendChild(imp); w.appendChild(del);
+    wrap.appendChild(w);
+  }
+
   /* --- corps : colonne des modes | panneau du mode choisi --- */
   const bodyRow = el("div","menu-body");
   const side = el("div","menu-side");
@@ -258,6 +271,9 @@ function renderStart(){
     del.onclick = ()=>{ if(confirm(_t("Supprimer la sauvegarde ?"))){ FM.deleteSave(); renderStart(); } };
     card.appendChild(del);
   }
+  const imp = el("button","btn ghost",icon("upload")+_t("Importer une partie"));
+  imp.onclick = ()=> importSaveFile(()=>{ currentTab="accueil"; renderGame(); });
+  card.appendChild(imp);
   bodyRow.appendChild(card);
   wrap.appendChild(bodyRow);
 
@@ -329,6 +345,7 @@ function renderGame(){
     b.onclick=()=>{ currentTab=k; renderGame(); };
     tabs.appendChild(b);
   });
+  const alerte = saveAlert(); if (alerte) app.appendChild(alerte);
   app.appendChild(audioBar());
   app.appendChild(tabs);
 
@@ -458,6 +475,9 @@ function renderHome(body){
   const info = el("div","card");
   info.innerHTML = `<h3>${icon("target")}${_t("Objectif de saison")}</h3><p>${cap(FM.state.objectif)} — actuellement <b>${FM.myRank()}${ord(FM.myRank())}</b> / ${FM.clubsInMyLeague().length}.</p>`;
   body.appendChild(info);
+
+  renderFinances(body);
+  renderAcademy(body);
 
   if (FM.state.offres.length){
     const off = el("div","card");
@@ -1856,6 +1876,96 @@ function renderNews(body){
       `Saison ${s.saison} — ${FM.myClub().nom} : ${s.classement}${ord(s.classement)} · Champion : ${s.champion}`)));
     body.appendChild(h);
   }
+}
+
+/* ============= FINANCES ============= */
+function renderFinances(body){
+  const my = FM.myClub();
+  const fin = FM.state.fin || { rec:0, sal:0 };
+  const masse = FM.wageBill ? FM.wageBill(my) : my.joueurs.reduce((a,p)=>a+(p.salaire||0),0);
+  const solde = fin.rec - fin.sal;
+  const annuel = FM.seasonRevenue ? FM.seasonRevenue(my) : 0;
+  const card = el("div","card");
+  card.appendChild(el("h3",null,icon("coin")+_t("Finances")));
+  const g = el("div","fin-grid");
+  const cell = (lbl, val, cls) => `<div><small>${lbl}</small><b class="${cls||''}">${val}</b></div>`;
+  g.innerHTML =
+    cell(_t("Budget de transfert"), money(my.budget), my.budget<0?"neg":"pos") +
+    cell(_t("Masse salariale"), masse.toFixed(0)+" k€/"+_t("sem")) +
+    cell(_t("Recettes de la saison"), fin.rec.toFixed(1)+" M€") +
+    cell(_t("Salaires versés"), fin.sal.toFixed(1)+" M€") +
+    cell(_t("Solde de la saison"), (solde>=0?"+":"")+solde.toFixed(1)+" M€", solde<0?"neg":"pos") +
+    cell(_t("Recettes annuelles"), annuel.toFixed(0)+" M€");
+  card.appendChild(g);
+  card.appendChild(el("p","hint",
+    _t("Les salaires sont prélevés à chaque journée et les recettes encaissées de même. Un effectif surpayé finit dans le rouge ; un bon classement fait rentrer davantage.")));
+  const exp = el("button","btn small",icon("upload")+_t("Exporter la partie"));
+  exp.onclick = exportSaveFile;
+  card.appendChild(exp);
+  body.appendChild(card);
+}
+
+/* ============= CENTRE DE FORMATION ============= */
+function renderAcademy(body){
+  const jeunes = FM.state.jeunesSaison || [];
+  if (!jeunes.length) return;
+  const my = FM.myClub();
+  const card = el("div","card");
+  card.appendChild(el("h3",null,icon("squad")+_t("Centre de formation")));
+  card.appendChild(el("p","hint",_t("Ces joueurs viennent d'être intégrés à votre effectif. Leur potentiel indique jusqu'où ils peuvent monter.")));
+  jeunes.forEach(j=>{
+    const p = FM.getPlayer ? FM.getPlayer(my, j.id) : null;
+    const row = el("div","inj-row");
+    row.innerHTML = `<span><span class="pos-badge ${(FM.POS_GROUP&&FM.POS_GROUP[j.pos])||'M'}">${j.pos}</span> `
+      + `<b>${j.nom}</b> — ${j.age} ${_t("ans")}</span>`
+      + `<span>${_t("Note")} <b class="note ${noteClass(j.note)}">${(p?p.note:j.note)}</b>`
+      + ` · ${_t("Potentiel")} <b>${j.potentiel}</b></span>`;
+    card.appendChild(row);
+  });
+  body.appendChild(card);
+}
+
+/* ============= SAUVEGARDE : EXPORT / IMPORT ============= */
+function exportSaveFile(){
+  try{
+    const blob = new Blob([FM.exportSave()], {type:"application/json"});
+    const a = el("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `euro-manager-S${FM.state.saison}-J${FM.state.journee}.json`;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 600);
+    toast(_t("Partie exportée."));
+  }catch(e){ toast(_t("Export impossible.")); }
+}
+function importSaveFile(onDone){
+  const f = el("input"); f.type="file"; f.accept="application/json,.json"; f.style.display="none";
+  f.onchange = ()=>{
+    const file = f.files && f.files[0]; if(!file) return;
+    const r = new FileReader();
+    r.onload = ()=>{
+      const err = FM.importSave(String(r.result));
+      if (err) toast(_t("Fichier de partie invalide")+" — "+err);
+      else { toast(_t("Partie importée.")); onDone && onDone(); }
+    };
+    r.readAsText(file);
+  };
+  document.body.appendChild(f); f.click();
+  setTimeout(()=>f.remove(), 1000);
+}
+
+/* Bandeau d'alerte : le navigateur n'enregistre plus la partie */
+function saveAlert(){
+  if (!FM.saveError) return null;
+  const w = el("div","save-alert");
+  w.innerHTML = `<span class="sa-txt"><b>${_t("Sauvegarde impossible")}</b> `
+    + (FM.saveError==="quota"
+        ? _t("La mémoire du navigateur est pleine : votre progression n'est plus enregistrée.")
+        : _t("Le navigateur refuse d'enregistrer la partie."))
+    + "</span>";
+  const b = el("button","btn small", icon("upload")+_t("Exporter la partie"));
+  b.onclick = exportSaveFile;
+  w.appendChild(b);
+  return w;
 }
 
 /* ============= BANDE SON ============= */

@@ -109,6 +109,66 @@ function objectifFor(club){
   return FM.t("assurer le maintien");
 }
 
+/* ---------- Économie ----------
+   Recettes de référence par réputation (M€ par saison), calibrées sur les
+   masses salariales observées dans la base : un effectif conforme au rang
+   du club équilibre ses comptes, un effectif surpayé creuse le déficit.
+   (mesuré : masse salariale annuelle médiane 21 / 29 / 42 / 66 / 129 M€
+    pour les réputations 1 à 5)                                          */
+const REV_BY_REP = { 1:21.5, 2:29.5, 3:42.5, 4:66, 5:128 };
+/* masse salariale hebdomadaire, en k€ */
+FM.wageBill = club => club.joueurs.reduce((a,p)=>a+(p.salaire||0), 0);
+/* recettes de la saison pour un club, avant modulation par le classement */
+FM.seasonRevenue = club => REV_BY_REP[club.rep] || 30;
+
+/* Encaisse les recettes et paie les salaires de la journée écoulée.
+   Le classement module les recettes de −15 % (dernier) à +15 % (premier). */
+function applyFinances(){
+  const total = FM.totalMatchdays() || 38;
+  const rank = {};
+  let n = 0;
+  try {
+    const t = FM.table();
+    n = t.length;
+    t.forEach((r,i)=>{ rank[r.id] = i+1; });
+  } catch(e){ /* classement indisponible : modulation neutre */ }
+  const my = FM.state.managedClubId;
+  FM.state.fin = FM.state.fin || { rec:0, sal:0 };
+  for (const c of FM.state.db.clubs){
+    const sal = FM.wageBill(c)/1000;                        /* M€ pour la semaine */
+    const perf = rank[c.id] && n>1 ? 0.85 + 0.30*(1 - (rank[c.id]-1)/(n-1)) : 1;
+    const rec = (FM.seasonRevenue(c)/total) * perf;
+    c.budget = Math.round((c.budget + rec - sal)*100)/100;
+    if (c.id === my){
+      FM.state.fin.rec = Math.round((FM.state.fin.rec + rec)*100)/100;
+      FM.state.fin.sal = Math.round((FM.state.fin.sal + sal)*100)/100;
+      if (c.budget < 0 && !FM.state.fin.alerte){
+        FM.state.fin.alerte = true;
+        addNews(FM.t("Vos comptes sont dans le rouge : la masse salariale dépasse vos recettes."), "money");
+      } else if (c.budget >= 0) FM.state.fin.alerte = false;
+    } else {
+      /* club IA : trésorerie bornée, ni faillite en spirale ni magot infini */
+      c.budget = Math.max(0, Math.min(c.budget, FM.seasonRevenue(c)*1.5));
+    }
+  }
+}
+FM.applyFinances = applyFinances;
+
+/* Retire un joueur d'un club en nettoyant sa place dans le onze */
+function retirerDuClub(club, p){
+  const i = club.joueurs.indexOf(p);
+  if (i < 0) return;
+  club.joueurs.splice(i, 1);
+  club.onze = (club.onze||[]).map(sl => sl.id===p.id ? { pos:sl.pos, id:null } : sl);
+}
+
+/* Probabilité de raccrocher, par âge : rien avant 33 ans, certitude à 38 */
+function retireProb(age){
+  if (age < 33) return 0;
+  return Math.min(1, 0.10 + (age-33)*0.18);
+}
+FM.retireProb = retireProb;
+
 /* ---------- Calendrier aller-retour (méthode du cercle) ---------- */
 FM.makeSchedule = function(ids){
   let teams = ids.slice();
@@ -196,6 +256,7 @@ FM.playMatchday = function(forcedMy){
   FM.state.resultats[FM.state.journee] = dayResults;
   FM.state.journee++;
   FM.tickAvailability();                 // blessures/suspensions : une journée de moins
+  applyFinances();                       // recettes encaissées, salaires payés
 
   postMatchdayUpdates(myResult);
   FM.save();
@@ -848,7 +909,12 @@ FM.endSeason = function(){
   const seasonJustEnded = FM.state.saison;
   for (const c of FM.state.db.clubs){
     c.pts=c.j=c.g=c.n=c.p=c.bp=c.bc=0;
-    c.budget += c.budgetTotal*0.12 + (c===my?bonus:0);
+    /* les recettes courantes sont désormais encaissées journée par journée
+       (voir applyFinances) : il ne reste ici que les primes de parcours */
+    c.budget = Math.round((c.budget + (c===my?bonus:0))*100)/100;
+    /* historique borné : 12 saisons pour notre effectif, 3 ailleurs.
+       Une ligne pèse ~94 octets et il y a plus de 5 000 joueurs.        */
+    const capCarriere = (c===my) ? 12 : 3;
     for (const p of c.joueurs){
       const avg = FM.playerAvgNote(p);
       // 1) Historique de carrière (bilan de la saison écoulée)
@@ -856,7 +922,7 @@ FM.endSeason = function(){
       p.carriere.push({ saison:seasonJustEnded, club:c.nom, matchs:p.matchs||0,
                         buts:p.buts||0, passes:p.passes||0, note:p.note,
                         avg:+avg.toFixed(2), sel:p.selJeunes||null });
-      if (p.carriere.length>20) p.carriere.shift();
+      while (p.carriere.length > capCarriere) p.carriere.shift();
       // 2) Boost / malus de performance (si assez de matchs joués)
       let perf=0, tag=null;
       if ((p.matchs||0) >= 8){
@@ -885,8 +951,58 @@ FM.endSeason = function(){
       p.valeur = FM.playerValue(p.note, p.potentiel, p.age);
       p.contrat = Math.max(0, p.contrat-1);
     }
+
+    /* --- Fins de carrière --- */
+    const partants = [];
+    for (const p of c.joueurs.slice()){
+      if (p.age >= 33 && FM._rnd() < retireProb(p.age)) partants.push(p);
+    }
+    const placeDepart = Math.max(0, c.joueurs.length - 17);   /* on ne vide pas un effectif */
+    for (const p of partants.slice(0, placeDepart)){
+      retirerDuClub(c, p);
+      if (c===my) addNews(`${p.nom} (${p.age} ${FM.t('ans')}) ${FM.t('raccroche les crampons.')}`, "season");
+    }
+
+    /* --- Centre de formation : 1 à 3 jeunes par saison selon la réputation --- */
+    /* le club du joueur reçoit toujours ses jeunes : sinon l'effectif sature
+       au plafond et le centre de formation ne sert plus à rien */
+    const plafond = (c===my) ? 99 : 24;
+    const nJeunes = Math.min(
+      1 + (FM._rnd() < (c.rep>=4 ? .8 : c.rep>=3 ? .55 : .35) ? 1 : 0)
+        + (FM._rnd() < (c.rep>=4 ? .35 : .12) ? 1 : 0),
+      Math.max(0, plafond - c.joueurs.length)
+    );
+    const promus = [];
+    for (let i=0; i<nJeunes; i++) promus.push(FM.makeYouth(c));
+    c.joueurs.push(...promus);
+
+    /* --- Élagage : l'effectif revient à sa taille cible, les plus faibles
+           partent. Le club du joueur n'est jamais élagué sous 24 : c'est à
+           lui de gérer son effectif.                                      --- */
+    const cible = (c===my) ? 28 : 21 + FM._ri(0,2);
+    while (c.joueurs.length > cible){
+      let sortant = null, pire = Infinity;
+      for (const p of c.joueurs){
+        if (promus.indexOf(p) >= 0) continue;          /* on ne jette pas la recrue du jour */
+        /* score de conservation : la note, moins le poids de l'âge */
+        const sc = p.note + Math.max(0, 22-p.age)*0.3 - Math.max(0, p.age-31)*1.4;
+        if (sc < pire){ pire = sc; sortant = p; }
+      }
+      if (!sortant) break;
+      retirerDuClub(c, sortant);
+      if (c===my) addNews(`${sortant.nom} (${sortant.age} ${FM.t('ans')}) ${FM.t('quitte le club en fin de contrat.')}`, "transfer");
+    }
+
+    if (c===my){
+      FM.state.jeunesSaison = promus.map(p=>({ id:p.id, nom:p.nom, pos:p.pos, age:p.age,
+                                               note:p.note, potentiel:p.potentiel }));
+      if (promus.length) addNews(`${FM.t('Centre de formation')} : `
+        + promus.map(p=>`${p.nom} (${p.age} ${FM.t('ans')}, ${p.note}/${p.potentiel})`).join(", ") + ".", "up");
+    }
     c.onze = FM.autoPickXI(c);
   }
+
+  FM.state.fin = { rec:0, sal:0, alerte:false };
 
   // --- Convocations en sélections de jeunes (U17/U19/U21) ---
   applyYouthCallups();
@@ -1104,14 +1220,75 @@ function addNews(txt, kind){
 }
 FM.addNews = addNews;
 
-/* ---------- Sauvegarde locale ---------- */
+/* ---------- Sauvegarde locale ----------
+   Une carrière longue doit tenir sous le quota du navigateur (5 Mo).
+   Deux leviers : les champs qui valent leur valeur par défaut ne sont pas
+   écrits, et l'historique de carrière est borné (voir endSeason).        */
+const SAVE_DEFAULTS = { buts:0, passes:0, matchs:0, noteTotale:0, noteMatchs:0,
+                        transferListe:false, selJeunes:null, blessure:0,
+                        suspension:0, cartons:0 };
+/* fonction classique et non fléchée : « this » est l'objet qui porte la clé,
+   ce qui permet de n'alléger que les joueurs et rien d'autre */
+function saveReplacer(k, v){
+  if (this && this.pos !== undefined && this.note !== undefined &&
+      Object.prototype.hasOwnProperty.call(SAVE_DEFAULTS, k) && v === SAVE_DEFAULTS[k]) return undefined;
+  return v;
+}
+/* Restaure les valeurs par défaut omises et rattrape les formats anciens */
+FM.migrateState = function(){
+  const s = FM.state; if (!s) return;
+  const fix = p => { for (const k in SAVE_DEFAULTS) if (p[k] === undefined) p[k] = SAVE_DEFAULTS[k]; };
+  ((s.db && s.db.clubs) || []).forEach(c => (c.joueurs || []).forEach(fix));
+  (s.freeAgents || []).forEach(fix);
+  (s.news || []).forEach(n => { if (!n.kind) n.kind = "info"; });
+  const comp = c => { if (c && c.emoji && !c.ic){ c.ic = "cup"; delete c.emoji; } };
+  comp(s.coupe);
+  if (s.europe) ["UCL","UEL","UECL"].forEach(k => comp(s.europe[k]));
+  if (!s.fin) s.fin = { rec:0, sal:0 };
+};
+/* Contrôle d'intégrité : mieux vaut refuser une sauvegarde abîmée que
+   planter à la première action */
+FM.checkState = function(s){
+  if (!s || typeof s !== "object" || Array.isArray(s)) return "format";
+  if (!s.db || !Array.isArray(s.db.clubs) || !s.db.clubs.length) return "clubs";
+  if (!Array.isArray(s.calendrier)) return "calendrier";
+  if (s.managedClubId == null || !s.db.clubs.some(c => c.id === s.managedClubId)) return "club dirigé";
+  if (typeof s.journee !== "number" || typeof s.saison !== "number") return "compteurs";
+  return null;
+};
+FM.saveError = null;   /* "quota" | "erreur" | null */
+FM.loadError = null;   /* "illisible" | motif d'invalidité | null */
 FM.save = function(){
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(FM.state)); } catch(e){ console.warn("save fail", e); }
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(FM.state, saveReplacer));
+    FM.saveError = null;
+    return true;
+  } catch(e){
+    FM.saveError = (e && (e.name === "QuotaExceededError" || e.code === 22)) ? "quota" : "erreur";
+    return false;
+  }
 };
 FM.load = function(){
   const raw = localStorage.getItem(SAVE_KEY);
-  if (!raw) return false;
-  try { FM.state = JSON.parse(raw); return true; } catch(e){ return false; }
+  if (!raw){ FM.loadError = "absente"; return false; }
+  let s;
+  try { s = JSON.parse(raw); } catch(e){ FM.loadError = "illisible"; return false; }
+  const bad = FM.checkState(s);
+  if (bad){ FM.loadError = bad; return false; }
+  FM.state = s; FM.loadError = null;
+  FM.migrateState();
+  return true;
 };
 FM.hasSave = () => !!localStorage.getItem(SAVE_KEY);
-FM.deleteSave = function(){ localStorage.removeItem(SAVE_KEY); FM.state=null; };
+FM.deleteSave = function(){ localStorage.removeItem(SAVE_KEY); FM.state=null; FM.saveError=null; };
+/* Export / import : filet de sécurité si le navigateur refuse d'écrire */
+FM.exportSave = () => JSON.stringify(FM.state, saveReplacer);
+FM.importSave = function(txt){
+  let s;
+  try { s = JSON.parse(txt); } catch(e){ return "illisible"; }
+  const bad = FM.checkState(s);
+  if (bad) return bad;
+  FM.state = s; FM.migrateState(); FM.save();
+  return null;
+};
+FM.saveSizeKo = () => Math.round(JSON.stringify(FM.state, saveReplacer).length/1024);
