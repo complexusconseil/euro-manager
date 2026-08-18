@@ -112,6 +112,30 @@ Les **salaires sont prélevés à chaque journée** et les **recettes encaissée
 
 Les recettes de référence sont calées sur les masses salariales réelles de la base (21 / 29 / 42 / 66 / 128 M€ par saison selon la réputation du club) : **un effectif conforme au rang du club équilibre ses comptes**, un effectif surpayé passe dans le rouge, un bon classement dégage une marge pour le mercato. Les clubs gérés par l'ordinateur tiennent une comptabilité simplifiée et bornée — ni faillite en spirale, ni magot infini.
 
+### Un circuit monétaire fermé
+
+**Tout euro qui quitte la trésorerie d'un club arrive dans celle d'un autre.** Transferts et prêts sont de pures redistributions ; les seules entrées et sorties du circuit sont explicites et tenues dans un grand livre (`FM.state.eco`) : recettes, salaires, primes de signature et régulations. L'égalité se vérifie à tout instant :
+
+```
+masse(t) = masse(0) + recettes − salaires − primes + régulations
+```
+
+Mesuré sur une saison complète des 15 championnats, 271 clubs : **écart 0,000 M€**. Ce qui, au passage, ferme cinq brèches :
+
+- **le club acheteur paie réellement** — une vente créditait votre compte sans jamais débiter le sien ;
+- **l'indemnité de prêt va au club parent** — elle disparaissait dans le vide à l'aller et sortait de nulle part au retour ;
+- **prêter puis rappeler ne rapporte plus rien** : l'indemnité est remboursée à celui qui l'a versée, le rappel exige un mercato ouvert, et un joueur qui rentre de prêt ne repart pas dans la foulée. La boucle rapportait 5 M€ par aller-retour, sans limite ;
+- **un agent libre n'est plus une machine à cash** : la prime passe de 20 % à 60 % de la valeur, et un joueur tout juste signé ne peut pas être revendu dans la même fenêtre. Le rapport valeur/prime tombe de **3,4×** à **1,66×** ;
+- **un montant d'offre invalide est refusé** : un champ vide donnait `NaN` et contaminait définitivement le budget.
+
+### Un effectif ne peut plus être vidé
+
+Un club conserve au minimum **16 joueurs sous contrat** — les prêts entrants ne comptent pas — et un **plancher par ligne** (2 gardiens, 5 défenseurs, 4 milieux, 3 attaquants). Ce plancher gouverne aussi les fins de carrière et l'élagage de fin de saison, et le centre de formation comble en priorité une ligne dégarnie. Il était possible de descendre à 16 joueurs dont 6 sous contrat, tous attaquants, sans le moindre gardien.
+
+### Le marché vit sans vous
+
+Les clubs gérés par l'ordinateur **mettent des joueurs sur la liste, se les achètent entre eux et signent des agents libres** à chaque journée de mercato. Auparavant le marché n'était alimenté que par les joueurs que *vous* listiez : l'onglet « Transférables » restait vide et les effectifs adverses étaient identiques du début à la fin d'une carrière.
+
 ## 👶 Renouvellement des générations
 
 - **Fins de carrière** : à partir de 33 ans, chaque joueur peut raccrocher (certitude à 38). Plus personne ne joue à 50 ans.
@@ -122,13 +146,22 @@ Mesuré sur 10 saisons : âge moyen stable autour de 25 ans (contre 36 auparavan
 
 ## 💾 Sauvegarde
 
-La partie est enregistrée dans le navigateur à chaque journée. Trois garde-fous :
+La partie est enregistrée dans le navigateur à chaque journée. Quatre garde-fous :
 
 - **Taille bornée** : l'historique de carrière est limité (12 saisons pour votre effectif, 3 ailleurs) et les champs à leur valeur par défaut ne sont pas écrits. La sauvegarde se stabilise autour de **2,6 Mo** au lieu de dépasser le quota de 5 Mo dès la 8e saison.
 - **Alerte visible** : si le navigateur refuse d'écrire, un **bandeau rouge** le dit et propose d'**exporter la partie** en fichier `.json`. Plus de progression perdue en silence.
-- **Contrôle au chargement** : une sauvegarde vide, tronquée ou étrangère est **refusée proprement** avec un message, au lieu de faire planter le jeu. Les sauvegardes d'anciennes versions sont migrées automatiquement.
+- **Contrôle au chargement** : une sauvegarde vide, tronquée ou étrangère est **refusée proprement** avec un message, au lieu de faire planter le jeu. Le contrôle porte sur douze points — présence des résultats et des actualités, cohérence du championnat suivi, effectif et trésorerie du club dirigé, calendrier qui ne désigne que des clubs existants. Les sauvegardes d'anciennes versions sont migrées automatiquement.
+- **Le jeu tourne même sans stockage** : en navigation privée stricte, ou cookies bloqués, le simple fait de *lire* `localStorage` lève une exception. Le jeu la rattrape et reste jouable — sans sauvegarde, mais jouable. L'écran restait auparavant **entièrement blanc**.
 
 Boutons **Exporter / Importer** disponibles depuis le menu principal et la carte Finances.
+
+## 🌍 Le reste de l'Europe joue aussi
+
+Les **15 championnats sont disputés en parallèle** du vôtre. Chaque journée, les autres pays avancent au prorata de leur propre calendrier, avec un modèle allégé — score et buteurs, sans blessures ni cartons — pour que tout le monde boucle sa saison en même temps que vous.
+
+Il en découle des classements étrangers réels, des **meilleurs buteurs dans chaque pays**, et surtout des **places européennes attribuées au mérite**. Auparavant seule votre ligue était simulée : les 235 clubs étrangers finissaient la saison à **0 point et 0 match**, et la Ligue des Champions se peuplait donc par **ordre alphabétique**.
+
+Vérifié sur une saison : 15 championnats joués intégralement, moyenne des qualifiés en C1 à **79,3** contre **72,6** pour le monde entier, le tout en **1,1 seconde**.
 
 ## 🏆 Compétitions européennes (mode Carrière & Master League)
 

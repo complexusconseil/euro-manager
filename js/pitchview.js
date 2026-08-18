@@ -47,7 +47,17 @@ const dist  = (ax,ay,bx,by) => Math.hypot(ax-bx, ay-by);
 
 FM.pitchView = function(canvas, opts){
   opts = opts || {};
-  const g = canvas.getContext("2d");
+  /* Un canvas sans contexte 2D (mémoire GPU saturée, canvas détaché du DOM,
+     navigateur qui refuse l'accélération) faisait lever une exception à
+     chaque image. On rend alors une vue inerte : le match se joue quand même,
+     seule l'animation manque. */
+  const g = canvas.getContext && canvas.getContext("2d");
+  if (!g){
+    const rien = ()=>{};
+    return { start:rien, stop:rien, setPaused:rien, setTempo:rien, goal:rien,
+             kickoff:rien, indisponible:true,
+             state(){ return { pos:0, ball:{x:0,y:0,carrier:-1}, players:[] }; } };
+  }
   const W = canvas.width, H = canvas.height;
   const M = 12;                                  /* marge = ligne de touche */
   const PX = x => M + x*(W-2*M);                 /* 0..1 → pixels (longueur) */
@@ -370,11 +380,14 @@ FM.pitchView = function(canvas, opts){
   /* ---------- Boucle ---------- */
   let raf = 0, last = 0, clock = 0, paused = false, tempo = 1;
   function frame(ts){
+    /* En pause, l'image est figée : inutile de la redessiner soixante fois
+       par seconde. On sort de la boucle et setPaused(false) la relance. */
+    if (paused){ raf = 0; return; }
     raf = requestAnimationFrame(frame);
     if (!last) last = ts;
     let dt = (ts-last)/1000; last = ts;
     dt = clamp(dt, 0, 0.05);                    /* onglet en arrière-plan   */
-    if (!paused){
+    {
       const d = dt*tempo;
       clock += d;
       if (celebrating > 0){
@@ -427,7 +440,10 @@ FM.pitchView = function(canvas, opts){
   return {
     start(){ if(!raf){ last=0; raf = requestAnimationFrame(frame); } },
     stop(){ cancelAnimationFrame(raf); raf = 0; },
-    setPaused(v){ paused = !!v; if(!v) last = 0; },
+    setPaused(v){
+      paused = !!v;
+      if (!v){ last = 0; if (!raf) raf = requestAnimationFrame(frame); }
+    },
     setTempo(v){ tempo = clamp(v, 0.5, 3); },
     /* but marqué : le ballon finit au fond, puis engagement adverse */
     goal(side){

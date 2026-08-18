@@ -319,7 +319,25 @@ const EN = {
   "Effectif complet (30 max). Vendez d'abord.":"Squad full (30 max). Sell someone first.",
   "Budget insuffisant":"Insufficient budget",
   "domicile":"home", "extérieur":"away", "contre":"vs", "Vainqueur :":"Winner:",
-  "er":"st", "e":"th"
+  "er":"st", "e":"th",
+
+  /* --- Économie des transferts et des prêts --- */
+  "Saisissez un montant en M€ (chiffres uniquement).":"Enter an amount in \u20acM (digits only).",
+  "Saisissez un montant d'offre valide (en M€).":"Enter a valid bid amount (in \u20acM).",
+  "ne peut pas se démunir":"cannot let him go",
+  "Ce joueur est concerné par un prêt.":"This player is involved in a loan.",
+  "Le club acheteur n'existe plus.":"The buying club no longer exists.",
+  "s'est retiré : il n'a plus les moyens de cette offre.":"has withdrawn: it can no longer afford this bid.",
+  "quitte":"leaves",
+  "Effectif trop court":"Squad too small",
+  "joueurs sous contrat minimum":"players under contract minimum",
+  "Il ne resterait pas assez de joueurs à ce poste":"Not enough players would be left in that position",
+  "rentre tout juste d'un prêt : son club le garde cette saison.":"has just returned from a loan spell: his club is keeping him this season.",
+  "a un effectif trop court pour prêter":"has too small a squad to loan out",
+  "rentre tout juste d'un prêt : laissez-lui la saison.":"has just come back from a loan spell: give him the season.",
+  "Prêt introuvable.":"Loan not found.",
+  "indemnité remboursée":"fee refunded",
+  "est en prêt : il n'est pas à vendre.":"is out on loan: he is not for sale.",
 };
 
 let LANG = "fr";

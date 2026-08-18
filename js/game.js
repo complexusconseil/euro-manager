@@ -170,7 +170,7 @@ FM.takeOverClub = function(clubId){
   FM.state.ligueJoueur  = c.ligue;
   ensureSecondDivision(FM.baseLeagueId(c.ligue));
   FM.state.calendrier   = FM.makeSchedule(FM.clubsInMyLeague().map(x=>x.id));
-  FM.state.journee = 0; FM.state.resultats = []; FM.state.offres = [];
+  FM.state.journee = 0; FM.state.resultats = []; FM.state.offres = []; FM.state.progres = {};
   FM.state.confiance = 60; FM.state.echecs = 0;
   FM.state.sacked = false; FM.state.sackOffers = null;
   FM.state.fin = { rec:0, sal:0, alerte:false };
@@ -268,6 +268,41 @@ FM.trainingEdge = function(cle){
    (mesuré : masse salariale annuelle médiane 21 / 29 / 42 / 66 / 129 M€
     pour les réputations 1 à 5)                                          */
 const REV_BY_REP = { 1:21.5, 2:29.5, 3:42.5, 4:66, 5:128 };
+
+/* ---------- CIRCUIT MONÉTAIRE ----------
+   Règle : tout euro qui quitte la trésorerie d'un club arrive dans celle d'un
+   autre. Les transferts et les prêts sont donc de pures redistributions.
+   Les seules entrées/sorties du circuit sont explicites et comptabilisées
+   dans FM.state.eco, ce qui rend l'invariant vérifiable :
+
+     masse(t) = masse(0) + eco.recettes − eco.salaires − eco.primes + eco.regul
+
+   (« primes » = signatures d'agents libres, qui vont au joueur et non à un
+    club ; « regul » = écrêtage des trésoreries IA, cf. applyFinances.)       */
+const ECO0 = { recettes:0, salaires:0, primes:0, regul:0 };
+function eco(){
+  if (!FM.state.eco) FM.state.eco = Object.assign({}, ECO0);
+  return FM.state.eco;
+}
+FM.eco = eco;
+const round2 = v => Math.round(v*100)/100;
+/* Somme des trésoreries : doit rester stable à chaque transfert ou prêt */
+FM.moneyMass = () => round2(FM.state.db.clubs.reduce((a,c)=>a+(c.budget||0), 0));
+/* Déplace `m` M€ du club `from` vers le club `to`. L'un des deux peut être
+   null (club hors base) : le mouvement est alors porté au poste `poste`. */
+function moveMoney(from, to, m, poste){
+  if (!(m > 0)) return;
+  m = round2(m);
+  if (from) from.budget = round2(from.budget - m);
+  if (to)   to.budget   = round2(to.budget + m);
+  if (!from && !to) return;
+  if (!to)   eco()[poste || "primes"] += m;
+  if (!from) eco()[poste || "primes"] -= m;
+}
+FM.moveMoney = moveMoney;
+/* Un montant saisi par le joueur est-il exploitable ? (garde-fou NaN) */
+FM.validAmount = m => typeof m === "number" && isFinite(m) && m >= 0;
+
 /* masse salariale hebdomadaire, en k€ */
 FM.wageBill = club => club.joueurs.reduce((a,p)=>a+(p.salaire||0), 0);
 /* recettes de la saison pour un club, avant modulation par le classement */
@@ -286,21 +321,32 @@ function applyFinances(){
   } catch(e){ /* classement indisponible : modulation neutre */ }
   const my = FM.state.managedClubId;
   FM.state.fin = FM.state.fin || { rec:0, sal:0 };
+  const E = eco();
   for (const c of FM.state.db.clubs){
     const sal = FM.wageBill(c)/1000;                        /* M€ pour la semaine */
     const perf = rank[c.id] && n>1 ? 0.85 + 0.30*(1 - (rank[c.id]-1)/(n-1)) : 1;
     const rec = (FM.seasonRevenue(c)/total) * perf;
-    c.budget = Math.round((c.budget + rec - sal)*100)/100;
+    const avantArrondi = c.budget + rec - sal;
+    c.budget = round2(avantArrondi);
+    E.recettes += rec;
+    E.salaires += sal;
+    /* l'arrondi au centime est lui aussi une entrée/sortie : sans cette ligne,
+       271 clubs × 38 journées de ±0,005 M€ font dériver le contrôle de ~30 M€ */
+    E.regul += c.budget - avantArrondi;
     if (c.id === my){
-      FM.state.fin.rec = Math.round((FM.state.fin.rec + rec)*100)/100;
-      FM.state.fin.sal = Math.round((FM.state.fin.sal + sal)*100)/100;
+      FM.state.fin.rec = round2(FM.state.fin.rec + rec);
+      FM.state.fin.sal = round2(FM.state.fin.sal + sal);
       if (c.budget < 0 && !FM.state.fin.alerte){
         FM.state.fin.alerte = true;
         addNews(FM.t("Vos comptes sont dans le rouge : la masse salariale dépasse vos recettes."), "money");
       } else if (c.budget >= 0) FM.state.fin.alerte = false;
     } else {
-      /* club IA : trésorerie bornée, ni faillite en spirale ni magot infini */
-      c.budget = Math.max(0, Math.min(c.budget, FM.seasonRevenue(c)*1.5));
+      /* club IA : trésorerie bornée, ni faillite en spirale ni magot infini.
+         L'écart créé par l'écrêtage est porté au poste « regul » pour que le
+         circuit monétaire reste vérifiable. */
+      const avant = c.budget;
+      c.budget = round2(Math.max(0, Math.min(c.budget, FM.seasonRevenue(c)*1.5)));
+      E.regul += c.budget - avant;
     }
   }
 }
@@ -407,6 +453,7 @@ FM.playMatchday = function(forcedMy){
 
   FM.state.resultats[FM.state.journee] = dayResults;
   FM.state.journee++;
+  advanceBackgroundLeagues();            // le reste de l'Europe joue aussi
   FM.tickAvailability();                 // blessures/suspensions : une journée de moins
   applyFinances();                       // recettes encaissées, salaires payés
   confianceEnCours();                    // les dirigeants suivent le classement
@@ -415,6 +462,83 @@ FM.playMatchday = function(forcedMy){
   FM.save();
   return { dayResults, myResult };
 };
+
+/* ============================================================
+   CHAMPIONNATS ÉTRANGERS — simulation de fond
+   Auparavant, seule la ligue du joueur était jouée : les 235 clubs des autres
+   pays finissaient la saison à 0 point et 0 match, et les places européennes
+   étaient donc attribuées par ordre alphabétique. Chaque journée, les autres
+   championnats avancent au prorata, avec un modèle allégé (score + buteurs,
+   sans blessures ni cartons — invisible pour le joueur, et cent fois moins
+   coûteux que la simulation complète).
+   ============================================================ */
+
+/* Calendrier d'une ligue : recalculé à la demande, jamais stocké. Les ids
+   sont triés, donc l'ordre est stable tant que la composition ne change pas. */
+const schedCache = { key:null, map:null };
+function leagueSchedule(ligue){
+  const cle = FM.state.saison + "|" + FM.state.db.clubs.length;
+  if (schedCache.key !== cle){ schedCache.key = cle; schedCache.map = {}; }
+  if (!schedCache.map[ligue]){
+    const ids = FM.state.db.clubs.filter(c=>c.ligue===ligue).map(c=>c.id).sort((a,b)=>a-b);
+    schedCache.map[ligue] = ids.length >= 2 ? FM.makeSchedule(ids) : [];
+  }
+  return schedCache.map[ligue];
+}
+FM.leagueSchedule = leagueSchedule;
+
+/* Toutes les ligues hors celle du joueur (la sienne est jouée en détail) */
+FM.backgroundLeagues = function(){
+  const vues = new Set(), out = [];
+  for (const c of FM.state.db.clubs){
+    if (c.ligue === FM.state.ligueJoueur || vues.has(c.ligue)) continue;
+    vues.add(c.ligue); out.push(c.ligue);
+  }
+  return out;
+};
+
+/* Match de fond : même modèle de score que la simulation complète, mais sans
+   événements détaillés — on attribue simplement les buts à des joueurs
+   plausibles pour que les classements de buteurs existent partout. */
+function simulateBackground(dom, ext){
+  const res = FM.simulateMatch(dom, ext);
+  applyResult(dom, ext, res);
+  for (const e of res.events){
+    const c = e.clubId === dom.id ? dom : ext;
+    const p = FM.getPlayer(c, e.joueurId);
+    if (p) p.buts++;
+  }
+  for (const c of [dom, ext]) for (const s of c.onze){
+    const p = FM.getPlayer(c, s.id);
+    if (p) p.matchs = (p.matchs||0) + 1;
+  }
+}
+
+/* Fait avancer les championnats étrangers pour qu'ils bouclent leur saison
+   en même temps que celui du joueur. */
+function advanceBackgroundLeagues(){
+  const mien = FM.totalMatchdays();
+  if (!mien) return;
+  FM.state.progres = FM.state.progres || {};
+  const avancement = FM.state.journee / mien;                 /* 0 → 1 */
+  for (const lg of FM.backgroundLeagues()){
+    const cal = leagueSchedule(lg);
+    if (!cal.length) continue;
+    const cible = Math.min(cal.length, Math.round(avancement * cal.length));
+    let joue = FM.state.progres[lg] || 0;
+    while (joue < cible){
+      for (const m of cal[joue]){
+        const dom = FM.clubById(m.dom), ext = FM.clubById(m.ext);
+        if (!dom || !ext) continue;                            /* club disparu */
+        dom.onze = FM.autoPickXI(dom); ext.onze = FM.autoPickXI(ext);
+        simulateBackground(dom, ext);
+      }
+      joue++;
+    }
+    FM.state.progres[lg] = joue;
+  }
+}
+FM.advanceBackgroundLeagues = advanceBackgroundLeagues;
 
 /* Décrémente blessures et suspensions d'une journée (sauf celles du jour) */
 FM.tickAvailability = function(){
@@ -531,8 +655,9 @@ function postMatchdayUpdates(myResult){
     const s = myResult.dom===my.id ? `${myResult.ds}-${myResult.es}` : `${myResult.es}-${myResult.ds}`;
     addNews(`J${FM.state.journee} — ${my.nom} ${gagne?FM.t("s'impose"):(nul?FM.t("fait match nul"):FM.t("s'incline"))} ${s} ${FM.t('face à')} ${adv.nom}.`, "match");
   }
-  // Mercato IA : offres pour nos joueurs listés
+  // Mercato IA : offres pour nos joueurs listés, et vie du marché entre clubs IA
   generateAIOffers();
+  runAIMarket();
 }
 
 /* ============================================================
@@ -711,17 +836,33 @@ FM.playerWillingness = function(note, buyerRep){
   return { ok:false, reason:`vise un club plus huppé (niveau ${"★".repeat(exp)})` };
 };
 /* Prime de signature d'un AGENT LIBRE : il accepte tout club, mais réclame une
-   prime d'autant plus élevée que le club est loin de son niveau (pas de refus). */
+   prime d'autant plus élevée que le club est loin de son niveau (pas de refus).
+   Le club économise l'indemnité de transfert : un agent libre reste une bonne
+   affaire (≈ 40 % de moins qu'un joueur sous contrat), mais plus une machine à
+   revendre — la prime était à 20 % de la valeur, contre 85-125 % au rachat. */
 FM.freeAgentPrime = function(fa, buyerRep){
   const gap = Math.max(0, expectedRepFor(fa.note) - (buyerRep||1));
   const mult = 1 + 0.3*gap;                        // écart de 2 crans → ×1.6
-  return Math.max(0.1, Math.round(fa.valeur * 0.2 * mult * 10)/10);
+  return Math.max(0.1, Math.round(fa.valeur * 0.6 * mult * 10)/10);
 };
+/* Fenêtre de mercato courante, sous forme de repère stable dans la partie */
+function windowKey(){
+  const w = FM.transferWindow();
+  return FM.state.saison + ":" + (w.type || "hors");
+}
+/* Un joueur tout juste recruté ne peut pas être revendu dans la foulée :
+   sans cette règle, acheter puis revendre au sein d'une même fenêtre est un
+   arbitrage sans risque. */
+FM.justSigned = p => !!p.signeFenetre && p.signeFenetre === windowKey();
 
 /* Acheter : renvoie {ok, msg} */
 FM.buyPlayer = function(playerId, offreM){
   const my = FM.myClub();
   if (!FM.marketOpen()) return { ok:false, msg:windowClosedMsg() };
+  /* Un champ vide donne parseFloat("") === NaN : sans ce contrôle, NaN passe
+     toutes les comparaisons et contamine définitivement la trésorerie. */
+  if (!FM.validAmount(offreM))
+    return { ok:false, msg:FM.t("Saisissez un montant d'offre valide (en M€).") };
 
   // 1) Agent libre : signature contre une simple prime (pas d'indemnité de transfert)
   const fa = (FM.state.freeAgents || []).find(x=>x.id===playerId);
@@ -733,8 +874,9 @@ FM.buyPlayer = function(playerId, offreM){
     FM.state.freeAgents = FM.state.freeAgents.filter(x=>x.id!==playerId);
     FM.state.usedFreeAgents = FM.state.usedFreeAgents || [];
     if (!FM.state.usedFreeAgents.includes(fa.nom)) FM.state.usedFreeAgents.push(fa.nom);
-    my.budget -= offreM;
+    moveMoney(my, null, offreM, "primes");     /* la prime va au joueur, pas à un club */
     fa.transferListe = false; fa.contrat = FM._ri(2,4); fa.moral = Math.min(99, fa.moral+6);
+    fa.signeFenetre = windowKey();
     my.joueurs.push(fa);
     my.onze = FM.autoPickXI(my);
     addNews(`${FM.t('Signature libre')} : ${fa.nom} (${fa.note}) ${FM.t("s'engage avec")} ${my.nom} (${FM.t('prime')} ${offreM.toFixed(1)} M€).`, "transfer");
@@ -749,6 +891,10 @@ FM.buyPlayer = function(playerId, offreM){
     if (p){ seller=c; player=p; break; }
   }
   if (!player) return { ok:false, msg:FM.t("Joueur introuvable.") };
+  /* Un joueur en prêt n'appartient pas au club qui l'aligne : il ne peut pas
+     être vendu par lui, et son club parent le récupère en fin de saison. */
+  if (player.loan)
+    return { ok:false, msg:`${player.nom} ${FM.t("est en prêt : il n'est pas à vendre.")}` };
   if (my.joueurs.length >= 30) return { ok:false, msg:"Effectif complet (30 max). Vendez d'abord." };
   if (offreM > my.budget) return { ok:false, msg:`Budget insuffisant (${my.budget.toFixed(1)} M€ dispo).` };
 
@@ -764,13 +910,16 @@ FM.buyPlayer = function(playerId, offreM){
   if (offreM < seuil){
     return { ok:false, msg:`${seller.nom} refuse. Il faut environ ${seuil.toFixed(1)} M€ pour ${player.nom}${will.mult>1?" (et le convaincre)":""}.` };
   }
-  // Transfert accepté
+  // Le vendeur doit pouvoir se passer du joueur (effectif, gardien)
+  const manque = FM.departureBlock(seller, player);
+  if (manque) return { ok:false, msg:`${seller.nom} ${FM.t("ne peut pas se démunir")} : ${manque.toLowerCase()}` };
+  // Transfert accepté — l'intégralité de l'indemnité va au club vendeur
   seller.joueurs = seller.joueurs.filter(p=>p.id!==playerId);
-  seller.budget += offreM * 0.9;
   seller.onze = FM.autoPickXI(seller);
-  my.budget -= offreM;
+  moveMoney(my, seller, offreM);
   player.transferListe = false;
   player.moral = Math.min(99, player.moral+8);
+  player.signeFenetre = windowKey();
   my.joueurs.push(player);
   my.onze = FM.autoPickXI(my);
   addNews(`${FM.t('Recrutement')} : ${player.nom} (${player.note}) ${FM.t('rejoint')} ${my.nom} ${FM.t('pour')} ${offreM.toFixed(1)} M€.`, "transfer");
@@ -784,6 +933,7 @@ FM.toggleTransferList = function(playerId){
   const p = my.joueurs.find(x=>x.id===playerId);
   if (!p) return;
   if (p.loan) return;                 // un joueur prêté ne peut pas être vendu
+  if (!p.transferListe && FM.justSigned(p)) return;   // pas de revente dans la foulée
   p.transferListe = !p.transferListe;
   FM.save();
 };
@@ -796,10 +946,18 @@ FM.acceptOffer = function(offreIndex){
   const my = FM.myClub();
   const p = my.joueurs.find(x=>x.id===o.joueurId);
   if (!p) return { ok:false, msg:FM.t("Joueur déjà parti.") };
-  if (my.joueurs.length <= 16) return { ok:false, msg:FM.t("Effectif trop court (16 min).") };
+  if (p.loan) return { ok:false, msg:FM.t("Ce joueur est concerné par un prêt.") };
+  const bloque = FM.departureBlock(my, p);
+  if (bloque) return { ok:false, msg:bloque };
   const buyer = FM.clubById(o.clubId);
+  if (!buyer) return { ok:false, msg:FM.t("Le club acheteur n'existe plus.") };
+  /* L'offre peut avoir vieilli : le club doit toujours avoir les fonds. */
+  if (buyer.budget + 1e-9 < o.montant){
+    FM.state.offres.splice(offreIndex,1); FM.save();
+    return { ok:false, msg:`${buyer.nom} ${FM.t("s'est retiré : il n'a plus les moyens de cette offre.")}` };
+  }
   my.joueurs = my.joueurs.filter(x=>x.id!==p.id);
-  my.budget += o.montant;
+  moveMoney(buyer, my, o.montant);            /* l'acheteur paie réellement */
   my.onze = FM.autoPickXI(my);
   p.transferListe = false;
   buyer.joueurs.push(p);
@@ -828,6 +986,101 @@ function generateAIOffers(){
       }
     }
   }
+}
+
+/* ---------- MERCATO ENTRE CLUBS IA ----------
+   Sans cette routine, aucun club de la base ne bougeait jamais : le marché
+   n'était alimenté que par les joueurs que VOUS mettiez sur la liste, et les
+   effectifs adverses restaient identiques d'un bout à l'autre d'une carrière.
+   Chaque journée de mercato, quelques clubs listent un joueur en trop et
+   quelques autres recrutent, dans la limite de leur trésorerie.            */
+FM.AI_LIST_RATE = 0.06;      /* part des clubs qui bougent par journée */
+FM.AI_DEALS_PER_DAY = 8;     /* transferts IA↔IA conclus par journée    */
+
+/* Le club a-t-il un surplus à ce poste ? (base d'une mise sur liste) */
+function surplusAt(club, p){
+  const meme = club.joueurs.filter(x => x.groupe === p.groupe);
+  const mini = p.groupe === "G" ? 2 : p.groupe === "D" ? 6 : p.groupe === "M" ? 5 : 4;
+  if (meme.length <= mini) return false;
+  const rang = meme.slice().sort((a,b)=>b.note-a.note).findIndex(x=>x.id===p.id);
+  return rang >= mini - 1;                    /* remplaçant du remplaçant */
+}
+
+function aiListPlayers(){
+  const my = FM.state.managedClubId;
+  for (const c of FM.state.db.clubs){
+    if (c.id === my || FM._rnd() > FM.AI_LIST_RATE) continue;
+    const cand = c.joueurs.filter(p =>
+      !p.loan && !p.transferListe && !FM.justSigned(p) && surplusAt(c, p) &&
+      (p.age >= 30 || p.note <= 74 || p.contrat <= 1));
+    if (!cand.length) continue;
+    cand[FM._ri(0, cand.length-1)].transferListe = true;
+  }
+}
+
+function aiDoTransfers(){
+  const my = FM.state.managedClubId;
+  const clubs = FM.state.db.clubs;
+  const listes = [];
+  for (const c of clubs){
+    if (c.id === my) continue;
+    for (const p of c.joueurs) if (p.transferListe && !p.loan) listes.push({ p, seller:c });
+  }
+  if (!listes.length) return;
+  let faits = 0;
+  for (let essai = 0; essai < FM.AI_DEALS_PER_DAY*4 && faits < FM.AI_DEALS_PER_DAY; essai++){
+    const { p, seller } = listes[FM._ri(0, listes.length-1)];
+    if (!seller.joueurs.some(x => x.id === p.id)) continue;      /* déjà parti */
+    if (FM.departureBlock(seller, p)) continue;
+    const prix = Math.round(p.valeur * (0.85 + FM._rnd()*0.35) * 10)/10;
+    const veut = expectedRepFor(p.note);
+    const buyers = clubs.filter(c =>
+      c.id !== my && c.id !== seller.id && c.joueurs.length < 28 &&
+      c.budget >= prix && c.rep >= veut - 1 && !FM.isD2(c.ligue) &&
+      FM.squadRating(c) - 6 <= p.note);                          /* renfort utile */
+    if (!buyers.length) continue;
+    const buyer = buyers[FM._ri(0, buyers.length-1)];
+    seller.joueurs = seller.joueurs.filter(x => x.id !== p.id);
+    seller.onze = FM.autoPickXI(seller);
+    moveMoney(buyer, seller, prix);
+    p.transferListe = false;
+    p.signeFenetre = windowKey();
+    buyer.joueurs.push(p);
+    buyer.onze = FM.autoPickXI(buyer);
+    faits++;
+    /* on ne relaie que les mouvements notables, pour ne pas noyer le journal */
+    if (p.note >= 82)
+      addNews(`${FM.t('Mercato')} : ${p.nom} (${p.note}) ${FM.t('quitte')} ${seller.nom} ${FM.t('pour')} ${buyer.nom} (${prix.toFixed(1)} M€).`, "transfer");
+  }
+}
+
+/* Les clubs IA recrutent aussi chez les agents libres restés sans club */
+function aiSignFreeAgents(){
+  const libres = FM.state.freeAgents || [];
+  if (libres.length < 8) return;
+  const my = FM.state.managedClubId;
+  for (let i = 0; i < 2; i++){
+    const fa = libres[FM._ri(0, libres.length-1)];
+    if (!fa) continue;
+    const prix = FM.freeAgentPrime(fa, 3);
+    const preneurs = FM.state.db.clubs.filter(c =>
+      c.id !== my && c.joueurs.length < 26 && c.budget >= prix &&
+      c.rep >= expectedRepFor(fa.note) - 1);
+    if (!preneurs.length) continue;
+    const c = preneurs[FM._ri(0, preneurs.length-1)];
+    FM.state.freeAgents = FM.state.freeAgents.filter(x => x.id !== fa.id);
+    moveMoney(c, null, prix, "primes");
+    fa.transferListe = false; fa.contrat = FM._ri(2,4);
+    fa.signeFenetre = windowKey();
+    c.joueurs.push(fa); c.onze = FM.autoPickXI(c);
+  }
+}
+
+function runAIMarket(){
+  if (!FM.marketOpen()) return;
+  aiListPlayers();
+  aiDoTransfers();
+  aiSignFreeAgents();
 }
 
 /* ============================================================
@@ -862,8 +1115,43 @@ FM.loanablePlayers = function(filter){
   return list.slice(0, filter.limit || 60);
 };
 
-/* Coût d'une indemnité de prêt (M€) */
+/* Coût d'une indemnité de prêt (M€) — payée par le club PRENEUR au club
+   PARENT, dans les deux sens de prêt. */
 FM.loanFee = p => Math.max(0.1, Math.round(p.valeur*0.06*10)/10);
+
+/* Joueurs réellement sous contrat dans un club (les prêts entrants ne
+   comptent pas : ils repartent en fin de saison). */
+FM.ownPlayers = club => club.joueurs.filter(p => !(p.loan && p.loan.borrowerId === club.id));
+/* Minimum de joueurs par ligne pour qu'un effectif reste jouable. Sans ce
+   plancher, retraites et élagages de fin de saison pouvaient laisser un club
+   sans le moindre gardien de but. */
+FM.POS_FLOOR = { G:2, D:5, M:4, A:3 };
+/* Retirer `p` de `club` viderait-il une ligne ? (liste facultative = effectif
+   de référence, pour tester un retrait sur un effectif déjà filtré) */
+FM.wouldStripLine = function(club, p, liste){
+  const eff = liste || club.joueurs;
+  const g = p.groupe;
+  const plancher = FM.POS_FLOOR[g];
+  if (!plancher) return false;
+  const restants = eff.filter(x => x.groupe === g && x.id !== p.id).length;
+  return restants < plancher;
+};
+/* Un club peut-il se séparer d'un joueur de plus sans se retrouver à court ?
+   Renvoie un motif de refus, ou null si l'opération est possible. */
+FM.departureBlock = function(club, player){
+  const own = FM.ownPlayers(club);
+  if (own.length <= 16)
+    return `${FM.t("Effectif trop court")} (16 ${FM.t("joueurs sous contrat minimum")}) — ${own.length} ${FM.t("actuellement")}.`;
+  if (FM.wouldStripLine(club, player, own))
+    return `${FM.t("Il ne resterait pas assez de joueurs à ce poste")} (${player.pos}).`;
+  return null;
+};
+/* Un joueur revenu d'un prêt ne peut pas repartir dans la foulée : sans ce
+   délai, prêter puis rappeler en boucle resterait une manipulation gratuite. */
+FM.LOAN_COOLDOWN = 1;                     /* saisons */
+function loanBlockedByCooldown(p){
+  return p.loanCooldown != null && FM.state.saison < p.loanCooldown + FM.LOAN_COOLDOWN;
+}
 
 /* Emprunter un joueur (prêt entrant) */
 FM.loanIn = function(playerId){
@@ -883,12 +1171,17 @@ FM.loanIn = function(playerId){
   const wonderkid = player.potentiel>=84 && player.age<=21;
   const prettable = !wonderkid && player.note<=77 && ( r>=16 || (player.age<=20 && r>=11) );
   if (!prettable) return { ok:false, msg:`${parent.nom} ne prête pas ${player.nom} (élément trop important).` };
+  if (loanBlockedByCooldown(player))
+    return { ok:false, msg:`${player.nom} ${FM.t("rentre tout juste d'un prêt : son club le garde cette saison.")}` };
+  if (FM.departureBlock(parent, player))
+    return { ok:false, msg:`${parent.nom} ${FM.t("a un effectif trop court pour prêter")} ${player.nom}.` };
   const fee = FM.loanFee(player);
   if (fee > my.budget) return { ok:false, msg:`Budget insuffisant pour l'indemnité de prêt (${fee.toFixed(1)} M€).` };
   parent.joueurs = parent.joueurs.filter(x=>x.id!==playerId);
   parent.onze = FM.autoPickXI(parent);
-  my.budget -= fee;
-  player.loan = { parentId:parent.id, parentNom:parent.nom, borrowerId:my.id, saison:FM.state.saison };
+  moveMoney(my, parent, fee);                 /* l'indemnité va au club parent */
+  player.loan = { parentId:parent.id, parentNom:parent.nom, borrowerId:my.id,
+                  saison:FM.state.saison, fee, payeurId:my.id };
   player.transferListe = false;
   my.joueurs.push(player); my.onze = FM.autoPickXI(my);
   FM.state.prets = FM.state.prets || [];
@@ -905,21 +1198,27 @@ FM.loanOut = function(playerId){
   const player = my.joueurs.find(x=>x.id===playerId);
   if (!player) return { ok:false, msg:"Joueur introuvable." };
   if (player.loan) return { ok:false, msg:FM.t("Ce joueur est déjà concerné par un prêt.") };
-  if (my.joueurs.length <= 16) return { ok:false, msg:FM.t("Effectif trop court (16 min) pour prêter.") };
-  // Club preneur plausible : plutôt un club modeste qui cherche du renfort
-  const borrowers = FM.state.db.clubs.filter(c=>c.id!==my.id && c.joueurs.length<30);
+  const bloque = FM.departureBlock(my, player);
+  if (bloque) return { ok:false, msg:bloque };
+  if (loanBlockedByCooldown(player))
+    return { ok:false, msg:`${player.nom} ${FM.t("rentre tout juste d'un prêt : laissez-lui la saison.")}` };
+  // Club preneur plausible : un club modeste, qui cherche du renfort ET qui a
+  // les moyens de payer l'indemnité (c'est lui qui la verse, pas le vide).
+  const fee = Math.max(0.1, Math.round(player.valeur*0.04*10)/10);
+  const borrowers = FM.state.db.clubs.filter(c =>
+    c.id!==my.id && c.joueurs.length<30 && c.budget >= fee && !FM.isD2(c.ligue));
   if (!borrowers.length) return { ok:false, msg:FM.t("Aucun club preneur disponible.") };
   borrowers.sort((a,b)=> a.rep-b.rep);
   const borrower = borrowers[FM._ri(0, Math.min(borrowers.length-1, 9))];
   my.joueurs = my.joueurs.filter(x=>x.id!==playerId);
   my.onze = FM.autoPickXI(my);
-  player.loan = { parentId:my.id, parentNom:my.nom, borrowerId:borrower.id, saison:FM.state.saison };
+  player.loan = { parentId:my.id, parentNom:my.nom, borrowerId:borrower.id,
+                  saison:FM.state.saison, fee, payeurId:borrower.id };
   player.transferListe = false;
   borrower.joueurs.push(player); borrower.onze = FM.autoPickXI(borrower);
   FM.state.prets = FM.state.prets || [];
   FM.state.prets.push({ playerId, parentId:my.id, borrowerId:borrower.id, saison:FM.state.saison, type:"out" });
-  const fee = Math.round(player.valeur*0.04*10)/10;
-  my.budget += fee;
+  moveMoney(borrower, my, fee);               /* le preneur paie l'indemnité */
   addNews(`${FM.t('Prêt')} : ${player.nom} ${FM.t('rejoint')} ${borrower.nom} ${FM.t('pour la saison')}${fee>0?` (+${fee.toFixed(1)} M€)`:''}.`, "loan");
   FM.save();
   return { ok:true, msg:`${player.nom} est prêté à ${borrower.nom}.` };
@@ -937,8 +1236,10 @@ FM.myLoans = function(){
   return { out, inc };
 };
 
-/* Retourne un joueur prêté à son club parent (sans effet de développement) */
-function returnLoan(playerId){
+/* Retourne un joueur prêté à son club parent (sans effet de développement).
+   `rembourse` : interruption anticipée — l'indemnité retourne à celui qui l'a
+   versée, faute de quoi prêter puis rappeler serait une source d'argent. */
+function returnLoan(playerId, rembourse){
   let holder=null, player=null;
   for (const c of FM.state.db.clubs){
     const p = c.joueurs.find(x=>x.id===playerId && x.loan);
@@ -946,22 +1247,28 @@ function returnLoan(playerId){
   }
   if (!player) return { ok:false };
   const parent = FM.clubById(player.loan.parentId);
+  const { fee, payeurId } = player.loan;
   holder.joueurs = holder.joueurs.filter(x=>x.id!==playerId);
   holder.onze = FM.autoPickXI(holder);
   const wasOut = player.loan.parentId===FM.state.managedClubId;
   delete player.loan;
+  player.loanCooldown = FM.state.saison;         /* pas de nouveau prêt tout de suite */
   if (parent){ parent.joueurs.push(player); parent.onze = FM.autoPickXI(parent); }
   FM.state.prets = (FM.state.prets||[]).filter(pr=>pr.playerId!==playerId);
-  return { ok:true, player, parent, holder, wasOut };
+  if (rembourse && fee > 0 && payeurId != null){
+    /* le bénéficiaire de l'indemnité était forcément le club parent */
+    moveMoney(parent, FM.clubById(payeurId), fee);
+  }
+  return { ok:true, player, parent, holder, wasOut, fee };
 }
 
 /* Rappeler / rendre un prêt immédiatement (déclenché par le joueur) */
 FM.recallLoan = function(playerId){
-  const r = returnLoan(playerId);
-  if (r.ok){
-    addNews(`${FM.t('Prêt interrompu')} : ${r.player.nom} ${FM.t('retrouve')} ${r.parent?r.parent.nom:FM.t('son club')}.`, "loan");
-    FM.save();
-  }
+  if (!FM.marketOpen()) return { ok:false, msg:windowClosedMsg() };
+  const r = returnLoan(playerId, true);
+  if (!r.ok) return { ok:false, msg:FM.t("Prêt introuvable.") };
+  addNews(`${FM.t('Prêt interrompu')} : ${r.player.nom} ${FM.t('retrouve')} ${r.parent?r.parent.nom:FM.t('son club')}${r.fee>0?` (${FM.t('indemnité remboursée')} : ${r.fee.toFixed(1)} M€)`:''}.`, "loan");
+  FM.save();
   return r;
 };
 
@@ -1063,8 +1370,11 @@ FM.endSeason = function(){
   for (const c of FM.state.db.clubs){
     c.pts=c.j=c.g=c.n=c.p=c.bp=c.bc=0;
     /* les recettes courantes sont désormais encaissées journée par journée
-       (voir applyFinances) : il ne reste ici que les primes de parcours */
-    c.budget = Math.round((c.budget + (c===my?bonus:0))*100)/100;
+       (voir applyFinances) : il ne reste ici que les primes de parcours,
+       qui entrent dans le circuit et sont donc portées au grand livre */
+    const avantPrime = c.budget;
+    c.budget = round2(c.budget + (c===my?bonus:0));
+    eco().recettes += c.budget - avantPrime;
     /* historique borné : 12 saisons pour notre effectif, 3 ailleurs.
        Une ligne pèse ~94 octets et il y a plus de 5 000 joueurs.        */
     const capCarriere = (c===my) ? 12 : 3;
@@ -1105,8 +1415,13 @@ FM.endSeason = function(){
         if (perf>0) addNews(`${FM.t('Saison')} ${tag} — ${p.nom} (${FM.t('moy')} ${avg.toFixed(2)}) : ${FM.t('Note')} ${p.note-perf}→${p.note}.`, "up");
         else addNews(`${FM.t('Saison')} ${tag} — ${p.nom} (${FM.t('moy')} ${avg.toFixed(2)}) : ${FM.t('Note')} ${p.note-perf}→${p.note}.`, "down");
       }
-      // Reset des compteurs de la saison
+      // Reset des compteurs de la saison. Les avertissements en faisaient
+      // partie : sans cette remise à zéro, la fiche affichait un cumul de
+      // carrière sous le libellé « cette saison », et le seuil de suspension
+      // finissait par tomber tous les cinq matchs.
       p.matchs=0; p.buts=0; p.passes=0; p.noteTotale=0; p.noteMatchs=0; p.selJeunes=null;
+      p.cartons=0; p.suspension=0;
+      delete p.signeFenetre; delete p.loanCooldown;
       p.age++;
       p.valeur = FM.playerValue(p.note, p.potentiel, p.age);
       p.contrat = Math.max(0, p.contrat-1);
@@ -1122,6 +1437,12 @@ FM.endSeason = function(){
       retirerDuClub(c, p);
       if (c===my) addNews(`${p.nom} (${p.age} ${FM.t('ans')}) ${FM.t('raccroche les crampons.')}`, "season");
     }
+    /* Une ligne vidée par les départs est recomplétée sur-le-champ : la
+       retraite ne doit jamais laisser un club sans gardien. */
+    for (const g of Object.keys(FM.POS_FLOOR)){
+      let manque = FM.POS_FLOOR[g] - c.joueurs.filter(x=>x.groupe===g).length;
+      while (manque-- > 0) c.joueurs.push(FM.makeYouth(c, FM.POS_BY_GROUP[g]));
+    }
 
     /* --- Centre de formation : 1 à 3 jeunes par saison selon la réputation --- */
     /* le club du joueur reçoit toujours ses jeunes : sinon l'effectif sature
@@ -1133,8 +1454,15 @@ FM.endSeason = function(){
       Math.max(0, plafond - c.joueurs.length)
     );
     const promus = [];
-    for (let i=0; i<nJeunes; i++) promus.push(FM.makeYouth(c));
-    c.joueurs.push(...promus);
+    for (let i=0; i<nJeunes; i++){
+      /* si une ligne est descendue sous son plancher, le centre de formation
+         comble d'abord ce trou — un club sans gardien n'a pas de sens */
+      const trou = Object.keys(FM.POS_FLOOR).find(g =>
+        c.joueurs.filter(x=>x.groupe===g).length < FM.POS_FLOOR[g]);
+      const poste = trou ? (FM.POS_BY_GROUP[trou] || null) : null;
+      const j = FM.makeYouth(c, poste);
+      promus.push(j); c.joueurs.push(j);
+    }
 
     /* --- Élagage : l'effectif revient à sa taille cible, les plus faibles
            partent. Le club du joueur n'est jamais élagué sous 24 : c'est à
@@ -1144,6 +1472,7 @@ FM.endSeason = function(){
       let sortant = null, pire = Infinity;
       for (const p of c.joueurs){
         if (promus.indexOf(p) >= 0) continue;          /* on ne jette pas la recrue du jour */
+        if (FM.wouldStripLine(c, p)) continue;         /* ni le dernier tenant du poste */
         /* score de conservation : la note, moins le poids de l'âge */
         const sc = p.note + Math.max(0, 22-p.age)*0.3 - Math.max(0, p.age-31)*1.4;
         if (sc < pire){ pire = sc; sortant = p; }
@@ -1179,6 +1508,7 @@ FM.endSeason = function(){
   FM.state.journee=0;
   FM.state.resultats=[];
   FM.state.offres=[];
+  FM.state.progres={};                       // les championnats étrangers repartent à zéro
   FM.state.calendrier = FM.makeSchedule(FM.clubsInMyLeague().map(c=>c.id));
   FM.setObjective();                         // nouvel objectif, adapté à la division
   FM.setupEuropeanCups();                    // coupes de la nouvelle saison (selon classement final)
@@ -1438,24 +1768,56 @@ FM.checkState = function(s){
   if (!s || typeof s !== "object" || Array.isArray(s)) return "format";
   if (!s.db || !Array.isArray(s.db.clubs) || !s.db.clubs.length) return "clubs";
   if (!Array.isArray(s.calendrier)) return "calendrier";
+  if (!Array.isArray(s.resultats)) return "résultats";
+  if (!Array.isArray(s.news)) return "actualités";
   if (s.managedClubId == null || !s.db.clubs.some(c => c.id === s.managedClubId)) return "club dirigé";
-  if (typeof s.journee !== "number" || typeof s.saison !== "number") return "compteurs";
+  if (typeof s.journee !== "number" || !isFinite(s.journee) || s.journee < 0) return "compteurs";
+  if (typeof s.saison !== "number" || !isFinite(s.saison)) return "compteurs";
+  if (s.ligueJoueur == null || !s.db.clubs.some(c => c.ligue === s.ligueJoueur)) return "championnat";
+  /* Le club dirigé doit être exploitable : un effectif vide, une trésorerie
+     NaN ou un onze absent font planter le premier écran. */
+  const my = s.db.clubs.find(c => c.id === s.managedClubId);
+  if (!Array.isArray(my.joueurs) || !my.joueurs.length) return "effectif";
+  if (typeof my.budget !== "number" || !isFinite(my.budget)) return "trésorerie";
+  if (s.db.clubs.some(c => !Array.isArray(c.joueurs))) return "effectifs";
+  /* Le calendrier doit désigner des clubs qui existent réellement */
+  const ids = new Set(s.db.clubs.map(c => c.id));
+  for (const jour of s.calendrier){
+    if (!Array.isArray(jour)) return "calendrier";
+    for (const m of jour) if (!ids.has(m.dom) || !ids.has(m.ext)) return "calendrier";
+  }
   return null;
 };
-FM.saveError = null;   /* "quota" | "erreur" | null */
+FM.saveError = null;   /* "quota" | "erreur" | "indisponible" | null */
 FM.loadError = null;   /* "illisible" | motif d'invalidité | null */
+
+/* ---------- ACCÈS AU STOCKAGE ----------
+   En navigation privée stricte, ou cookies bloqués, le simple fait de LIRE
+   localStorage lève une exception. Sans ces gardes, l'erreur remontait au
+   chargement du script et la page restait entièrement blanche. Le jeu doit
+   rester jouable — sans sauvegarde, mais jouable.                         */
+FM.storageOK = true;
+function lsGet(k){
+  try { return localStorage.getItem(k); }
+  catch(e){ FM.storageOK = false; return null; }
+}
+function lsSet(k, v){ localStorage.setItem(k, v); }   /* l'appelant gère l'échec */
+function lsDel(k){ try { localStorage.removeItem(k); } catch(e){ FM.storageOK = false; } }
+
 FM.save = function(){
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(FM.state, saveReplacer));
+    lsSet(SAVE_KEY, JSON.stringify(FM.state, saveReplacer));
     FM.saveError = null;
+    FM.storageOK = true;
     return true;
   } catch(e){
-    FM.saveError = (e && (e.name === "QuotaExceededError" || e.code === 22)) ? "quota" : "erreur";
+    if (e && (e.name === "QuotaExceededError" || e.code === 22)) FM.saveError = "quota";
+    else { FM.saveError = "indisponible"; FM.storageOK = false; }
     return false;
   }
 };
 FM.load = function(){
-  const raw = localStorage.getItem(SAVE_KEY);
+  const raw = lsGet(SAVE_KEY);
   if (!raw){ FM.loadError = "absente"; return false; }
   let s;
   try { s = JSON.parse(raw); } catch(e){ FM.loadError = "illisible"; return false; }
@@ -1465,8 +1827,8 @@ FM.load = function(){
   FM.migrateState();
   return true;
 };
-FM.hasSave = () => !!localStorage.getItem(SAVE_KEY);
-FM.deleteSave = function(){ localStorage.removeItem(SAVE_KEY); FM.state=null; FM.saveError=null; };
+FM.hasSave = () => !!lsGet(SAVE_KEY);
+FM.deleteSave = function(){ lsDel(SAVE_KEY); FM.state=null; FM.saveError=null; };
 /* Export / import : filet de sécurité si le navigateur refuse d'écrire */
 FM.exportSave = () => JSON.stringify(FM.state, saveReplacer);
 FM.importSave = function(txt){

@@ -435,9 +435,9 @@ FM.playerValue = playerValue;
 
 /* Jeune issu du centre de formation : note modeste, potentiel large.
    La réputation du club tire les deux vers le haut. */
-FM.makeYouth = function(club){
+FM.makeYouth = function(club, forcedPos){
   const rep = club && club.rep ? club.rep : 2;
-  const p = makePlayer(rep, undefined, club && club.pays);
+  const p = makePlayer(rep, forcedPos, club && club.pays);
   p.age = ri(16, 18);
   /* Le jeune se cale sur le NIVEAU RÉEL de l'effectif, pas sur la seule
      réputation : sinon, à mesure que les joueurs réels raccrochent, la note
@@ -622,6 +622,8 @@ FM.buildDatabase = function(){
 /* Exports internes utiles */
 FM.POSITIONS = POSITIONS;
 FM.POS_GROUP = POS_GROUP;
+/* Poste représentatif de chaque ligne : sert à combler un trou d'effectif */
+FM.POS_BY_GROUP = { G:"GB", D:"DC", M:"MC", A:"BU" };
 FM.POS_LABEL = POS_LABEL;
 FM.FORMATIONS = FORMATIONS;
 FM.LEAGUES = LEAGUES;

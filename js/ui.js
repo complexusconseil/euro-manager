@@ -723,6 +723,11 @@ function openCoaching(mg, onClose){
 function clubManager(club){
   let left=3;
   return {
+    /* `club` distingue une interface de CLUB d'une interface de SÉLECTION.
+       Sans lui, la causerie prenait toujours la branche « sélection » : elle
+       affichait « force undefined » et n'appelait jamais FM.teamTalk, donc
+       le discours d'avant-match n'avait aucun effet sur le moral.          */
+    club,
     nom: club.nom, tac: club.tactique,
     setTac:(k,v)=>FM.setTactic(k,v),
     onField:()=>club.onze.map(s=>{ const p=FM.getPlayer(club,s.id);
@@ -1783,7 +1788,16 @@ function openBid(p){
   const msg = el("p","bid-msg","");
   const send = el("button","btn primary",_t("Soumettre l'offre"));
   send.onclick=()=>{
-    const r = FM.buyPlayer(p.id, parseFloat(inp.value));
+    /* un champ vidé donne parseFloat("") === NaN : on le refuse ici, avant
+       même d'appeler le moteur, pour donner un message clair */
+    const montant = parseFloat(inp.value);
+    if (!FM.validAmount(montant)){
+      msg.textContent = _t("Saisissez un montant en M€ (chiffres uniquement).");
+      msg.className = "bid-msg ko";
+      inp.focus();
+      return;
+    }
+    const r = FM.buyPlayer(p.id, montant);
     msg.textContent = r.msg; msg.className = "bid-msg "+(r.ok?"ok":"ko");
     if (r.ok){ setTimeout(()=>{ overlay.remove(); renderGame(); },900); }
   };
