@@ -108,28 +108,53 @@ const KITS = [
 ];
 let kitChoice = 0;
 
+let startKeyHandler = null;
 function renderStart(){
   const app = $("#app");
   app.innerHTML = "";
-  const wrap = el("div","start");
+  const wrap = el("div","start pes-menu");
+
+  /* --- bandeau supérieur : marque à gauche, langue à droite --- */
+  const top = el("div","menu-top");
   const brand = el("div","brand");
   brand.innerHTML = `<div class="brand-mark">${icon("ball")}</div>
-    <h1 class="logo">EURO <em>MANAGER</em></h1>
-    <div class="logo-rule"></div>`;
-  wrap.appendChild(brand);
-  wrap.appendChild(el("p","tagline",_t("Gérez un club européen — du mercato au terrain.")));
-  wrap.appendChild(audioBar());
+    <h1 class="logo">EURO <em>MANAGER</em></h1>`;
+  top.appendChild(brand);
+  const langRow = el("div","lang-row");
+  [["fr","Français"],["en","English"]].forEach(([code,lbl])=>{
+    const b=el("button","lang-btn"+(FM.lang()===code?" on":""),lbl);
+    b.onclick=()=>{ FM.setLang(code); renderStart(); };
+    langRow.appendChild(b);
+  });
+  top.appendChild(langRow);
+  wrap.appendChild(top);
+  wrap.appendChild(el("div","logo-rule"));
 
-  // Sélecteur de mode
+  /* --- corps : colonne des modes | panneau du mode choisi --- */
+  const bodyRow = el("div","menu-body");
+  const side = el("div","menu-side");
+  side.appendChild(el("div","menu-side-title",_t("Mode de jeu")));
+
+  const MODES = [
+    ["career","career",_t("Carrière"),_t("Un vrai club, saison après saison.")],
+    ["master","cup","Master League",_t("Créez votre club et bâtissez une équipe.")],
+    ["intl","globe",_t("International"),_t("Euro ou Coupe du Monde, à élimination directe.")]
+  ];
   const modeSwitch = el("div","mode-switch");
-  [["career","career",_t("Carrière")],["master","cup","Master League"],["intl","globe",_t("International")]].forEach(([m,ic,lbl])=>{
-    const b = el("button","mode-btn"+(startMode===m?" active":""), icon(ic)+"<span>"+lbl+"</span>");
-    b.onclick=()=>{ startMode=m; renderStart(); };
+  MODES.forEach(([m,ic,lbl,desc])=>{
+    const b = el("button","mode-btn"+(startMode===m?" active":""),
+      icon(ic)+`<span class="mb-txt"><b>${lbl}</b><small>${desc}</small></span>`
+      +`<span class="mb-arrow">${icon("play")}</span>`);
+    b.onclick=()=>{ if(FM.audio) FM.audio.sfx("tick"); startMode=m; renderStart(); };
     modeSwitch.appendChild(b);
   });
-  wrap.appendChild(modeSwitch);
+  side.appendChild(modeSwitch);
+  side.appendChild(el("p","tagline",_t("Gérez un club européen — du mercato au terrain.")));
+  bodyRow.appendChild(side);
 
   const card = el("div","card start-card");
+  const curMode = MODES.find(m=>m[0]===startMode) || MODES[0];
+  card.appendChild(el("h3",null,icon(curMode[1])+curMode[2]));
   card.appendChild(el("label",null,_t("Nom du manager")));
   const nameIn = el("input"); nameIn.type="text"; nameIn.value="Manager"; nameIn.id="mgrName";
   card.appendChild(nameIn);
@@ -233,21 +258,45 @@ function renderStart(){
     del.onclick = ()=>{ if(confirm(_t("Supprimer la sauvegarde ?"))){ FM.deleteSave(); renderStart(); } };
     card.appendChild(del);
   }
-  wrap.appendChild(card);
+  bodyRow.appendChild(card);
+  wrap.appendChild(bodyRow);
 
-  const langRow = el("div","lang-row");
-  [["fr","Français"],["en","English"]].forEach(([code,lbl])=>{
-    const b=el("button","lang-btn"+(FM.lang()===code?" on":""),lbl);
-    b.onclick=()=>{ FM.setLang(code); renderStart(); };
-    langRow.appendChild(b);
-  });
-  wrap.appendChild(langRow);
-  wrap.appendChild(el("p","hint",_t("Partie sauvegardée automatiquement dans votre navigateur.")));
+  /* --- bandeau contextuel : décrit le mode survolé, comme en bas d'écran du jeu --- */
+  const ctxBar = el("div","menu-ctx");
+  ctxBar.innerHTML = `<span class="ctx-txt">${curMode[3]}</span>`
+    + `<span class="ctx-keys"><b>&#8593; &#8595;</b> ${_t("naviguer")}`
+    + ` &nbsp;·&nbsp; <b>${_t("Entrée")}</b> ${_t("valider")}</span>`;
+  wrap.appendChild(ctxBar);
+
+  /* --- pied : bande son + rappel de sauvegarde --- */
+  const foot = el("div","menu-foot");
+  foot.appendChild(audioBar());
+  foot.appendChild(el("p","hint",_t("Partie sauvegardée automatiquement dans votre navigateur.")));
+  wrap.appendChild(foot);
   app.appendChild(wrap);
+
+  /* navigation au clavier : haut/bas avec bouclage, Entrée valide */
+  if (startKeyHandler) document.removeEventListener("keydown", startKeyHandler);
+  startKeyHandler = (e)=>{
+    if (/^(input|select|textarea)$/i.test((e.target&&e.target.tagName)||"")) return;
+    if (e.key==="ArrowDown" || e.key==="ArrowUp"){
+      e.preventDefault();
+      const i = MODES.findIndex(m=>m[0]===startMode);
+      const n = MODES.length;
+      startMode = MODES[(i + (e.key==="ArrowDown"?1:-1) + n) % n][0];   // bouclage
+      if (FM.audio) FM.audio.sfx("tick");
+      renderStart();
+    } else if (e.key==="Enter"){
+      const go = document.querySelector(".start-card .btn.primary.big");
+      if (go){ e.preventDefault(); if(FM.audio) FM.audio.sfx("ok"); go.click(); }
+    }
+  };
+  document.addEventListener("keydown", startKeyHandler);
 }
 
 /* ============= COQUE DU JEU ============= */
 function renderGame(){
+  if (startKeyHandler){ document.removeEventListener("keydown", startKeyHandler); startKeyHandler = null; }
   const app = $("#app");
   app.innerHTML = "";
   const my = FM.myClub();
@@ -500,48 +549,20 @@ function playLiveMatch(cfg){
     $f.prepend(l); while($f.children.length>40) $f.removeChild($f.lastChild);
   }
 
-  /* --- petit terrain animé (pions) --- */
-  const cv=box.querySelector("#lsPitch"), g=cv.getContext("2d");
-  const W=cv.width, H=cv.height;
-  const SHAPE=[[0.06,0.50],[0.20,0.18],[0.20,0.39],[0.20,0.61],[0.20,0.82],
-               [0.36,0.28],[0.36,0.50],[0.36,0.72],[0.52,0.22],[0.52,0.50],[0.52,0.78]];
-  const dots=[];
-  for(let t=0;t<2;t++) SHAPE.forEach(([fx,fy])=>{
-    const x = t===0 ? fx : 1-fx;
-    dots.push({ hx:W*x, hy:H*(0.08+fy*0.84), x:W*x, y:H*(0.08+fy*0.84), team:t });
+  /* --- terrain animé : moteur de déplacement (js/pitchview.js) --- */
+  const cv = box.querySelector("#lsPitch");
+  const pv = FM.pitchView(cv, {
+    homeColor:(cfg.home.couleurs||["#e33"])[0],
+    awayColor:(cfg.away.couleurs||["#38f"])[0],
+    homeRating: cfg.home.joueurs ? FM.squadRating(cfg.home) : (cfg.home.note||75),
+    awayRating: cfg.away.joueurs ? FM.squadRating(cfg.away) : (cfg.away.note||75)
   });
-  const ball={x:W/2,y:H/2,tx:W/2,ty:H/2};
-  const colH=(cfg.home.couleurs||["#e33"])[0], colA=(cfg.away.couleurs||["#38f"])[0];
-  function drawPitch(){
-    g.fillStyle="#2f8f47"; g.fillRect(0,0,W,H);
-    g.fillStyle="rgba(255,255,255,.075)";
-    for(let i=0;i<8;i+=2) g.fillRect(i*W/8,0,W/8,H);
-    g.strokeStyle="rgba(255,255,255,.85)"; g.lineWidth=2;
-    g.strokeRect(10,10,W-20,H-20);
-    g.beginPath(); g.moveTo(W/2,10); g.lineTo(W/2,H-10); g.stroke();
-    g.beginPath(); g.arc(W/2,H/2,38,0,7); g.stroke();
-    g.strokeRect(10,H/2-60,60,120); g.strokeRect(W-70,H/2-60,60,120);
-    dots.forEach(d=>{ g.beginPath(); g.arc(d.x,d.y,6,0,7);
-      g.fillStyle=d.team===0?colH:colA; g.fill();
-      g.strokeStyle="rgba(0,0,0,.5)"; g.lineWidth=1.5; g.stroke(); });
-    g.beginPath(); g.arc(ball.x,ball.y,4.5,0,7); g.fillStyle="#fff"; g.fill();
-  }
-  let raf=0;
-  function anim(){
-    raf=requestAnimationFrame(anim);
-    if(!paused){
-      if(Math.random()<0.02){ ball.tx=20+Math.random()*(W-40); ball.ty=25+Math.random()*(H-50); }
-      ball.x+=(ball.tx-ball.x)*0.06; ball.y+=(ball.ty-ball.y)*0.06;
-      dots.forEach(d=>{ const tx=d.hx+(ball.x-d.hx)*0.34, ty=d.hy+(ball.y-d.hy)*0.34;
-        d.x+=(tx-d.x)*0.05; d.y+=(ty-d.y)*0.05; });
-    }
-    drawPitch();
-  }
-  anim();
+  pv.start();
 
   /* --- horloge du match --- */
   function setPaused(v){
     paused=v;
+    pv.setPaused(v);
     $pause.textContent = paused?_t("Reprendre"):_t("Pause");
     $pause.className = paused?"btn ghost":"btn primary";
     if (paused){ clearInterval(timer); timer=null; } else start();
@@ -560,6 +581,7 @@ function playLiveMatch(cfg){
       if (ev.type==="goal"){
         if (ev.home) hs++; else as++;
         goals.push(ev); $s.textContent=`${hs} - ${as}`;
+        pv.goal(ev.home?0:1);
         feed(`<b>BUT — ${ev.joueur}</b> (${ev.home?cfg.home.nom:cfg.away.nom})`, ev.home?0:1, "goal");
       } else {
         if (cfg.applyIncident) cfg.applyIncident(ev);
@@ -579,7 +601,7 @@ function playLiveMatch(cfg){
     if (minute>=90) finish();
   }
   function finish(){
-    if (ended) return; ended=true; clearInterval(timer); cancelAnimationFrame(raf);
+    if (ended) return; ended=true; clearInterval(timer); pv.stop();
     $s.textContent=`${hs} - ${as}`;
     const et = cfg.endText ? cfg.endText(hs,as) : "";
     $m.innerHTML = (et?et+" · ":"")+_t("Coup de sifflet final");
@@ -589,7 +611,8 @@ function playLiveMatch(cfg){
     $skip.onclick=()=>{ overlay.remove(); cfg.done(hs, as, goals); };
   }
   $pause.onclick=()=>setPaused(!paused);
-  $speed.onclick=()=>{ speed = speed>=4?1:speed*2; $speed.textContent=speed+"×"; if(!paused) start(); };
+  $speed.onclick=()=>{ speed = speed>=4?1:speed*2; $speed.textContent=speed+"×";
+    pv.setTempo(1+(speed-1)*0.35); if(!paused) start(); };
   $skip.onclick=()=>{ while(minute<90 && !ended){ step(); } finish(); };
   if ($coach) $coach.onclick=()=>{ setPaused(true); $coach.classList.remove("urgent"); openCoaching(mg, ()=>{}); };
 
@@ -1882,7 +1905,7 @@ function audioBar(){
 
 /* ============= HELPERS UI ============= */
 function noteClass(n){ return n>=82?"elite":n>=75?"good":n>=68?"ok":"low"; }
-function formeIcon(f){ return f>=2?"↑↑":f===1?"↑":f===0?"→":f===-1?"↓":"↓↓"; }
+function formeIcon(f){ return f>=2?"↑":f===1?"↗":f===0?"→":f===-1?"↘":"↓"; }
 function moralBar(m){ const w=Math.round(m); return `<span class="moral"><span style="width:${w}%"></span></span>`; }
 function shortName(n){ const parts=n.split(" "); return parts.length>1?parts[0][0]+". "+parts.slice(1).join(" "):n; }
 function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }

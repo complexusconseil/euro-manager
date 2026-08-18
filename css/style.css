@@ -157,6 +157,60 @@ input:focus,select:focus{border-color:var(--b500);outline:none;box-shadow:0 0 0 
   font-family:var(--ff-display);text-transform:uppercase;font-style:var(--slant);
   border:1px solid #b45c0c}
 
+/* ---------- Menu principal façon PES : bandeau, colonne de modes, panneau ---------- */
+.pes-menu{max-width:980px;margin:2.5vh auto 3vh;text-align:left}
+.menu-top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  background:linear-gradient(180deg,var(--sil0),var(--sil3));border:1px solid var(--line2);
+  padding:7px 14px;box-shadow:0 1px 0 var(--bevel) inset}
+.menu-top .brand{flex-direction:row;align-items:center;gap:12px;margin:0}
+.menu-top .brand-mark{width:42px;height:42px;box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 2px 6px rgba(10,50,100,.3)}
+.menu-top .brand-mark svg{width:22px;height:22px}
+.menu-top .logo{font-size:38px;text-shadow:0 1px 0 #fff}
+.menu-top .lang-row{margin:0}
+.pes-menu .logo-rule{max-width:none;width:100%;margin:0 0 10px;height:4px}
+.menu-body{display:grid;grid-template-columns:330px 1fr;gap:10px;align-items:stretch;min-height:330px}
+.menu-side{display:flex;flex-direction:column}
+.menu-side-title{font-family:var(--ff-display);text-transform:uppercase;font-style:var(--slant);
+  letter-spacing:.12em;font-size:13px;font-weight:700;color:#fff;padding:5px 12px;margin-bottom:4px;
+  background:linear-gradient(180deg,var(--b500),var(--b700) 60%,var(--b900));
+  border:1px solid var(--b900);border-bottom:2px solid var(--org);
+  text-shadow:0 1px 1px rgba(0,0,0,.4)}
+.pes-menu .mode-switch{display:flex;flex-direction:column;gap:3px;margin:0}
+.pes-menu .mode-btn{flex-direction:row;align-items:center;gap:11px;justify-content:flex-start;
+  padding:11px 14px;text-align:left;width:100%;transform:skewX(-9deg);
+  transition:margin .12s ease,background .12s,border-color .12s,color .12s}
+.pes-menu .mode-btn.active{margin-right:-14px;box-shadow:0 1px 0 rgba(255,255,255,.4) inset,
+  0 2px 8px rgba(10,50,100,.35)}
+.pes-menu .mode-btn>*{transform:skewX(9deg)}
+.pes-menu .mode-btn svg{width:22px;height:22px;transform:skewX(9deg)}
+.mode-btn .mb-txt{display:flex;flex-direction:column;flex:1;min-width:0;line-height:1.25}
+.mode-btn .mb-txt b{font-size:19px;letter-spacing:.03em}
+.mode-btn .mb-txt small{font-family:var(--ff);font-style:normal;text-transform:none;
+  letter-spacing:0;font-size:11.5px;font-weight:400;color:var(--mut);white-space:normal}
+.mode-btn.active .mb-txt small{color:#d3e7fa}
+.mode-btn .mb-arrow{display:grid;place-items:center;opacity:0;transition:opacity .12s}
+.mode-btn .mb-arrow svg{width:13px;height:13px}
+.mode-btn.active .mb-arrow{opacity:1}
+.pes-menu .tagline{margin:12px 2px 0;text-align:left;font-size:10.5px;letter-spacing:.16em;
+  line-height:1.5}
+.pes-menu .start-card{margin:0}
+.menu-ctx{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  margin-top:8px;padding:6px 13px;
+  background:linear-gradient(180deg,var(--b700),var(--b900));
+  border:1px solid var(--b900);border-top:2px solid var(--org);color:#fff;
+  box-shadow:0 1px 0 rgba(255,255,255,.28) inset}
+.menu-ctx .ctx-txt{font-family:var(--ff-display);text-transform:uppercase;font-style:var(--slant);
+  letter-spacing:.06em;font-size:15px;text-shadow:0 1px 1px rgba(0,0,0,.45)}
+.menu-ctx .ctx-keys{font-size:11.5px;color:#bcd8f2;white-space:nowrap}
+.menu-ctx .ctx-keys b{font-family:var(--ff-display);font-style:var(--slant);
+  text-transform:uppercase;letter-spacing:.08em;color:#fff;
+  border:1px solid rgba(255,255,255,.45);padding:0 5px;margin-right:3px}
+.menu-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:0;border-top:0;
+  background:linear-gradient(180deg,var(--sil0),var(--sil3));border:1px solid var(--line2);
+  padding:5px 10px;box-shadow:0 1px 0 var(--bevel) inset}
+.menu-foot .audio-bar{flex:1;min-width:240px;margin:0;border:0;background:none;box-shadow:none;padding:0}
+.menu-foot .hint{margin:0;font-size:11.5px;color:var(--mut2)}
+
 /* ---------- Panneau : bandeau bleu + corps argent ---------- */
 .card{
   background:linear-gradient(180deg,var(--sil0) 0%,var(--sil1) 40%,var(--sil2) 100%);
@@ -687,6 +741,13 @@ input[type=range]{width:100%;accent-color:var(--b500);cursor:pointer}
   .logo{font-size:38px}
   .mode-switch{grid-template-columns:1fr}
   .mode-btn{flex-direction:row;justify-content:center}
+  .menu-body{grid-template-columns:1fr}
+  .menu-top{padding:6px 10px}
+  .menu-top .logo{font-size:27px}
+  .menu-top .brand-mark{width:34px;height:34px}
+  .menu-top .brand-mark svg{width:18px;height:18px}
+  .pes-menu .mode-btn{padding:9px 12px}
+  .mode-btn .mb-txt b{font-size:17px}
   .match-teams{gap:5px}
   .match-teams .side{padding:9px 4px}
   .match-teams .side b{font-size:17px}

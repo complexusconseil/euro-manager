@@ -298,6 +298,21 @@ FM.audio = {
   },
   onChange(fn){ S.onChange = fn; },
 
+  /* bruitages de menu : tick sec au déplacement, son plus plein à la validation */
+  sfx(kind){
+    if (!boot()) return;
+    if (ctx.state === "suspended") ctx.resume();
+    const t = ctx.currentTime + 0.001;
+    if (kind === "ok"){
+      tone(t,      660, .07, "square", .055, 3200);
+      tone(t+.055, 990, .12, "square", .05,  3600);
+    } else if (kind === "back"){
+      tone(t, 430, .09, "triangle", .05, 2400);
+    } else {
+      tone(t, 1150, .04, "square", .035, 3000);
+    }
+  },
+
   /* fichiers du joueur */
   async addFiles(files){
     for (const f of files){

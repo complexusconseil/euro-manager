@@ -242,6 +242,14 @@ const EN = {
   "Avec":"With", "vous êtes sur le toit du monde !":"you are on top of the world!",
   "Vous dirigiez":"You were managing",
 
+  /* ----- Menu principal ----- */
+  "Mode de jeu":"Game mode",
+  "Un vrai club, saison après saison.":"A real club, season after season.",
+  "Créez votre club et bâtissez une équipe.":"Create your club and build a team.",
+  "Euro ou Coupe du Monde, à élimination directe.":"Euros or World Cup, straight knockout.",
+
+  "naviguer":"navigate", "valider":"confirm", "Entrée":"Enter",
+
   /* ----- Bande son ----- */
   "Bande son":"Soundtrack",
   "Audio indisponible sur ce navigateur.":"Audio not available in this browser.",

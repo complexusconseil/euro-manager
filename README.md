@@ -17,6 +17,8 @@ Habillage repris des menus de **PES 6** : fond **argent et blanc** balayé d'une
 - **Pastilles typographiques** pour les états (BLES., SUSP., QUALIFIÉ, ÉLIMINÉ…) ;
 - **Fil d'actualités catégorisé** : chaque nouvelle porte un marqueur coloré (Transfert, Blessure, Discipline, Coupe, Finances, Prêt…) au lieu d'un émoji.
 
+**Menu principal** repris de la grammaire des menus du jeu : bandeau supérieur portant la marque, **colonne verticale des modes** en lamelles penchées (jamais une barre d'onglets), panneau de réglages à droite, **bandeau contextuel bleu** en bas qui décrit le mode survolé, et légende des touches. La **navigation au clavier** fonctionne (↑ ↓ avec bouclage, Entrée pour valider) et chaque déplacement joue un **tick sonore**, la validation un son plus plein.
+
 Interface responsive (mobile et bureau), sans débordement horizontal.
 
 **Polices embarquées** — le jeu utilise ses propres webfonts, **intégrées dans le CSS** (`css/fonts.css`, en base64) : **Inter** pour le texte et **Barlow Condensed** pour les titres et les scores. Aucune requête réseau n'est faite (vérifié : **0 requête externe**), donc le rendu est identique en ligne, hors-ligne et en `file://`. Licence SIL Open Font 1.1 — voir `FONTS-LICENSE.txt`.
@@ -64,12 +66,23 @@ Chaque **été**, un tournoi international (alterné **Coupe du Monde** / **Cham
 
 ## 🎮 Écran de match en direct (avec pause et coaching)
 
-Les matchs se jouent sur un **écran simple et lisible** : score, minute, **terrain animé** (les pions bougent selon le jeu) et **fil live** (buts, cartons, blessures). Surtout, vous **dirigez vraiment** :
+Les matchs se jouent sur un **écran simple et lisible** : bandeau de score sombre souligné d'orange, **terrain animé** et **fil live** (buts, cartons, blessures). Surtout, vous **dirigez vraiment** :
 
 - **⏸ Pause** à tout moment, **vitesse réglable** (1× à 4×), **⏭ fin du match** pour accélérer
 - **🎛️ Coaching en cours de match** : **consignes rapides** (Fermer le jeu / Équilibrer / Tout attaquer), curseurs **mentalité / tempo / pressing**, et jusqu'à **3 remplacements** — en club **comme en sélection**
 - La simulation est recalculée **minute par minute** : chaque changement s'applique **immédiatement** (mesuré : « tout attaquer » 3,65 buts contre 2,58 en « fermer le jeu »)
 - Le match se met **automatiquement en pause** à la mi-temps, et **dès qu'un de vos joueurs se blesse ou est expulsé**
+
+### Le déplacement des joueurs
+
+Le terrain n'affiche pas des pions qui glissent vers le ballon : chaque joueur a un **rôle**, une **place dans le bloc** et une **inertie** (`js/pitchview.js`).
+
+- **Ressort amorti** `a = ω²·(cible − p) − 2ζω·v` (ω = 4,2 rad/s, ζ = 0,8) : le mouvement est paramétré par l'état, donc il encaisse une cible qui bouge à chaque image. Une interpolation linéaire, elle, démarre à vitesse maximale puis ralentit — l'inverse d'un corps humain, et c'est précisément ce qui fait « robot ».
+- **Vitesses réelles** : course d'entretien 5 m/s, sprint 8,2 m/s, accélération plafonnée à 9 m/s². Personne ne change de direction instantanément.
+- **Bloc d'équipe** : la formation coulisse latéralement avec le ballon, monte quand l'équipe attaque, se resserre quand elle défend bas ; les **quatre défenseurs tiennent une ligne commune** (écart-type mesuré : 2,4 m).
+- **Rôles** : le gardien reste sur sa ligne et suit le ballon des yeux, le joueur le plus proche **sort au duel**, un deuxième **couvre**, les attaquants font des **appels en profondeur**.
+- **Ballon** : jamais collé au porteur mais **accroché à une ancre amortie** (τ = 100 ms) qui le fait déborder dans les changements de direction, avec des **touches de balle** cadencées par joueur. Les passes sont choisies par une cloche de distance centrée sur 22 m et surtout par l'**ouverture du couloir** — c'est elle qui fait naître les interceptions, au lieu de les tirer au sort. Le ballon s'oriente vers le receveur 250 ms avant le départ.
+- **Errement** : deux sinusoïdes déphasées par joueur, donc plus personne n'est jamais parfaitement immobile (mesuré : 0 % de joueurs à l'arrêt).
 
 Le jeu ne charge plus de moteur 3D : la page est **beaucoup plus légère** (idéal sur mobile).
 
@@ -121,7 +134,8 @@ En mode International, **toutes les sélections** (Europe, Amériques, Afrique, 
 | `index.html` | Page principale |
 | `css/fonts.css` | Webfonts embarquées en base64 (Inter, Barlow Condensed — SIL OFL) |
 | `js/flags.js` | Drapeaux vectoriels (110 pays) dessinés en SVG |
-| `js/audio.js` | Bande son : synthèse Web Audio + import de vos fichiers |
+| `js/audio.js` | Bande son : synthèse Web Audio, bruitages de menu, import de vos fichiers |
+| `js/pitchview.js` | Terrain animé : rôles, bloc d'équipe, inertie, circulation du ballon |
 | `css/style.css` | Interface (thème stade) |
 | `js/i18n.js` | Traduction : dictionnaire anglais + bascule FR/EN |
 | `js/realdata.js` | Données réelles : couleurs & effectifs des 253 clubs |
