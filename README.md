@@ -86,6 +86,26 @@ Le terrain n'affiche pas des pions qui glissent vers le ballon : chaque joueur a
 
 Le jeu ne charge plus de moteur 3D : la page est **beaucoup plus légère** (idéal sur mobile).
 
+## 🎯 Enjeu de saison : objectif, confiance, relégation
+
+L'objectif n'est plus un simple texte : il porte un **rang à atteindre**, réellement évalué en fin de saison (titre pour un grand club, podium, place européenne, milieu de tableau, maintien — et **remontée** si vous êtes en D2).
+
+- **Confiance des dirigeants** : une jauge de 0 à 100, affichée sur l'Accueil. Elle dérive doucement pendant la saison selon votre place, puis bascule franchement au verdict (+15 à +25 si l'objectif est tenu, −18 à −35 sinon).
+- **Relégation réelle** : votre club n'est plus protégé. Chaque championnat a désormais une **deuxième division** de 18 clubs ; finir dans la zone rouge vous y envoie, avec son propre calendrier, et l'objectif devient la remontée.
+- **Licenciement** : deux objectifs manqués de suite, ou une confiance tombée à zéro, et les dirigeants vous remercient. **Trois clubs** vous font alors signe — avec leur championnat, la note de leur effectif et leur budget — et la carrière continue ailleurs.
+
+## 🏋️ Entraînement
+
+Sous la composition, dans l'onglet **Tactique**, trois curseurs se partagent la semaine. Un tiers chacun est la répartition neutre : au-dessus vous gagnez dans ce domaine, en dessous vous perdez.
+
+| Orientation | Effet |
+|---|---|
+| **Physique** | Jusqu'à **−30 % de risque de blessure** |
+| **Technique** | Progression plus rapide vers le potentiel, surtout pour les moins de 24 ans |
+| **Tactique** | Cohésion du bloc : jusqu'à **+1,8** sur chaque ligne de l'équipe |
+
+L'effet attendu est chiffré à l'écran et se met à jour en direct. Mesuré sur 4 graines et 2 saisons, en suivant la **même cohorte** de jeunes : progression moyenne **+1,83** en réparti, **+2,58** en tout technique, **+1,42** en tout physique — et blessures **2,00 → 1,50** en misant sur le physique.
+
 ## 💶 Économie du club
 
 Les **salaires sont prélevés à chaque journée** et les **recettes encaissées** de même : billetterie et droits, modulés de −15 % à +15 % par votre place au classement. La carte **Finances** de l'Accueil montre le budget de transfert, la masse salariale hebdomadaire, les recettes et salaires cumulés de la saison, et le solde.

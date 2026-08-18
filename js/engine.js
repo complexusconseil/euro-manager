@@ -57,6 +57,11 @@ FM.teamStrength = function(club){
   mid = mid / Math.max(1, cnt.M);
   att = att / Math.max(1, cnt.A);
 
+  // Travail tactique de la semaine : cohésion du bloc (club géré uniquement)
+  if (FM.trainingEdge && FM.state && club.id === FM.state.managedClubId){
+    const coh = 1.8 * FM.trainingEdge("tactique");
+    att += coh; mid += coh; def += coh;
+  }
   // Influence tactique
   const t = club.tactique;
   const mentBonus = (t.mentalite-1); // -1..1
@@ -242,8 +247,11 @@ FM.matchIncidents = function(club, half){
     if (!p) continue;
     const ageF = p.age>=32 ? 1.5 : p.age<=20 ? 1.2 : 1;
     const fatigue = 1 + (p._tired||0)*0.06;
+    // Préparation physique de la semaine (club géré uniquement)
+    const prep = (FM.trainingEdge && FM.state && club.id === FM.state.managedClubId)
+      ? (1 - 0.30*FM.trainingEdge("physique")) : 1;
     // Blessure
-    if (FM._rnd() < 0.010 * press * tempo * ageF * fatigue){
+    if (FM._rnd() < 0.010 * press * tempo * ageF * fatigue * prep){
       const sev = FM._rnd();
       const duree = sev<0.55 ? FM._ri(1,2) : sev<0.85 ? FM._ri(3,5) : FM._ri(6,12);
       out.push({ type:"injury", id:p.id, nom:p.nom, min:FM._ri(lo,hi), duree });

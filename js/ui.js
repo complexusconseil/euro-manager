@@ -396,7 +396,29 @@ function renderAgenda(body){
 }
 
 /* ============= ACCUEIL ============= */
+function renderSacked(body){
+  const offres = FM.state.sackOffers || [];
+  const card = el("div","card injury-card");
+  card.appendChild(el("h3",null,icon("alert")+_t("Vous êtes remercié")));
+  card.appendChild(el("p",null,
+    _t("Les dirigeants ont mis fin à votre mission. Trois clubs sont prêts à vous confier leur banc.")));
+  offres.forEach(o=>{
+    const row = el("div","offer-row");
+    row.innerHTML = `<span><b>${o.nom}</b> — ${o.ligue} · ${_t("Note effectif")} <b class="note ${noteClass(o.note)}">${o.note}</b>`
+      + ` · ${_t("Budget")} ${money(o.budget)}</span>`;
+    const b = el("button","btn primary small", icon("check")+_t("Prendre ce club"));
+    b.onclick = ()=>{ FM.takeOverClub(o.id); currentTab="accueil"; renderGame(); };
+    row.appendChild(b);
+    card.appendChild(row);
+  });
+  const fin = el("button","btn danger-ghost",_t("Arrêter la carrière"));
+  fin.onclick = ()=>{ if(confirm(_t("Supprimer la sauvegarde ?"))){ FM.deleteSave(); renderStart(); } };
+  card.appendChild(fin);
+  body.appendChild(card);
+}
+
 function renderHome(body){
+  if (FM.state.sacked){ renderSacked(body); return; }
   const my = FM.myClub();
 
   // Agenda unifié : tous les rendez-vous (championnat + coupes) au même endroit
@@ -473,7 +495,15 @@ function renderHome(body){
 
   // objectif + offres
   const info = el("div","card");
-  info.innerHTML = `<h3>${icon("target")}${_t("Objectif de saison")}</h3><p>${cap(FM.state.objectif)} — actuellement <b>${FM.myRank()}${ord(FM.myRank())}</b> / ${FM.clubsInMyLeague().length}.</p>`;
+  const conf = FM.confiance ? FM.confiance() : 65;
+  const cible = FM.state.objectifRang;
+  info.innerHTML = `<h3>${icon("target")}${_t("Objectif de saison")}</h3>`
+    + `<p>${cap(FM.state.objectif)} — ${_t("actuellement")} <b>${FM.myRank()}${ord(FM.myRank())}</b> / ${FM.clubsInMyLeague().length}`
+    + (cible && cible < 90 ? ` · ${_t("attendu")} <b>${cible}${ord(cible)}</b>` : "") + `.</p>`
+    + `<p class="conf-line"><span>${_t("Confiance des dirigeants")} : <b>${FM.confianceLabel()}</b></span>`
+    + `<span class="conf-bar"><i style="width:${conf}%" class="${conf<25?'low':conf<50?'mid':''}"></i></span></p>`
+    + ((FM.state.echecs||0) >= 1
+        ? `<p class="ht-alert">${_t("Objectif manqué la saison passée : un second échec vous coûterait votre place.")}</p>` : "");
   body.appendChild(info);
 
   renderFinances(body);
@@ -919,6 +949,57 @@ function openPlayerCard(p, clubNom){
 }
 
 /* ============= TACTIQUE ============= */
+/* ============= ENTRAÎNEMENT ============= */
+function renderTraining(body){
+  const card = el("div","card");
+  card.appendChild(el("h3",null,icon("gear")+_t("Entraînement de la semaine")));
+  card.appendChild(el("p","hint",
+    _t("Répartissez le travail entre trois orientations. La part neutre est d'un tiers : au-dessus vous gagnez dans ce domaine, en dessous vous perdez.")));
+
+  const DEFS = [
+    ["physique",  _t("Physique"),  _t("Moins de blessures")],
+    ["technique", _t("Technique"), _t("Progression vers le potentiel")],
+    ["tactique",  _t("Tactique"),  _t("Cohésion du bloc")]
+  ];
+  const row = el("div","tac-row");
+  const inputs = {}, vals = {};
+  const bilan = el("div","fin-grid");
+
+  function majBilan(){
+    const t = FM.training();
+    const tot = (t.physique+t.technique+t.tactique) || 100;
+    DEFS.forEach(([k])=>{ vals[k].textContent = Math.round(t[k]/tot*100)+" %"; });
+    const eB = FM.trainingEdge("physique"), eT = FM.trainingEdge("technique"), eC = FM.trainingEdge("tactique");
+    const pct = v => (v>=0?"+":"")+Math.round(v)+" %";
+    bilan.innerHTML =
+      `<div><small>${_t("Risque de blessure")}</small><b class="${eB>0?'pos':eB<0?'neg':''}">${pct(-30*eB)}</b></div>` +
+      `<div><small>${_t("Progression des jeunes")}</small><b class="${eT>0?'pos':eT<0?'neg':''}">${(eT>=0?"+":"")+(eT*1).toFixed(1)} ${_t("note/saison")}</b></div>` +
+      `<div><small>${_t("Force d'équipe")}</small><b class="${eC>0?'pos':eC<0?'neg':''}">${(eC>=0?"+":"")+(1.8*eC).toFixed(1)}</b></div>`;
+  }
+  DEFS.forEach(([k,lbl,desc])=>{
+    const w = el("label","tac-slider");
+    w.appendChild(el("span","tac-title",lbl));
+    const inp = el("input"); inp.type="range"; inp.min=0; inp.max=100; inp.step=5;
+    inp.value = FM.training()[k];
+    const val = el("span","tac-val");
+    inputs[k]=inp; vals[k]=val;
+    inp.oninput = ()=>{
+      FM.setTraining({ physique:+inputs.physique.value,
+                       technique:+inputs.technique.value,
+                       tactique:+inputs.tactique.value });
+      majBilan();
+    };
+    w.appendChild(inp); w.appendChild(val);
+    w.appendChild(el("small","hint",desc));
+    row.appendChild(w);
+  });
+  card.appendChild(row);
+  card.appendChild(el("h4",null,_t("Effet attendu")));
+  card.appendChild(bilan);
+  majBilan();
+  body.appendChild(card);
+}
+
 function renderTactics(body){
   const my = FM.myClub();
 
@@ -980,6 +1061,7 @@ function renderTactics(body){
   pitchCard.appendChild(pitch);
   pitchCard.appendChild(el("p","hint",_t("Cliquez sur un poste pour changer le joueur titulaire.")));
   body.appendChild(pitchCard);
+  renderTraining(body);
 }
 
 function sliderTac(title, labels, val, onchange){

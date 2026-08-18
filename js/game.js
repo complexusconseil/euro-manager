@@ -28,8 +28,12 @@ FM.newGame = function(managerName, clubId, seed){
     news: [],
     offres: [],          // offres reçues pour nos joueurs listés
     historique: [],
-    objectif: objectifFor(club)
+    objectif: objectifFor(club, clubsLigue.length),
+    objectifRang: objectifRangFor(club, clubsLigue.length),
+    confiance: 65,          /* confiance des dirigeants, 0 à 100 */
+    echecs: 0               /* saisons consécutives sans atteindre l'objectif */
   };
+  createSecondDivision(ligue, 18);
   addNews(`${FM.t('Bienvenue')} ${FM.state.managerName} ! ${FM.t('Vous prenez les rênes de')} ${club.nom}. ${FM.t('Objectif')} : ${FM.state.objectif}.`);
   FM.setupEuropeanCups();
   const pc0 = FM.state.europe.playerComp;
@@ -88,8 +92,12 @@ FM.newMasterLeague = function(managerName, clubName, leagueId, seed, kitColors){
     news: [],
     offres: [],
     historique: [],
-    objectif: FM.t("assurer le maintien et bâtir votre club")
+    objectif: FM.t("assurer le maintien et bâtir votre club"),
+    objectifRang: 99,       /* première saison : aucun couperet */
+    confiance: 70,
+    echecs: 0
   };
+  createSecondDivision(leagueId, 18);
   addNews(`Master League — ${FM.state.managerName} ${FM.t('fonde')} ${mlClub.nom} ${FM.t('et intègre la')} ${lgMeta.nom} (${FM.t('à la place de')} ${removed.nom}). ${FM.t('Budget de départ')} : ${mlClub.budget.toFixed(1)} M€.`);
   FM.setupEuropeanCups();                     // (un promu n'est en général pas qualifié)
   FM.setupDomesticCup();                       // engagé en coupe nationale dès la 1re saison
@@ -101,13 +109,157 @@ FM.newMasterLeague = function(managerName, clubName, leagueId, seed, kitColors){
   return FM.state;
 };
 
-function objectifFor(club){
+/* ---------- Confiance des dirigeants ----------
+   Elle bouge en cours de saison selon la place au classement, et bascule
+   franchement au verdict de fin de saison. Deux objectifs manqués de suite,
+   ou une confiance tombée à zéro, et le manager est remercié.            */
+FM.confiance = () => (FM.state && typeof FM.state.confiance === "number") ? FM.state.confiance : 65;
+FM.confianceLabel = function(){
+  const c = FM.confiance();
+  if (c >= 80) return FM.t("Totale");
+  if (c >= 60) return FM.t("Solide");
+  if (c >= 40) return FM.t("Mitigée");
+  if (c >= 20) return FM.t("Fragile");
+  return FM.t("Au bord de la rupture");
+};
+function majConfiance(delta){
+  FM.state.confiance = Math.max(0, Math.min(100, FM.confiance() + delta));
+}
+/* Dérive en cours de saison : un point tous les quatre matchs */
+function confianceEnCours(){
+  if (FM.state.journee % 4 !== 0) return;
+  const rang = FM.myRank(), cible = FM.state.objectifRang || 99;
+  if (!rang) return;
+  majConfiance(rang <= cible ? 1 : rang <= cible + 3 ? 0 : -2);
+}
+/* Verdict de fin de saison : objectif atteint ou non */
+function evaluerObjectif(rang, nClubs){
+  const cible = FM.state.objectifRang || 99;
+  const reussi = rang <= cible;
+  const large  = rang <= Math.max(1, cible - 2);
+  const loin   = rang > cible + 4;
+  majConfiance(reussi ? (large ? 25 : 15) : (loin ? -35 : -18));
+  FM.state.echecs = reussi ? 0 : (FM.state.echecs || 0) + 1;
+  const ord = n => n + (n===1 ? FM.t("er") : FM.t("e"));
+  addNews(reussi
+    ? `${FM.t('Objectif atteint')} (${ord(rang)} / ${nClubs}) — ${FM.t('les dirigeants sont satisfaits.')} `
+      + `${FM.t('Confiance')} : ${FM.confianceLabel()}.`
+    : `${FM.t('Objectif manqué')} (${ord(rang)} / ${nClubs}, ${FM.t('attendu')} ${ord(cible)}) — `
+      + `${FM.t('Confiance')} : ${FM.confianceLabel()}.`, "season");
+  /* Licenciement */
+  if ((FM.state.echecs >= 2 || FM.confiance() <= 0) && FM.state.mode !== "master"){
+    FM.state.sacked = true;
+    FM.state.sackOffers = proposerClubs();
+    addNews(`${FM.t('Vous êtes remercié par')} ${FM.myClub().nom}. ${FM.t('Trois clubs vous font signe.')}`, "season");
+  }
+}
+/* Trois clubs prêts à vous accueillir : un cran en dessous, toutes divisions */
+function proposerClubs(){
+  const actuel = FM.myClub();
+  const cands = FM.state.db.clubs.filter(c =>
+    c.id !== actuel.id && c.rep <= Math.max(1, actuel.rep) && !FM.isD2(c.ligue));
+  const melange = cands.slice().sort(() => FM._rnd() - 0.5).slice(0, 3);
+  return melange.map(c => ({ id:c.id, nom:c.nom, ligue:c.ligueNom, rep:c.rep,
+                             note:FM.squadRating(c), budget:+c.budget.toFixed(1) }));
+}
+/* Reprendre un club après un licenciement */
+FM.takeOverClub = function(clubId){
+  const c = FM.clubById(clubId);
+  if (!c) return false;
+  FM.state.managedClubId = c.id;
+  FM.state.ligueJoueur  = c.ligue;
+  ensureSecondDivision(FM.baseLeagueId(c.ligue));
+  FM.state.calendrier   = FM.makeSchedule(FM.clubsInMyLeague().map(x=>x.id));
+  FM.state.journee = 0; FM.state.resultats = []; FM.state.offres = [];
+  FM.state.confiance = 60; FM.state.echecs = 0;
+  FM.state.sacked = false; FM.state.sackOffers = null;
+  FM.state.fin = { rec:0, sal:0, alerte:false };
+  FM.setObjective();
+  FM.setupEuropeanCups();
+  FM.setupDomesticCup();
+  addNews(`${FM.t('Vous prenez les rênes de')} ${c.nom}. ${FM.t('Objectif')} : ${FM.state.objectif}.`, "season");
+  FM.save();
+  return true;
+};
+
+/* ---------- Divisions ----------
+   La D2 d'un pays porte l'identifiant du championnat suffixé « -D2 ».
+   Tout le reste du jeu filtre déjà sur club.ligue : rien d'autre à changer. */
+const D2ID = id => FM.baseLeagueId(id) + "-D2";
+FM.isD2 = id => /-D2$/.test(id || "");
+FM.baseLeagueId = id => String(id || "").replace(/-D2$/, "");
+FM.leagueMeta = function(id){
+  const base = FM.LEAGUES.find(l => l.id === FM.baseLeagueId(id));
+  if (!base) return { id, nom:String(id), pays:"FRA" };
+  return FM.isD2(id) ? { id:D2ID(id), nom: base.nom + " " + FM.t("Division 2"), pays: base.pays } : base;
+};
+/* Crée la deuxième division du pays du joueur (clubs modestes générés) */
+function createSecondDivision(lgId, n){
+  const meta = FM.leagueMeta(D2ID(lgId));
+  for (let i=0; i<n; i++) FM.state.db.clubs.push(makePromotedClub(meta));
+}
+/* Garantit une D2 fournie : sans elle, la première division se viderait
+   de trois clubs par saison sans jamais être réalimentée. */
+function ensureSecondDivision(lgId, cible){
+  cible = cible || 18;
+  const d2 = D2ID(lgId);
+  const n = FM.state.db.clubs.filter(c=>c.ligue===d2).length;
+  if (n < cible) createSecondDivision(lgId, cible - n);
+}
+FM.ensureSecondDivision = ensureSecondDivision;
+FM.nRelegated = n => n >= 20 ? 3 : (n >= 14 ? 2 : 1);
+
+/* ---------- Objectif de saison ----------
+   Un intitulé lisible ET un rang à atteindre, désormais réellement évalué. */
+function objectifFor(club, nClubs){
+  if (FM.isD2(club.ligue)) return FM.t("remonter en première division");
   if (club.rep >= 5) return FM.t("remporter le titre");
   if (club.rep === 4) return FM.t("terminer sur le podium");
   if (club.rep === 3) return FM.t("accrocher une place européenne (top 6)");
   if (club.rep === 2) return FM.t("atteindre le milieu de tableau");
   return FM.t("assurer le maintien");
 }
+function objectifRangFor(club, nClubs){
+  nClubs = nClubs || 20;
+  if (FM.isD2(club.ligue)) return FM.nRelegated(nClubs);      /* monter */
+  if (club.rep >= 5) return 1;
+  if (club.rep === 4) return 3;
+  if (club.rep === 3) return 6;
+  if (club.rep === 2) return Math.max(8, Math.round(nClubs*0.5));
+  return Math.max(1, nClubs - FM.nRelegated(nClubs));          /* rester devant la zone rouge */
+}
+/* Fixe l'objectif du club dirigé pour la saison qui commence */
+FM.setObjective = function(){
+  const c = FM.myClub(), n = FM.clubsInMyLeague().length;
+  FM.state.objectif = objectifFor(c, n);
+  FM.state.objectifRang = objectifRangFor(c, n);
+};
+
+/* ---------- Entraînement ----------
+   Trois orientations qui se partagent la semaine. La part neutre est 1/3 :
+   au-dessus, on gagne dans ce domaine, en dessous, on perd.            */
+FM.TRAINING_DEFAULT = { physique:34, technique:33, tactique:33 };
+FM.training = function(){
+  if (!FM.state) return FM.TRAINING_DEFAULT;
+  if (!FM.state.entrainement) FM.state.entrainement = Object.assign({}, FM.TRAINING_DEFAULT);
+  return FM.state.entrainement;
+};
+FM.setTraining = function(t){
+  const tot = Math.max(1, (t.physique||0)+(t.technique||0)+(t.tactique||0));
+  FM.state.entrainement = {
+    physique: Math.round((t.physique||0)/tot*100),
+    technique: Math.round((t.technique||0)/tot*100),
+    tactique: Math.round((t.tactique||0)/tot*100)
+  };
+  FM.save();
+  return FM.state.entrainement;
+};
+/* écart à la répartition neutre : −0,5 (rien) … 0 (un tiers) … +1 (tout) */
+FM.trainingEdge = function(cle){
+  const t = FM.training();
+  const tot = (t.physique+t.technique+t.tactique) || 100;
+  return ((t[cle]/tot) - 1/3) / (2/3);
+};
 
 /* ---------- Économie ----------
    Recettes de référence par réputation (M€ par saison), calibrées sur les
@@ -257,6 +409,7 @@ FM.playMatchday = function(forcedMy){
   FM.state.journee++;
   FM.tickAvailability();                 // blessures/suspensions : une journée de moins
   applyFinances();                       // recettes encaissées, salaires payés
+  confianceEnCours();                    // les dirigeants suivent le classement
 
   postMatchdayUpdates(myResult);
   FM.save();
@@ -935,6 +1088,13 @@ FM.endSeason = function(){
       let ageDelta=0;
       if (p.age<=23 && p.note<p.potentiel) ageDelta=FM._ri(0,3);
       else if (p.age>=31) ageDelta=-FM._ri(0,2);
+      // 3 bis) Travail technique de la saison (club géré uniquement)
+      if (c===my && p.note < p.potentiel){
+        const tech = FM.trainingEdge("technique");
+        const poids = (p.age<=23 ? 1 : 0.5);          /* les jeunes en profitent le plus */
+        if (tech > 0 && FM._rnd() < tech*poids) ageDelta += 1;
+        else if (tech < 0 && FM._rnd() < -tech*poids) ageDelta -= 1;
+      }
       // Application : les jeunes peuvent dépasser légèrement leur potentiel sur une grande saison
       const ceil = (p.age<=23 && perf>0) ? Math.min(94, p.potentiel+1) : (p.age<=23 ? p.potentiel : 94);
       p.note = Math.max(40, Math.min(ceil, p.note + ageDelta + perf));
@@ -1007,14 +1167,20 @@ FM.endSeason = function(){
   // --- Convocations en sélections de jeunes (U17/U19/U21) ---
   applyYouthCallups();
 
+  // --- Verdict des dirigeants sur l'objectif de la saison ---
+  evaluerObjectif(rank, t.length);
+
   // --- Montées / descentes dans le championnat du joueur ---
   const promoRelegation = applyPromotionRelegation(t);
+  /* le club a changé de division : on suit */
+  FM.state.ligueJoueur = FM.myClub().ligue;
 
   FM.state.saison++;
   FM.state.journee=0;
   FM.state.resultats=[];
   FM.state.offres=[];
   FM.state.calendrier = FM.makeSchedule(FM.clubsInMyLeague().map(c=>c.id));
+  FM.setObjective();                         // nouvel objectif, adapté à la division
   FM.setupEuropeanCups();                    // coupes de la nouvelle saison (selon classement final)
   FM.setupDomesticCup();                      // nouveau tirage de la coupe nationale
 
@@ -1117,28 +1283,48 @@ function playSuperCup(){
    générés. Le club du joueur n'est jamais relégué (pas de division inférieure
    modélisée) — la carrière continue toujours dans l'élite.                     */
 function applyPromotionRelegation(finalTable){
-  const lgId = FM.state.ligueJoueur;
-  const lgMeta = FM.LEAGUES.find(l=>l.id===lgId);
-  const N = finalTable.length >= 20 ? 3 : (finalTable.length >= 14 ? 2 : 1);
-  // Candidats à la descente : du bas vers le haut, hors club du joueur
-  const relegated = [];
-  for (let i=finalTable.length-1; i>=0 && relegated.length<N; i--){
-    if (finalTable[i].id !== FM.state.managedClubId) relegated.push(finalTable[i]);
+  const lgId  = FM.state.ligueJoueur;
+  const inD2  = FM.isD2(lgId);
+  const d1Id  = FM.baseLeagueId(lgId), d2Id = D2ID(lgId);
+  const metaD1 = FM.leagueMeta(d1Id), metaD2 = FM.leagueMeta(d2Id);
+  const N = FM.nRelegated(finalTable.length);
+  const myId = FM.state.managedClubId;
+  ensureSecondDivision(d1Id);                 /* la D2 du pays courant doit exister */
+  const d1 = FM.state.db.clubs.filter(c=>c.ligue===d1Id);
+  const d2 = FM.state.db.clubs.filter(c=>c.ligue===d2Id);
+  /* la division du joueur est la seule réellement disputée : l'autre est
+     départagée sur la valeur des effectifs, avec une part d'aléa           */
+  const auMerite = list => list.slice()
+    .sort((a,b)=> (FM.squadRating(b)+FM._ri(0,6)) - (FM.squadRating(a)+FM._ri(0,6)));
+
+  let descendants, montants;
+  if (inD2){
+    montants    = finalTable.slice(0, N);                       /* le classement réel décide */
+    descendants = auMerite(d1).slice(-N);
+  } else {
+    descendants = finalTable.slice(-N);                          /* le club du joueur inclus */
+    montants    = auMerite(d2).slice(0, N);
   }
-  const relIds = new Set(relegated.map(c=>c.id));
-  FM.state.db.clubs = FM.state.db.clubs.filter(c=>!relIds.has(c.id));
-  // Promus générés
-  const promoted = [];
-  for (let i=0;i<relegated.length;i++){
-    const club = makePromotedClub(lgMeta);
-    FM.state.db.clubs.push(club);
-    promoted.push(club.nom);
+  /* la première division doit conserver sa taille */
+  while (montants.length < descendants.length){
+    const neuf = makePromotedClub(metaD1);
+    FM.state.db.clubs.push(neuf);
+    montants.push(neuf);
   }
-  if (relegated.length){
-    addNews(`${FM.t('Relégations')} (${lgMeta.nom}) : ${relegated.map(c=>c.nom).join(", ")}.`, "down");
-    addNews(`${FM.t('Promus')} : ${promoted.join(", ")}.`, "up");
+  const place = (c, meta) => { c.ligue = meta.id; c.ligueNom = meta.nom; };
+  descendants.forEach(c => place(c, metaD2));
+  montants.forEach(c => place(c, metaD1));
+
+  const joueurDescend = descendants.some(c=>c.id===myId);
+  const joueurMonte   = montants.some(c=>c.id===myId);
+  if (descendants.length){
+    addNews(`${FM.t('Relégations')} (${metaD1.nom}) : ${descendants.map(c=>c.nom).join(", ")}.`, "down");
+    addNews(`${FM.t('Promus')} : ${montants.map(c=>c.nom).join(", ")}.`, "up");
   }
-  return { releguees: relegated.map(c=>c.nom), promues: promoted };
+  if (joueurDescend) addNews(`${FM.t('Votre club est relégué en')} ${metaD2.nom}.`, "down");
+  if (joueurMonte)   addNews(`${FM.t('Votre club retrouve la')} ${metaD1.nom} !`, "up");
+  return { releguees: descendants.map(c=>c.nom), promues: montants.map(c=>c.nom),
+           joueurDescend, joueurMonte };
 }
 
 /* Génère un club promu (nom unique, effectif modeste type promu) */

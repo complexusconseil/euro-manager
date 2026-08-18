@@ -272,6 +272,35 @@ const EN = {
   "raccroche les crampons.":"has retired.",
   "quitte le club en fin de contrat.":"leaves the club at the end of their contract.",
 
+  /* ----- Entraînement ----- */
+  "Entraînement de la semaine":"Weekly training",
+  "Répartissez le travail entre trois orientations. La part neutre est d'un tiers : au-dessus vous gagnez dans ce domaine, en dessous vous perdez.":"Split the week between three focuses. One third is neutral: above that you gain in that area, below it you lose.",
+  "Physique":"Fitness", "Technique":"Technical", "Tactique":"Tactical",
+  "Moins de blessures":"Fewer injuries",
+  "Progression vers le potentiel":"Faster progress towards potential",
+  "Cohésion du bloc":"Team cohesion",
+  "Effet attendu":"Expected effect",
+  "Risque de blessure":"Injury risk", "Progression des jeunes":"Youth progress",
+  "Force d'équipe":"Team strength", "note/saison":"rating/season",
+
+  /* ----- Objectif, confiance, licenciement, divisions ----- */
+  "actuellement":"currently", "attendu":"expected",
+  "Confiance des dirigeants":"Board confidence", "Confiance":"Confidence",
+  "Totale":"Full", "Solide":"Solid", "Mitigée":"Mixed", "Fragile":"Shaky",
+  "Au bord de la rupture":"Hanging by a thread",
+  "Objectif atteint":"Objective met", "Objectif manqué":"Objective missed",
+  "les dirigeants sont satisfaits.":"the board is pleased.",
+  "Objectif manqué la saison passée : un second échec vous coûterait votre place.":"Objective missed last season: a second failure would cost you your job.",
+  "Vous êtes remercié":"You have been sacked",
+  "Vous êtes remercié par":"You have been sacked by",
+  "Trois clubs vous font signe.":"Three clubs are interested.",
+  "Les dirigeants ont mis fin à votre mission. Trois clubs sont prêts à vous confier leur banc.":"The board has ended your tenure. Three clubs are ready to hand you their dugout.",
+  "Prendre ce club":"Take this club", "Arrêter la carrière":"End the career",
+  "Division 2":"Division 2",
+  "remonter en première division":"win promotion back to the top flight",
+  "Votre club est relégué en":"Your club is relegated to",
+  "Votre club retrouve la":"Your club is back in the",
+
   /* ----- Bande son ----- */
   "Bande son":"Soundtrack",
   "Audio indisponible sur ce navigateur.":"Audio not available in this browser.",

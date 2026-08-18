@@ -580,7 +580,8 @@ FM.makeDomesticCup = function(leagueId, playerClubId){
   for(let i=0;i<need;i++){
     teams.push({ key:"BYE"+i, ref:null, nom:"Exempt", couleurs:["#2a3342","#4b5563"], note:-1, bye:true });
   }
-  const meta = FM.CUP_NAMES[leagueId] || ["Coupe nationale",null];
+  const base = FM.baseLeagueId ? FM.baseLeagueId(leagueId) : leagueId;
+  const meta = FM.CUP_NAMES[base] || ["Coupe nationale",null];
   const playerKey = clubs.some(c=>c.id===playerClubId) ? playerClubId : null;
   const comp = FM.makeTournament("CUP", meta[0], "cup", "club", teams, playerKey);
   comp.nat = meta[1];
