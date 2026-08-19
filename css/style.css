@@ -3,6 +3,16 @@
    Argent et blanc, bandeaux bleus biseautés, capitales condensées
    italiques, accents orange. Pas d'emoji : icônes et pastilles.
    ============================================================ */
+/* Focus visible : indispensable dès lors que le jeu se pilote au clavier.
+   Le contour suit l'accent orange, épais et détaché pour rester lisible sur
+   les fonds bleus comme sur le vert du terrain. */
+button:focus-visible, a:focus-visible, select:focus-visible,
+input:focus-visible, [tabindex]:focus-visible{
+  outline:3px solid #ef7c1b !important;
+  outline-offset:2px;
+}
+.spot:focus-visible{outline:3px solid #ffd24a !important;outline-offset:3px}
+
 :root{
   /* argent / papier */
   --paper:#e9edf2; --paper2:#dbe2ea;

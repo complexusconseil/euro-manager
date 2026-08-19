@@ -45,6 +45,54 @@ const SVG = {
   gear:'<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5"/>',
   alert:'<path d="M12 3.5 21.5 20h-19z"/><path d="M12 9.5v5M12 17.2v.1"/>'
 };
+/* ---------- ACCESSIBILITÉ AU CLAVIER ----------
+   Le jeu n'était pilotable qu'à la souris : les onze postes du terrain et les
+   noms de joueurs sont des <div>/<a> sans href, donc absents du parcours de
+   tabulation, et aucune fenêtre ne se fermait avec Échap ni ne retenait le
+   focus. Ces deux fonctions couvrent les deux cas.                         */
+
+/* Rend un élément non natif activable au clavier comme un bouton */
+function activable(node, fn){
+  node.tabIndex = 0;
+  node.setAttribute("role", "button");
+  node.onclick = fn;
+  node.onkeydown = e => {
+    if (e.key === "Enter" || e.key === " " || e.key === "Spacebar"){ e.preventDefault(); fn(e); }
+  };
+  return node;
+}
+
+/* Ouvre une fenêtre modale : Échap ferme, la tabulation reste piégée dedans,
+   et le focus revient à l'élément qui l'a ouverte. */
+function ouvrirModale(overlay, fermer){
+  const avant = document.activeElement;
+  const focusables = () => Array.prototype.slice.call(overlay.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+    .filter(x => !x.disabled && x.offsetParent !== null);
+  function close(){
+    document.removeEventListener("keydown", onKey, true);
+    if (fermer) fermer(); else overlay.remove();
+    if (avant && avant.focus) try { avant.focus(); } catch(e){}
+  }
+  function onKey(e){
+    if (!document.body.contains(overlay)){ document.removeEventListener("keydown", onKey, true); return; }
+    if (e.key === "Escape"){ e.preventDefault(); close(); return; }
+    if (e.key !== "Tab") return;
+    const f = focusables();
+    if (!f.length) return;
+    const premier = f[0], dernier = f[f.length-1];
+    if (e.shiftKey && document.activeElement === premier){ e.preventDefault(); dernier.focus(); }
+    else if (!e.shiftKey && document.activeElement === dernier){ e.preventDefault(); premier.focus(); }
+  }
+  document.addEventListener("keydown", onKey, true);
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  document.body.appendChild(overlay);
+  const f = focusables();
+  if (f.length) f[0].focus();
+  return close;
+}
+
 function icon(name, cls){
   return `<svg class="${cls||''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SVG[name]||''}</svg>`;
@@ -381,7 +429,19 @@ function renderGame(){
   app.appendChild(foot);
 }
 
-function ord(n){ return n===1?"er":"e"; }
+/* Ordinal : « 1er / 2e » en français, « 1st / 2nd / 3rd / 4th » en anglais.
+   La fonction renvoyait le suffixe français quelle que soit la langue, et
+   elle sert au classement, au palmarès et à la fin de saison. */
+function ord(n){
+  if (typeof FM !== "undefined" && FM.lang && FM.lang() === "en"){
+    const d = n % 10, c = n % 100;
+    if (d === 1 && c !== 11) return "st";
+    if (d === 2 && c !== 12) return "nd";
+    if (d === 3 && c !== 13) return "rd";
+    return "th";
+  }
+  return n===1 ? "er" : "e";
+}
 
 /* Agenda unifié : championnat + coupes, avec les tours en retard mis en avant */
 function renderAgenda(body){
@@ -608,7 +668,7 @@ function playLiveMatch(cfg){
       <button class="btn ghost" id="lsSkip">${_t("Fin du match")}</button>
     </div>
     <div class="ls-feed" id="lsFeed"></div>`;
-  document.body.appendChild(overlay);
+  ouvrirModale(overlay);
 
   const $s=box.querySelector("#lsScore"), $m=box.querySelector("#lsMin"), $f=box.querySelector("#lsFeed");
   const $pause=box.querySelector("#lsPause"), $speed=box.querySelector("#lsSpeed"), $skip=box.querySelector("#lsSkip");
@@ -655,12 +715,12 @@ function playLiveMatch(cfg){
         if (ev.home) hs++; else as++;
         goals.push(ev); $s.textContent=`${hs} - ${as}`;
         pv.goal(ev.home?0:1);
-        feed(`<b>BUT — ${ev.joueur}</b> (${ev.home?cfg.home.nom:cfg.away.nom})`, ev.home?0:1, "goal");
+        feed(`<b>${_t("BUT")} — ${ev.joueur}</b> (${ev.home?cfg.home.nom:cfg.away.nom})`, ev.home?0:1, "goal");
       } else {
         if (cfg.applyIncident) cfg.applyIncident(ev);
-        const lbl = ev.type==="injury" ? `<b>${ev.joueur}</b> se blesse`
-                  : ev.type==="red" ? `<b>${ev.joueur}</b> est expulsé`
-                  : `<b>${ev.joueur}</b> — avertissement`;
+        const lbl = ev.type==="injury" ? `<b>${ev.joueur}</b> ${_t("se blesse")}`
+                  : ev.type==="red" ? `<b>${ev.joueur}</b> ${_t("est expulsé")}`
+                  : `<b>${ev.joueur}</b> — ${_t("avertissement")}`;
         feed(lbl, ev.home?0:1, ev.type);
         if (mg && cfg.isMine && cfg.isMine(ev) && (ev.type==="injury"||ev.type==="red")){
           setPaused(true);
@@ -702,7 +762,7 @@ function playLiveMatch(cfg){
     $s.textContent=`${hs} - ${as}`;
     const et = cfg.endText ? cfg.endText(hs,as) : "";
     $m.innerHTML = (et?et+" · ":"")+_t("Coup de sifflet final");
-    feed(`<b>Fin du match — ${cfg.home.nom} ${hs}-${as} ${cfg.away.nom}</b>`, -1, "info");
+    feed(`<b>${_t("Fin du match")} — ${cfg.home.nom} ${hs}-${as} ${cfg.away.nom}</b>`, -1, "info");
     $pause.style.display="none"; $speed.style.display="none"; if($coach) $coach.style.display="none";
     $skip.textContent=_t("Continuer"); $skip.className="btn primary";
     $skip.onclick=()=>{ overlay.remove(); cfg.done(hs, as, goals); };
@@ -752,7 +812,7 @@ function openCoaching(mg, onClose){
       mg.onField().forEach(p=>{
         const line=el("div","ht-sub-row"+(p.ko?" ko":""));
         line.innerHTML=`<span><span class="pos-badge ${FM.POS_GROUP[p.pos]||'M'}">${p.pos}</span> ${p.nom} <b class="note ${noteClass(p.note)}">${p.note}</b>${p.ko?' <span class="inc-badge">'+_t("BLES.")+'</span>':""}${p.tired>1.5?' <span class="inc-badge warn">'+_t("FATIGUÉ")+'</span>':""}</span>`;
-        const sel=el("select"); sel.appendChild(new Option("— remplacer par —",""));
+        const sel=el("select"); sel.appendChild(new Option("— "+_t("remplacer par")+" —",""));
         bench.forEach(b2=> sel.appendChild(new Option(`${b2.pos} ${b2.nom} (${b2.note})`, b2.id)));
         sel.onchange=()=>{ if(!sel.value) return;
           if (mg.sub(p.id, parseInt(sel.value,10))) render(); };
@@ -799,7 +859,7 @@ function nationManager(team, tac){
               .sort((a,b)=>b.note-a.note).map(p=>({id:p.id,nom:p.nom,pos:p.pos,note:p.note})),
     sub:(o,i)=>{ if(left<=0) return false; if(FM.substituteNation(team,o,i)){ left--; return true; } return false; },
     subsLeft:()=>left,
-    strength:()=>`Force du onze ${Math.round(FM.nationXIRating(team))}`
+    strength:()=>`${_t("Force du onze")} ${Math.round(FM.nationXIRating(team))}`
   };
 }
 
@@ -815,9 +875,9 @@ function openTeamTalkPanel(mg, cfg, next){
     const st = FM.teamStrength(mg.club);
     const xi = mg.club.onze.map(s=>FM.getPlayer(mg.club,s.id)).filter(Boolean);
     const moy = Math.round(xi.reduce((a,p)=>a+p.moral,0)/(xi.length||1));
-    head = `<p>Face à <b>${cfg.oppName||"l'adversaire"}</b>. Attaque <b>${Math.round(st.att)}</b> · milieu <b>${Math.round(st.mid)}</b> · défense <b>${Math.round(st.def)}</b> · moral moyen <b>${moy}</b>.</p>`;
+    head = `<p>${_t("Face à")} <b>${cfg.oppName||_t("l'adversaire")}</b>. ${_t("Attaque")} <b>${Math.round(st.att)}</b> · ${_t("milieu")} <b>${Math.round(st.mid)}</b> · ${_t("défense")} <b>${Math.round(st.def)}</b> · ${_t("moral moyen")} <b>${moy}</b>.</p>`;
   } else {
-    head = `<p>Face à <b>${cfg.oppName||"l'adversaire"}</b>. Sélection <b>${mg.nom}</b> — force <b>${mg.note}</b>.</p>`;
+    head = `<p>${_t("Face à")} <b>${cfg.oppName||_t("l'adversaire")}</b>. ${_t("Sélection")} <b>${mg.nom}</b> — ${_t("force")} <b>${mg.note}</b>.</p>`;
   }
   box.innerHTML = `<h3>${icon("whistle")}${_t("Causerie")} — ${cfg.label||""}</h3>`+head+
     `<p class="hint">${_t("Votre discours influe sur la performance de l'équipe.")}</p>`;
@@ -828,7 +888,7 @@ function openTeamTalkPanel(mg, cfg, next){
     b.onclick=()=>{ toast(applyTalk(mg,k)); overlay.remove(); next(); };
     box.appendChild(b);
   });
-  overlay.appendChild(box); document.body.appendChild(overlay);
+  overlay.appendChild(box); ouvrirModale(overlay);
 }
 function applyTalk(mg, choice){
   if (mg.club) return FM.teamTalk(mg.club, choice).txt;
@@ -912,7 +972,7 @@ function renderSquad(body){
       <td>${p.passes||0}</td>
       <td>${p.noteMatchs?('<b class="note '+noteClass((FM.playerAvgNote(p))*10)+'">'+FM.playerAvgNote(p).toFixed(2)+'</b>'):'—'}</td>
       <td></td>`;
-    tr.querySelector(".player-link").onclick=()=> openPlayerCard(p, my.nom);
+    activable(tr.querySelector(".player-link"), ()=> openPlayerCard(p, my.nom));
     if (p.loan && p.loan.borrowerId===my.id){
       // Joueur prêté chez nous : badge + rendre
       const badge = el("span","tag loan-tag",_t("Prêt")+" "+(p.loan.parentNom||''));
@@ -1002,7 +1062,7 @@ function openPlayerCard(p, clubNom){
   box.appendChild(close);
   overlay.appendChild(box);
   overlay.onclick=e=>{ if(e.target===overlay) overlay.remove(); };
-  document.body.appendChild(overlay);
+  ouvrirModale(overlay);
 }
 
 /* ============= TACTIQUE ============= */
@@ -1124,7 +1184,8 @@ function renderTactics(body){
       spot.innerHTML = p
         ? `<div class="spot-pos">${slot}</div><div class="spot-note ${noteClass(p.note)}">${p.note}</div><div class="spot-name">${shortName(p.nom)}</div>`
         : `<div class="spot-pos">${slot}</div><div class="spot-add">+</div>`;
-      spot.onclick=()=> openPlayerPicker(slotIdx, slot);
+      activable(spot, ()=> openPlayerPicker(slotIdx, slot));
+      spot.setAttribute("aria-label", `${slot} — ${p ? p.nom : _t("poste vacant")}`);
       line.appendChild(spot);
     });
     si+=count;
@@ -1185,7 +1246,7 @@ function openPlayerPicker(slotIdx, slotPos){
   box.appendChild(close);
   overlay.appendChild(box);
   overlay.onclick=e=>{ if(e.target===overlay) overlay.remove(); };
-  document.body.appendChild(overlay);
+  ouvrirModale(overlay);
 }
 
 /* ============= COUPES D'EUROPE ============= */
@@ -1331,7 +1392,7 @@ function renderLeaguePhase(body, comp){
   const tCard = el("div","card");
   tCard.appendChild(el("h3",null,_t("Classement — les 16 premiers qualifiés")));
   const table = el("table","rank-table");
-  table.innerHTML = `<thead><tr><th>#</th><th>Club</th><th>J</th><th>G</th><th>N</th><th>P</th><th>Diff</th><th>Pts</th></tr></thead>`;
+  table.innerHTML = `<thead><tr><th>#</th><th>${_t("Club")}</th><th>${_t("J")}</th><th>${_t("G")}</th><th>${_t("N")}</th><th>${_t("P")}</th><th>${_t("Diff")}</th><th>${_t("Pts")}</th></tr></thead>`;
   const tb = el("tbody");
   FM.lpTable(comp).forEach((row,i)=>{
     const t = comp.teams[row.idx];
@@ -1485,7 +1546,7 @@ function animateMatch(me, opp, selfScore, oppScore, pen, playerA, evs, opts, onD
   overlay.appendChild(box);
   const skip = el("button","btn ghost",icon("skip")+_t("Passer"));
   box.appendChild(skip);
-  document.body.appendChild(overlay);
+  ouvrirModale(overlay);
 
   const feed = box.querySelector("#cFeed"), scoreEl = box.querySelector("#cScore"), minEl = box.querySelector("#cMin");
   const ordered = evs.slice().sort((x,y)=>x.min-y.min);
@@ -1589,7 +1650,7 @@ function openSquadPicker(kind, nation, cb){
 
   const overlay = el("div","overlay");
   const box = el("div","card squad-picker wide");
-  overlay.appendChild(box); document.body.appendChild(overlay);
+  overlay.appendChild(box); ouvrirModale(overlay);
 
   function poolRows(){
     let list = players.filter(p=>!sel.has(p.id));
@@ -1657,7 +1718,7 @@ function openSquadPicker(kind, nation, cb){
     const c=starterCounts();
     const sb=el("div","sp-bar");
     sb.innerHTML=`<span>Effectif : <b>${sel.size}/23</b> · Titulaires <b>${starters.size}/11</b> (GB ${c.G} · Déf ${c.D} · Mil ${c.M} · Att ${c.A})</span>
-      <span>Force du onze : <b class="note ${noteClass(teamNote())}">${teamNote()}</b></span>`;
+      <span>${_t("Force du onze")} : <b class="note ${noteClass(teamNote())}">${teamNote()}</b></span>`;
     box.appendChild(sb);
     const actions=el("div","sp-actions");
     const auto=el("button","btn ghost",_t("Sélection auto")); auto.onclick=()=>{ autoPick(); render(); };
@@ -1843,7 +1904,7 @@ function refreshMarket(container){
       <td>${loanMode?p.potentiel:(p.valeur.toFixed(1)+' M€')}</td>
       <td>${loanMode?('<span class="tag loan-tag">'+_t("prêt")+' '+FM.loanFee(p).toFixed(1)+' M€</span>')
         :(p.libre?'<span class="tag free">'+_t("Libre")+'</span>':(p.dispo?'<span class="tag">'+_t("Transférables")+'</span>':'—'))}</td><td></td>`;
-    tr.querySelector(".player-link").onclick=()=> openPlayerCard(p, p.clubNom);
+    activable(tr.querySelector(".player-link"), ()=> openPlayerCard(p, p.clubNom));
     const mktOpen = FM.marketOpen();
     if (loanMode){
       const btn = el("button","btn tiny primary",_t("Prêter chez moi"));
@@ -1901,7 +1962,7 @@ function openBid(p){
   box.appendChild(close);
   overlay.appendChild(box);
   overlay.onclick=e=>{ if(e.target===overlay) overlay.remove(); };
-  document.body.appendChild(overlay);
+  ouvrirModale(overlay);
 }
 
 /* ============= CLASSEMENT ============= */
@@ -1910,7 +1971,7 @@ function renderTable(body){
   card.appendChild(el("h3",null,icon("table")+`${FM.myClub().ligueNom} — ${_t("Saison")} ${FM.state.saison}`));
   const t = FM.table();
   const table = el("table","rank-table");
-  table.innerHTML = `<thead><tr><th>#</th><th>${_t("Club")}</th><th>J</th><th>G</th><th>N</th><th>P</th><th>BP</th><th>BC</th><th>Diff</th><th>Pts</th></tr></thead>`;
+  table.innerHTML = `<thead><tr><th>#</th><th>${_t("Club")}</th><th>${_t("J")}</th><th>${_t("G")}</th><th>${_t("N")}</th><th>${_t("P")}</th><th>${_t("BP")}</th><th>${_t("BC")}</th><th>${_t("Diff")}</th><th>${_t("Pts")}</th></tr></thead>`;
   const tb = el("tbody");
   t.forEach((c,i)=>{
     const tr = el("tr", c.id===FM.state.managedClubId?"me":"");

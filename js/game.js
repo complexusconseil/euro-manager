@@ -842,15 +842,41 @@ function postMatchdayUpdates(myResult){
    Chaque tour de coupe est rattaché à une journée de championnat, pour que
    rien ne puisse être « oublié » faute d'aller sur le bon onglet.
    ============================================================ */
-FM.CUP_FIRST = 3;   FM.CUP_EVERY = 5;    // coupe nationale : J4, J9, J14…
-FM.EURO_FIRST = 2;  FM.EURO_EVERY = 3;   // phase de ligue : J3, J6, J9…
-FM.EUROKO_FIRST = 20; FM.EUROKO_EVERY = 4; // phase finale : J21, J25…
+/* Repères historiques, conservés pour un championnat de 38 journées. Ils ne
+   servent plus que de valeurs de repli : les échéances sont désormais
+   calculées AU PRORATA de la saison. Codées en dur, elles tombaient hors
+   saison dans un championnat court — avec 22 journées, la 8e journée de
+   phase de ligue était due à J24 et les quatre tours de phase finale à J21,
+   J25, J29 et J33 : aucun n'était jamais proposé, et le club du joueur
+   voyait tout son parcours européen se jouer en coulisses. */
+FM.CUP_FIRST = 3;   FM.CUP_EVERY = 5;
+FM.EURO_FIRST = 2;  FM.EURO_EVERY = 3;
+FM.EUROKO_FIRST = 20; FM.EUROKO_EVERY = 4;
 
-/* Journée à laquelle le tour `r` (0-indexé) d'une compétition est programmé */
+/* Nombre de tours d'une compétition, pour répartir ses échéances */
+function nbTours(kind){
+  const e = FM.state.europe, pc = e && e.playerComp, comp = pc ? e[pc] : null;
+  if (kind === "coupe"){
+    const c = FM.state.coupe;
+    /* un tournoi à élimination directe de N équipes compte log2(N) tours */
+    return (c && c.teams) ? Math.max(1, Math.round(Math.log2(c.teams.length))) : 6;
+  }
+  if (kind === "euroLp") return (comp && comp.lp && comp.lp.rounds) || 8;
+  return 4;                                  /* 8es, quarts, demies, finale */
+}
+
+/* Journée à laquelle le tour `r` (0-indexé) d'une compétition est programmé.
+   Tout est rapporté à la longueur réelle de la saison : la phase de ligue
+   occupe les deux premiers tiers, la phase finale le dernier tiers, et la
+   coupe nationale s'étale sur l'ensemble. */
 function dueMatchday(kind, r){
-  if (kind==="coupe") return FM.CUP_FIRST + r*FM.CUP_EVERY;
-  if (kind==="euroLp") return FM.EURO_FIRST + r*FM.EURO_EVERY;
-  return FM.EUROKO_FIRST + r*FM.EUROKO_EVERY;
+  const T = FM.totalMatchdays() || 38;
+  const n = Math.max(1, nbTours(kind));
+  const place = (debut, fin, i, total) =>
+    Math.max(1, Math.min(T - 1, Math.round(debut + (fin - debut) * (i + 1) / (total + 1))));
+  if (kind === "coupe")  return place(2, T - 2, r, n);
+  if (kind === "euroLp") return place(1, Math.round(T*0.62), r, n);
+  return place(Math.round(T*0.66), T - 1, r, n);
 }
 
 /* Liste ordonnée de tous les rendez-vous EN ATTENTE (championnat + coupes).
@@ -1814,9 +1840,19 @@ FM.endSeason = function(){
     for (const p of c.joueurs.slice()){
       if (p.age >= 33 && FM._rnd() < retireProb(p.age)) partants.push(p);
     }
-    const placeDepart = Math.max(0, c.joueurs.length - 17);   /* on ne vide pas un effectif */
-    for (const p of partants.slice(0, placeDepart)){
+    /* Les plus âgés partent EN PREMIER, et passé 40 ans le départ n'est plus
+       négociable : ni le quota d'effectif ni le plancher de postes ne peuvent
+       le retenir. Sans cela un club court gardait un joueur de 41 ans, faute
+       de place dans le quota ou de doublure à son poste — la ligne est de
+       toute façon recomplétée juste en dessous. */
+    let placeDepart = Math.max(0, c.joueurs.length - 17);   /* on ne vide pas un effectif */
+    partants.sort((a,b)=>b.age-a.age);
+    for (const p of partants){
+      const imperatif = p.age >= 40;
+      if (placeDepart <= 0 && !imperatif) break;
+      if (!imperatif && FM.wouldStripLine(c, p)) continue;  /* pas la dernière doublure du poste */
       retirerDuClub(c, p);
+      placeDepart--;
       if (c===my) addNews(`${p.nom} (${p.age} ${FM.t('ans')}) ${FM.t('raccroche les crampons.')}`, "season");
     }
     /* Une ligne vidée par les départs est recomplétée sur-le-champ : la

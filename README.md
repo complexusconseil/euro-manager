@@ -198,6 +198,16 @@ Coupe nationale, parcours européen, Supercoupe et trophées individuels étaien
 
 Le trophée de **meilleur buteur** annonçait par ailleurs un total faux dans huit saisons sur douze — trois fois ce n'était même pas le bon joueur : les derniers tours de coupe se jouaient *après* le calcul. Vérifié sur 40 saisons : **0 total faux**.
 
+### Les places européennes se gagnent sur le terrain
+
+Le barème par coefficient ne couvre que 78 des 96 tickets européens ; les 18 autres étaient attribués à la **note d'effectif seule**, sans regarder le classement — un 12e et un 15e se retrouvaient en Ligue des Champions. Ils vont désormais au mérite sportif : place au classement d'abord, coefficient du pays pour départager. Mesuré : pire place qualifiée en C1 **4e** au lieu de 15e, et plus aucun club devancé par un moins bien classé de son propre championnat.
+
+Les échéances des coupes sont par ailleurs calculées **au prorata de la saison**. Codées en dur (J21, J25, J29, J33), elles tombaient hors saison dans un championnat court : avec 22 journées, la 8e journée de phase de ligue et les quatre tours de phase finale n'étaient **jamais** proposés — le Celtic voyait tout son parcours européen se jouer en coulisses. Vérifié : 8/8 journées offertes chaque saison, et la phase finale s'ouvre dès la qualification.
+
+### Le jeu se pilote au clavier
+
+Les onze postes du terrain et les noms de joueurs sont des éléments non natifs : ils étaient absents du parcours de tabulation, et aucune fenêtre ne se fermait avec Échap ni ne retenait le focus. Tout est désormais atteignable au clavier, Échap ferme, la tabulation reste piégée dans la fenêtre ouverte, le focus revient à l'élément qui l'a ouverte, et un contour de 3 px le signale.
+
 ### Les salaires suivent les joueurs
 
 Le salaire n'était écrit qu'à la création : un jeune passé de 60 à 94 gardait à vie son salaire de jeune, et comme les gros salaires partaient à la retraite, la masse salariale mondiale fondait de 35 % en vingt saisons — l'argent cessait d'être une contrainte pour l'ordinateur. Elle se réévalue maintenant par paliers à chaque fin de saison, plus vite en fin de contrat. Mesuré sur vingt saisons : **99 à 107 %** de la masse de départ.

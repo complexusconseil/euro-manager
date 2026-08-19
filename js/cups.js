@@ -618,6 +618,7 @@ function coeffSlots(rank){
 FM.setupEuropeanCups = function(){
   const st = FM.state;
   const cl=[], el=[], ecl=[], rest=[];
+  const merite = {};                 /* id de club -> rang sportif européen */
   for (const lg of FM.LEAGUES){
     const lid = lg.id;
     let ordered;
@@ -627,20 +628,27 @@ FM.setupEuropeanCups = function(){
     if (fin && fin.length) ordered = fin.map(id=>FM.clubById(id)).filter(c=>c && c.ligue===lid);
     else ordered = FM.state.db.clubs.filter(c=>c.ligue===lid)
         .sort((a,b)=> b.rep-a.rep || FM.squadRating(b)-FM.squadRating(a));
-    const s = coeffSlots(FM.LEAGUE_COEFF[lid] || 20);
+    const coeff = FM.LEAGUE_COEFF[lid] || 20;
+    const s = coeffSlots(coeff);
     ordered.forEach((c,pos)=>{
+      /* Mérite sportif : d'abord la place au classement, puis le coefficient
+         du pays pour départager. Il sert à attribuer les tickets qui ne sont
+         pas couverts par le barème — 18 sur 96 — qui étaient jusqu'ici donnés
+         à la note d'effectif seule, sans regarder le classement : un 12e et
+         un 15e se retrouvaient en Ligue des Champions. */
+      merite[c.id] = pos*100 + coeff;
       if (pos < s.cl) cl.push(c.id);
       else if (pos < s.cl+s.el) el.push(c.id);
       else if (pos < s.cl+s.el+s.ecl) ecl.push(c.id);
       else rest.push(c.id);
     });
   }
-  const byRating = ids => ids.slice().sort((a,b)=>FM.squadRating(FM.clubById(b))-FM.squadRating(FM.clubById(a)));
-  let leftover = byRating(rest);
+  const byMerite = ids => ids.slice().sort((a,b)=>(merite[a]||1e9)-(merite[b]||1e9));
+  let leftover = byMerite(rest);
   function fill(pool, size){
-    let arr = byRating(pool);
+    let arr = byMerite(pool);
     while (arr.length<size && leftover.length) arr.push(leftover.shift());
-    if (arr.length>size){ leftover = byRating(leftover.concat(arr.slice(size))); arr = arr.slice(0,size); }
+    if (arr.length>size){ leftover = byMerite(leftover.concat(arr.slice(size))); arr = arr.slice(0,size); }
     return arr;
   }
   const ucl = fill(cl,36), uel = fill(el,36), uecl = fill(ecl,24);
