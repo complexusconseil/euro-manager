@@ -340,10 +340,19 @@ function renderGame(){
   const T = [["accueil","home",_t("Accueil")],["effectif","squad",_t("Effectif")],["tactique","tactics",_t("Tactique")],
              ["mercato","market",_t("Mercato")],["europe","europe",_t("Europe")],["coupe","cup",_t("Coupe")],
              ["classement","table",_t("Classement")],["calendrier","calendar",_t("Calendrier")],["actus","news",_t("Actus")]];
+  let onglietActif = null;
   T.forEach(([k,ic,lbl])=>{
     const b = el("button","tab"+(currentTab===k?" active":""), icon(ic)+"<span>"+lbl+"</span>");
     b.onclick=()=>{ currentTab=k; renderGame(); };
+    if (currentTab===k) onglietActif = b;
     tabs.appendChild(b);
+  });
+  /* La barre est reconstruite à chaque rendu, donc son défilement repart de
+     zéro : sur téléphone l'onglet choisi sortait de l'écran et plus aucun ne
+     paraissait sélectionné. On le ramène dans le champ après insertion. */
+  if (onglietActif) requestAnimationFrame(()=>{
+    if (tabs.scrollWidth > tabs.clientWidth && onglietActif.scrollIntoView)
+      onglietActif.scrollIntoView({ block:"nearest", inline:"center" });
   });
   const alerte = saveAlert(); if (alerte) app.appendChild(alerte);
   app.appendChild(audioBar());
@@ -669,10 +678,16 @@ function playLiveMatch(cfg){
          consigne, juste des joueurs immobiles — un nouveau joueur en concluait
          que le jeu avait planté. La mi-temps ouvre maintenant le panneau de
          coaching, comme le fait déjà la pause sur blessure. */
-      if (mg){
+      /* `ended` doit être testé : le bouton « Fin du match » traverse la 45e
+         minute dans une boucle synchrone, si bien que le panneau de mi-temps
+         s'ouvrait PAR-DESSUS un match déjà terminé et masquait « Continuer ».
+         Idem si le match est déjà fini pour une autre raison. */
+      if (mg && !ended){
         feed(_t("Mi-temps — ajustez vos consignes et vos remplacements."), -1, "info");
         if ($coach) $coach.classList.add("urgent");
         openCoaching(mg, ()=>setPaused(false));
+      } else if (mg){
+        /* rien : le match est terminé */
       } else {
         feed(_t("Mi-temps — reprenez quand vous êtes prêt."), -1, "info");
       }
@@ -681,6 +696,9 @@ function playLiveMatch(cfg){
   }
   function finish(){
     if (ended) return; ended=true; clearInterval(timer); pv.stop();
+    /* Filet de sécurité : tout panneau de coaching encore ouvert est refermé,
+       sinon il reste par-dessus l'écran de fin et bloque les clics. */
+    document.querySelectorAll(".coach-overlay").forEach(o=>o.remove());
     $s.textContent=`${hs} - ${as}`;
     const et = cfg.endText ? cfg.endText(hs,as) : "";
     $m.innerHTML = (et?et+" · ":"")+_t("Coup de sifflet final");
@@ -692,7 +710,7 @@ function playLiveMatch(cfg){
   $pause.onclick=()=>setPaused(!paused);
   $speed.onclick=()=>{ speed = speed>=4?1:speed*2; $speed.textContent=speed+"×";
     pv.setTempo(1+(speed-1)*0.35); if(!paused) start(); };
-  $skip.onclick=()=>{ while(minute<90 && !ended){ step(); } finish(); };
+  $skip.onclick=()=>{ setPaused(false); while(minute<90 && !ended){ step(); } finish(); };
   /* La fermeture du panneau doit RELANCER le match : avec un callback vide,
      le chrono restait figé et le joueur croyait le jeu planté. */
   if ($coach) $coach.onclick=()=>{ setPaused(true); $coach.classList.remove("urgent"); openCoaching(mg, ()=>setPaused(false)); };

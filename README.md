@@ -186,11 +186,15 @@ Les bandes de progression sont par ailleurs exprimées en **quantiles recalculé
 
 ### Un joueur ne dépasse jamais son potentiel
 
-Le potentiel cessait d'être un plafond à 24 ans : **7 % du monde jouait au-dessus du sien**, jusqu'à +13 points, et des trentenaires progressaient encore au lieu de décliner. Le potentiel plafonne désormais à tout âge, le déclin commence à 30 ans, et la marche vers le potentiel se prolonge jusqu'au pic au lieu de s'arrêter net à 23 ans.
+Le potentiel cessait d'être un plafond à 24 ans : **7 % du monde jouait au-dessus du sien**, jusqu'à +13 points, et des trentenaires progressaient encore au lieu de décliner. Le potentiel plafonne désormais à tout âge — le plafond redevenait 94 dès 24 ans, si bien que le potentiel n'était plus consulté du tout —, le déclin commence à 30 ans, et la marche vers le potentiel se prolonge jusqu'au pic au lieu de s'arrêter net à 23 ans.
 
 Le potentiel lui-même n'est plus un cliquet : il pouvait monter, jamais descendre, si bien que le 95e centile mondial touchait le plafond dur de 94 dès la quatorzième saison. Mesuré sur douze saisons : **p95 à 87**, 17 joueurs au potentiel maximal (contre plus de 290), 42 joueurs notés 90+ (contre 506).
 
 Le trophée de **joueur de la saison** exigeait 8 matchs : il revenait à des remplaçants ayant joué le quart de la saison. Il en demande maintenant les deux tiers, et le nombre de matchs est inscrit sur le trophée.
+
+### Les salaires suivent les joueurs
+
+Le salaire n'était écrit qu'à la création : un jeune passé de 60 à 94 gardait à vie son salaire de jeune, et comme les gros salaires partaient à la retraite, la masse salariale mondiale fondait de 35 % en vingt saisons — l'argent cessait d'être une contrainte pour l'ordinateur. Elle se réévalue maintenant par paliers à chaque fin de saison, plus vite en fin de contrat. Mesuré sur vingt saisons : **99 à 107 %** de la masse de départ.
 
 ### Le niveau du monde ne s'effondre plus
 

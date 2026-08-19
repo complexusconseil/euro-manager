@@ -207,6 +207,7 @@ function createSecondDivision(lgId, n){
   const meta = FM.leagueMeta(D2ID(lgId));
   for (let i=0; i<n; i++){
     const c = makePromotedClub(meta);
+    c.genere = true;                          /* club inventé, pas un club réel */
     FM.state.db.clubs.push(c);
     /* Un club qui apparaît apporte sa trésorerie : c'est une entrée dans le
        circuit, elle doit être écrite au grand livre. Reprendre un club dans
@@ -230,15 +231,48 @@ FM.ensureSecondDivision = ensureSecondDivision;
    à la base pour toujours — la sauvegarde dépassait le quota du navigateur
    au douzième pays, et ces divisions fantômes étaient simulées chaque
    journée pour rien. */
+/* Un club va disparaître : les prêts qui le désignent doivent être dénoués
+   proprement, sinon le joueur est détruit à la fin de la saison (son club
+   parent n'existe plus, personne ne le récupère). */
+function libererPretsDe(clubId){
+  for (const c of FM.state.db.clubs) for (const p of c.joueurs){
+    if (!p.loan) continue;
+    if (p.loan.parentId === clubId){
+      /* le club détenteur le garde définitivement : il n'a plus de club parent */
+      delete p.loan;
+      p.loanCooldown = FM.state.saison;
+    } else if (p.loan.borrowerId === clubId){
+      /* l'emprunteur disparaît : retour immédiat au club parent */
+      returnLoan(p.id, false);
+    }
+  }
+  FM.state.prets = (FM.state.prets||[]).filter(pr =>
+    pr.parentId !== clubId && pr.borrowerId !== clubId);
+}
 function pruneSecondDivisions(){
   const garder = D2ID(FM.baseLeagueId(FM.state.ligueJoueur));
   const avant = FM.state.db.clubs.length;
   const survivants = [];
   let retires = 0;
   for (const c of FM.state.db.clubs){
-    if (FM.isD2(c.ligue) && c.ligue !== garder && c.id !== FM.state.managedClubId){
+    const aPurger = FM.isD2(c.ligue) && c.ligue !== garder && c.id !== FM.state.managedClubId;
+    /* On ne supprime QUE les clubs inventés pour peupler la division. Un club
+       RÉEL relégué dans une D2 qu'on abandonne doit survivre : la purge en a
+       détruit jusqu'à vingt (Torino, Udinese, Rennes…) avec leurs effectifs,
+       et la première division du pays se retrouvait diluée de clubs générés. */
+    if (aPurger && !c.genere){
+      /* Il RESTE dans sa division, tel quel. Le remonter en première division
+         gonflerait celle-ci au-delà de sa taille (mesuré : PL 20→22,
+         POR 17→20). La D2 abandonnée se réduit donc aux seuls clubs réels qui
+         y sont descendus — quelques-uns, sans incidence sur la sauvegarde. */
+      survivants.push(c);
+      continue;
+    }
+    if (aPurger){
       /* la trésorerie du club disparaît du circuit : on la sort du grand livre */
       eco().recettes -= c.budget || 0;
+      /* et les prêts qui le concernent ne doivent pas devenir orphelins */
+      libererPretsDe(c.id);
       retires++;
       continue;
     }
@@ -308,7 +342,12 @@ FM.setTraining = function(t){
 FM.trainingEdge = function(cle){
   const t = FM.training();
   const tot = (t.physique+t.technique+t.tactique) || 100;
-  return ((t[cle]/tot) - 1/3) / (2/3);
+  /* Échelle SYMÉTRIQUE. L'ancienne rendait +1 au maximum et −0,5 au minimum :
+     toute allocation au-dessus d'un tiers était à espérance positive, et
+     « 100 % technique » devenait une stratégie dominante (+5,3 points
+     d'effectif et +2,7 titres sur douze saisons, sans contrepartie). */
+  const part = t[cle]/tot;
+  return part >= 1/3 ? (part - 1/3) / (2/3) : (part - 1/3) * 3;
 };
 
 /* ---------- Économie ----------
@@ -690,9 +729,17 @@ function accumulateStats(dom, ext, res){
     const passesDuJour = {};
     for (const gId of scorers){
       if (FM._rnd() < 0.65){
-        const cand = xi.filter(p=>p.id!==gId);
-        const off = cand.filter(p=>p.groupe==="M"||p.groupe==="A");
-        const passer = FM._pick(off.length ? off : cand);
+        /* Tirage PONDÉRÉ sur tout le onze, gardien excepté. Le filtre
+           précédent excluait défenseurs et gardiens par construction — les
+           latéraux, premiers pourvoyeurs dans le vrai football, affichaient
+           zéro passe décisive, et la sentinelle était le meilleur passeur du
+           monde parce que le tirage était uniforme parmi les milieux. */
+        const cand = xi.filter(p=>p.id!==gId && p.pos!=="GB");
+        const POIDS = { AG:2.6, AD:2.6, MO:2.4, DG:1.5, DD:1.5, MC:1.3, BU:1.2, MDC:0.5, DC:0.35 };
+        let tot = 0;
+        for (const q of cand) tot += (POIDS[q.pos] || 1);
+        let tir = FM._rnd()*tot, passer = cand[0];
+        for (const q of cand){ tir -= (POIDS[q.pos] || 1); if (tir <= 0){ passer = q; break; } }
         if (passer){
           passer.passes = (passer.passes||0)+1;
           passesDuJour[passer.id] = (passesDuJour[passer.id]||0) + 1;
@@ -969,7 +1016,11 @@ FM.playerWillingness = function(note, buyerRep){
 FM.freeAgentPrime = function(fa, buyerRep){
   const gap = Math.max(0, expectedRepFor(fa.note) - (buyerRep||1));
   const mult = 1 + 0.3*gap;                        // écart de 2 crans → ×1.6
-  return Math.max(0.1, Math.round(fa.valeur * 0.6 * mult * 10)/10);
+  /* 0,60 × valeur ne recouvrait jamais les offres IA (0,85 à 1,25 × valeur) :
+     acheter en été et revendre en hiver rapportait +79 % à coup sûr. À 0,95
+     l'agent libre reste une bonne affaire — pas d'indemnité de transfert —
+     sans être un arbitrage sans risque. */
+  return Math.max(0.1, Math.round(fa.valeur * 0.95 * mult * 10)/10);
 };
 /* Fenêtre de mercato courante, sous forme de repère stable dans la partie */
 function windowKey(){
@@ -1311,7 +1362,7 @@ FM.departureBlock = function(club, player){
    délai, prêter puis rappeler en boucle resterait une manipulation gratuite. */
 FM.LOAN_COOLDOWN = 1;                     /* saisons */
 function loanBlockedByCooldown(p){
-  return p.loanCooldown != null && FM.state.saison < p.loanCooldown + FM.LOAN_COOLDOWN;
+  return p.loanCooldown != null && FM.state.saison <= p.loanCooldown;
 }
 
 /* Emprunter un joueur (prêt entrant) */
@@ -1404,7 +1455,7 @@ FM.myLoans = function(){
 /* Retourne un joueur prêté à son club parent (sans effet de développement).
    `rembourse` : interruption anticipée — l'indemnité retourne à celui qui l'a
    versée, faute de quoi prêter puis rappeler serait une source d'argent. */
-function returnLoan(playerId, rembourse){
+function returnLoan(playerId, rembourse, finSaison){
   let holder=null, player=null;
   for (const c of FM.state.db.clubs){
     const p = c.joueurs.find(x=>x.id===playerId && x.loan);
@@ -1417,8 +1468,17 @@ function returnLoan(playerId, rembourse){
   holder.onze = FM.autoPickXI(holder);
   const wasOut = player.loan.parentId===FM.state.managedClubId;
   delete player.loan;
-  player.loanCooldown = FM.state.saison;         /* pas de nouveau prêt tout de suite */
+  /* Saison JUSQU'À LAQUELLE le joueur reste indisponible au prêt. En fin de
+     saison, processLoansEndSeason tourne AVANT l'incrément de FM.state.saison :
+     sans le +1, le marqueur était déjà périmé à la reprise et le même joueur
+     pouvait repartir en prêt huit saisons d'affilée. */
+  player.loanCooldown = FM.state.saison + (finSaison ? 1 : 0);
   if (parent){ parent.joueurs.push(player); parent.onze = FM.autoPickXI(parent); }
+  else {
+    /* Club parent disparu : le joueur reste chez son détenteur plutôt que de
+       s'évaporer du monde — il avait été retiré de holder.joueurs juste avant. */
+    holder.joueurs.push(player); holder.onze = FM.autoPickXI(holder);
+  }
   FM.state.prets = (FM.state.prets||[]).filter(pr=>pr.playerId!==playerId);
   if (rembourse && fee > 0 && payeurId != null && parent){
     /* Le bénéficiaire de l'indemnité était forcément le club parent. On ne
@@ -1426,7 +1486,11 @@ function returnLoan(playerId, rembourse){
        rappel sa trésorerie a pu être écrêtée ou dépensée, et un remboursement
        à découvert poussait des clubs IA en négatif — que l'écrêtage
        remontait ensuite à zéro, créant de l'argent. */
-    moveMoney(parent, FM.clubById(payeurId), Math.min(fee, Math.max(0, parent.budget)));
+    /* Le remboursement est intégral, quitte à laisser le club parent dans le
+       rouge : le plafonner à sa trésorerie faisait du rappel anticipé un
+       effaceur de dette — prêter puis rappeler soldait n'importe quel
+       découvert sans rien céder. */
+    moveMoney(parent, FM.clubById(payeurId), fee);
   }
   return { ok:true, player, parent, holder, wasOut, fee };
 }
@@ -1445,7 +1509,7 @@ FM.recallLoan = function(playerId){
    des jeunes prêtés (temps de jeu gagné). */
 function processLoansEndSeason(){
   for (const pr of (FM.state.prets||[]).slice()){
-    const r = returnLoan(pr.playerId);
+    const r = returnLoan(pr.playerId, false, true);   /* clôture de fin de saison */
     if (!r.ok) continue;
     const p = r.player, mine = FM.state.managedClubId;
     if (pr.type==="out" && p.age<=23){
@@ -1508,8 +1572,12 @@ FM.endSeason = function(){
       if (c && !FM.compFinished(c)) FM.autoCompleteClubComp(c);
     }
   }
-  if (FM.state.coupe && FM.autoCompleteClubComp && !FM.compFinished(FM.state.coupe))
-    FM.autoCompleteClubComp(FM.state.coupe);
+  /* La coupe nationale n'est PAS une compétition de clubs européenne : c'est
+     un tournoi simple, sans .ko ni .lp. FM.compFinished la déclare donc
+     toujours inachevée et FM.autoCompleteClubComp, ne trouvant aucune phase,
+     se contentait de réécrire `finished` à false — y compris sur une coupe
+     que le joueur venait de gagner. finishDomesticCup(), appelé plus bas,
+     sait déjà la clôturer proprement : on ne touche pas à la coupe ici. */
 
   // --- Trophées individuels du championnat (après clôture, avant remise à zéro) ---
   /* Le seuil était de 8 matchs : le titre revenait régulièrement à un
@@ -1561,14 +1629,26 @@ FM.endSeason = function(){
   const seasonJustEnded = FM.state.saison;
   /* Bandes de progression en quantiles, recalculées sur la saison qui vient
      de s'achever (monde entier, joueurs ayant au moins 8 matchs notés). */
-  const bandes = (() => {
-    const notes = [];
+  /* Quantiles calculés PAR LIGNE (G/D/M/A). Un seuil commun appliqué à quatre
+     distributions décalées de 0,10 à 0,12 point ne partage pas 5/20/50/20/5
+     dans chaque ligne : il versait les gardiens dans la queue basse et les
+     attaquants dans la haute. Part des gardiens parmi les joueurs notés 85+ :
+     0,92× leur poids démographique au départ, 0,10× après dix saisons. */
+  const bandesParLigne = (() => {
+    const parG = { G:[], D:[], M:[], A:[] };
     for (const c of FM.state.db.clubs) for (const p of c.joueurs)
-      if ((p.noteMatchs||0) >= 8) notes.push(FM.playerAvgNote(p));
-    if (notes.length < 50) return { exc:6.78, bon:6.52, moy:6.22, dec:6.03 };  /* repli */
-    notes.sort((a,b)=>a-b);
-    const q = f => notes[Math.min(notes.length-1, Math.floor(notes.length*f))];
-    return { exc:q(0.95), bon:q(0.75), moy:q(0.25), dec:q(0.05) };
+      if ((p.noteMatchs||0) >= 8 && parG[p.groupe]) parG[p.groupe].push(FM.playerAvgNote(p));
+    const repli = { exc:6.78, bon:6.52, moy:6.22, dec:6.03 };
+    const out = {};
+    for (const g of Object.keys(parG)){
+      const n = parG[g];
+      if (n.length < 40){ out[g] = repli; continue; }
+      n.sort((a,b)=>a-b);
+      const q = f => n[Math.min(n.length-1, Math.floor(n.length*f))];
+      out[g] = { exc:q(0.95), bon:q(0.75), moy:q(0.25), dec:q(0.05) };
+    }
+    out._ = repli;
+    return out;
   })();
   for (const c of FM.state.db.clubs){
     c.pts=c.j=c.g=c.n=c.p=c.bp=c.bc=0;
@@ -1616,6 +1696,7 @@ FM.endSeason = function(){
          quantiles reste stable indéfiniment : ~5 % excellents, ~20 % bons,
          ~50 % inchangés, ~20 % moyens, ~5 % décevants. */
       if ((p.noteMatchs||0) >= 8){
+        const bandes = bandesParLigne[p.groupe] || bandesParLigne._;
         if (avg>=bandes.exc){ perf=FM._ri(1,2); tag=FM.t("excellente"); }
         else if (avg>=bandes.bon){ perf=1; tag=FM.t("bonne"); }
         else if (avg<=bandes.dec){ perf=-FM._ri(1,2); tag=FM.t("décevante"); }
@@ -1636,11 +1717,15 @@ FM.endSeason = function(){
         /* Un bon travail technique repousse aussi le PLAFOND d'un jeune :
            sans cela, l'effet disparaissait dès qu'il atteignait son potentiel,
            et l'axe technique devenait indiscernable d'un entraînement neutre. */
-        if (tech > 0 && p.age<=23 && FM._rnd() < tech*0.4)
+        if (tech > 0 && p.age<=23 && FM._rnd() < tech*0.12)
           p.potentiel = Math.min(94, p.potentiel + 1);
       }
       // Application : les jeunes peuvent dépasser légèrement leur potentiel sur une grande saison
-      const ceil = (p.age<=23 && perf>0) ? Math.min(94, p.potentiel+1) : (p.age<=23 ? p.potentiel : 94);
+      /* Le potentiel plafonne à TOUT âge. La branche par défaut plafonnait à
+         94 dès 24 ans : le potentiel n'était plus consulté, et l'alignement
+         qui suit (note > potentiel → potentiel = note) masquait le
+         dépassement au lieu de l'empêcher. */
+      const ceil = (p.age<=23 && perf>0) ? Math.min(94, p.potentiel+1) : p.potentiel;
       p.note = Math.max(40, Math.min(ceil, p.note + ageDelta + perf));
       if (perf>0 && p.age<=23) p.potentiel = Math.min(94, Math.max(p.potentiel, p.note+ FM._ri(0,2)));
       // Moral selon la saison
@@ -1668,6 +1753,16 @@ FM.endSeason = function(){
          joueur voyait franchi. Ce qui a été atteint devient le plafond. */
       if (p.note > p.potentiel) p.potentiel = Math.min(94, p.note);
       p.valeur = FM.playerValue(p.note, p.potentiel, p.age);
+      /* Le salaire suit la valeur, comme à la création du joueur. Il n'était
+         écrit qu'une fois pour toutes : un jeune passé de 60 à 94 gardait son
+         salaire de jeune à vie, et comme les gros salaires partaient à la
+         retraite, la masse salariale mondiale fondait de 35 % en vingt
+         saisons — l'argent cessait d'être une contrainte pour l'IA.
+         Le contrat protège du réajustement brutal : il se renégocie par
+         paliers, à l'échéance comme dans la vraie vie. */
+      const salVise = Math.round((p.valeur*2.2 + p.note*0.3)*10)/10;
+      const ancienSal = p.salaire || salVise;
+      p.salaire = Math.round((ancienSal + (salVise - ancienSal) * (p.contrat <= 1 ? 0.7 : 0.25))*10)/10;
       p.contrat = Math.max(0, p.contrat-1);
     }
 
@@ -1908,6 +2003,7 @@ function applyPromotionRelegation(finalTable){
   /* la première division doit conserver sa taille */
   while (montants.length < descendants.length){
     const neuf = makePromotedClub(metaD1);
+    neuf.genere = true;
     FM.state.db.clubs.push(neuf);
     eco().recettes += neuf.budget || 0;      /* comme createSecondDivision */
     montants.push(neuf);
@@ -2056,30 +2152,60 @@ FM.migrateState = function(){
      Une partie d'avant le circuit fermé repart ainsi d'une base saine. */
   if (!s.eco || typeof s.eco !== "object" || Array.isArray(s.eco)) s.eco = Object.assign({}, ECO0);
   for (const k of Object.keys(ECO0)) if (!nombreSain(s.eco[k])) s.eco[k] = 0;
-  ((s.db && s.db.clubs) || []).forEach(c => { if (!nombreSain(c.budget)) c.budget = 0; });
+  ((s.db && s.db.clubs) || []).forEach(c => {
+    if (!nombreSain(c.budget)) c.budget = 0;
+    if (!c.formation || (FM.FORMATIONS && !FM.FORMATIONS[c.formation])) c.formation = "4-4-2";
+    if (!c.tactique || typeof c.tactique !== "object")
+      c.tactique = { mentalite:1, tempo:1, pressing:1, largeur:1 };
+    if (!Array.isArray(c.onze)) c.onze = [];
+  });
   /* Renumérotation des identifiants en double, hérités d'une sauvegarde
      antérieure au recalage du compteur : deux joueurs partageant un id
      étaient effacés ensemble à la première vente, au premier prêt ou à la
      première retraite. Le premier vu garde son identifiant. */
   if (s.db && Array.isArray(s.db.clubs)){
+    const sain = v => typeof v === "number" && isFinite(v) && v >= 0;
     const vus = new Set(), aRenumeroter = [];
-    for (const c of s.db.clubs) for (const p of (c.joueurs || [])){
-      if (!p) continue;
-      if (vus.has(p.id)) aRenumeroter.push(p); else vus.add(p.id);
-    }
-    for (const p of (s.freeAgents || [])){
-      if (!p) continue;
-      if (vus.has(p.id)) aRenumeroter.push(p); else vus.add(p.id);
-    }
+    const passer = p => {
+      if (!p) return;
+      /* Un identifiant non numérique compte comme un doublon : il doit être
+         remplacé, pas propagé. Le laisser entrer dans `vus` faisait valoir
+         NaN à Math.max, et TOUS les joueurs renumérotés héritaient de NaN —
+         que JSON écrivait en null, rendant la sauvegarde illisible. */
+      if (!sain(p.id) || vus.has(p.id)) aRenumeroter.push(p); else vus.add(p.id);
+    };
+    for (const c of s.db.clubs) (c.joueurs || []).forEach(passer);
+    (s.freeAgents || []).forEach(passer);
     if (aRenumeroter.length){
-      let suivant = Math.max(0, ...vus) + 1;
-      for (const p of aRenumeroter){ p.id = suivant++; vus.add(p.id); }
+      const finis = [...vus].filter(sain);
+      let suivant = (finis.length ? Math.max(...finis) : 0) + 1;
+      /* On mémorise l'ancien identifiant pour remapper tout ce qui y renvoie */
+      const remap = new Map();
+      for (const p of aRenumeroter){
+        const ancien = p.id;
+        p.id = suivant++;
+        vus.add(p.id);
+        if (sain(ancien) && !remap.has(ancien)) remap.set(ancien, p.id);
+      }
       if (FM.syncPlayerIds) FM.syncPlayerIds(s);
-      /* les compositions pointant sur un id désormais réattribué sont refaites */
+      /* Tout ce qui désigne un joueur PAR SON IDENTIFIANT doit suivre :
+         sans cela un prêt devenait perpétuel (le joueur n'était jamais rendu)
+         et une offre pointait dans le vide. */
       for (const c of s.db.clubs){
         const ids = new Set((c.joueurs || []).map(x => x && x.id));
-        if (Array.isArray(c.onze)) c.onze.forEach(sl => { if (sl && sl.id != null && !ids.has(sl.id)) sl.id = null; });
+        if (Array.isArray(c.onze)) c.onze.forEach(sl => {
+          if (!sl || sl.id == null) return;
+          if (remap.has(sl.id) && !ids.has(sl.id)) sl.id = remap.get(sl.id);
+          if (!ids.has(sl.id)) sl.id = null;
+        });
       }
+      const suivre = (obj, cle) => {
+        if (!obj || obj[cle] == null) return;
+        if (remap.has(obj[cle])) obj[cle] = remap.get(obj[cle]);
+      };
+      (s.prets || []).forEach(pr => suivre(pr, "playerId"));
+      (s.offres || []).forEach(o => suivre(o, "joueurId"));
+      (s.jeunesSaison || []).forEach(j => suivre(j, "id"));
     }
   }
   if (typeof s.ver !== "number" || !isFinite(s.ver)) s.ver = 0;
@@ -2145,10 +2271,14 @@ function checkStateInterne(s){
   /* Identifiants de joueurs : exploitables et uniques. Une sauvegarde
      antérieure au recalage du compteur en porte jusqu'à 412 en double, et un
      identifiant démesuré fige le compteur (au-delà de 2^53, max+1 === max). */
-  for (const c of s.db.clubs) for (const p of c.joueurs){
-    if (!p || typeof p.id !== "number" || !isFinite(p.id) || p.id < 0 || p.id > 1e12)
-      return "identifiants";
-  }
+  /* Seul un identifiant NUMÉRIQUE DÉMESURÉ est rédhibitoire : au-delà de 2^53
+     le compteur cesse d'avancer et tous les joueurs suivants partagent le même
+     identifiant. Un identifiant simplement invalide ou en double est réparé
+     par migrateState — y compris dans le vivier d'agents libres, qui alimente
+     la renumérotation et n'était jusqu'ici jamais contrôlé. */
+  const idFatal = p => p && typeof p.id === "number" && (!isFinite(p.id) || p.id < 0 || p.id > 1e12);
+  for (const c of s.db.clubs) for (const p of c.joueurs) if (idFatal(p)) return "identifiants";
+  if (Array.isArray(s.freeAgents)) for (const p of s.freeAgents) if (idFatal(p)) return "identifiants";
   /* Les DOUBLONS d'identifiant ne sont pas rédhibitoires : migrateState les
      renumérote. Une carrière héritée d'avant le recalage du compteur en porte
      jusqu'à 412, et la refuser en bloc serait disproportionné. */
@@ -2156,6 +2286,11 @@ function checkStateInterne(s){
      abîmée fausse toute la comptabilité, pas seulement la vôtre. */
   for (const c of s.db.clubs){
     if (!Array.isArray(c.joueurs)) return "effectifs";
+    /* Ces contrôles ne portaient que sur le club dirigé : 270 clubs sur 271
+       y échappaient, et un seul club abîmé faisait planter la 1re journée. */
+    if (c.formation != null && FM.FORMATIONS && !FM.FORMATIONS[c.formation]) return "formation";
+    if (!c.tactique || typeof c.tactique !== "object") return "consignes";
+    if (!Array.isArray(c.onze)) return "composition";
     /* Seule la trésorerie du club DIRIGÉ est rédhibitoire : celle d'un club
        adverse est réparable, et refuser toute une carrière pour un chiffre
        abîmé chez un club de fond serait disproportionné (migrateState la
