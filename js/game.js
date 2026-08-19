@@ -778,6 +778,35 @@ function accumulateStats(dom, ext, res){
         const merite = 1.4 - attendu;
         note += conceded===0 ? 1.22*merite : conceded===1 ? 0.48*merite : -(conceded-1)*0.30;
       }
+      /* Part individuelle de l'arrière-garde. Tout ce qui précède est un signal
+         d'ÉQUIPE — les buts encaissés — que la pondération par l'attendu
+         neutralise ensuite : le classement d'un gardien à la moyenne de saison
+         est donc presque indépendant de son niveau réel. Les bons ne se
+         détachent jamais, là où un attaquant marque et se détache tout seul. À
+         potentiel égal (86+), 41,5 % des attaquants atteignaient 85 contre
+         23,6 % des gardiens, et la part des gardiens dans l'élite tombait de
+         1,15 à 0,84 fois leur poids parmi les titulaires en vingt saisons.
+         D'où un signal propre, borné, et volontairement plus faible que le
+         bruit d'équipe pour ne pas transformer la ligne en cliquet.
+
+         Coefficient calibré sur quatre graines et vingt saisons, en dérive de
+         la part de chaque ligne dans l'élite (85+) entre S0 et S20 :
+
+             k        G       D       M       A     |dérive|
+             0      −0,28   +0,14   −0,28   +0,24     0,94
+             0,008  +0,01   +0,02   −0,31   +0,29     0,63
+             0,012  +0,15   +0,08   −0,21   +0,06     0,50
+             0,020  +0,18   −0,02   −0,28   +0,23     0,71
+             0,030  +0,15   +0,42   −0,48   −0,05     1,10
+
+         La réponse sature dès 0,012 : au-delà, tous les gardiens rejoignent
+         leur potentiel et le coefficient ne fait plus qu'ajouter du bruit.
+         0,012 est la seule valeur qui améliore les quatre lignes à la fois.
+         La défense n'en reçoit pas : sa part dérivait déjà vers le haut, et
+         lui donner le même signal (k=0,022) la portait à 1,24 en écrasant les
+         milieux à 0,73. */
+      if (p.pos === "GB")
+        note += Math.max(-0.35, Math.min(0.35, (p.note - 72) * 0.012));
       /* Le milieu était la seule ligne sans contribution valorisée : ni but
          (poids de sélection 2,2 contre 5 pour un attaquant), ni cage inviolée.
          Sa bande « excellente » était structurellement hors d'atteinte — 0,4 %

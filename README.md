@@ -104,7 +104,7 @@ Sous la composition, dans l'onglet **Tactique**, trois curseurs se partagent la 
 | **Technique** | Progression plus rapide vers le potentiel, surtout pour les moins de 24 ans |
 | **Tactique** | Cohésion du bloc : jusqu'à **+1,8** sur chaque ligne de l'équipe |
 
-L'effet attendu est chiffré à l'écran et se met à jour en direct. Mesuré sur 4 graines et 2 saisons, en suivant la **même cohorte** de jeunes : progression moyenne **+1,83** en réparti, **+2,58** en tout technique, **+1,42** en tout physique — et blessures **2,00 → 1,50** en misant sur le physique.
+L'effet attendu est chiffré à l'écran et se met à jour en direct. Mesuré sur 4 saisons en suivant la **même cohorte** de jeunes : progression moyenne **+4,17** en réparti, **+4,58** en tout technique, **+3,92** en tout physique, **+3,08** en tout tactique. Les blessures se comptent en **journées-joueur d'exposition** et non en instantané : **134,8** en réparti, **125,8** en misant sur le physique, **168,5** en tout technique.
 
 ## 💶 Économie du club
 
@@ -170,7 +170,7 @@ Les **15 championnats sont disputés en parallèle** du vôtre. Chaque journée,
 
 Il en découle des classements étrangers réels, des **meilleurs buteurs dans chaque pays**, et surtout des **places européennes attribuées au mérite**. Auparavant seule votre ligue était simulée : les 235 clubs étrangers finissaient la saison à **0 point et 0 match**, et la Ligue des Champions se peuplait donc par **ordre alphabétique**.
 
-Vérifié sur une saison : 15 championnats joués intégralement, moyenne des qualifiés en C1 à **79,3** contre **72,6** pour le monde entier, le tout en **1,1 seconde**.
+Vérifié sur une saison : 15 championnats joués intégralement, moyenne des qualifiés en C1 à **80,0** contre **74,2** pour le monde entier, le tout en **1,1 seconde**.
 
 Les matchs de **coupe nationale et de coupe d'Europe** comptent désormais eux aussi dans les statistiques individuelles : un joueur pouvait marquer quatorze buts en Ligue des Champions sans qu'aucun n'apparaisse sur sa fiche, soit jusqu'à un tiers de la saison d'un club invisible. Et les compétitions européennes sont menées à leur terme **avant** le calcul des primes — on pouvait remporter la Ligue des Champions en coulisses, toucher la prime d'une phase de ligue, et l'apprendre par une actualité de Supercoupe.
 
@@ -180,15 +180,21 @@ La note de match récompensait la victoire d'un bonus fixe, sans jamais la rappo
 
 Le résultat est maintenant mesuré **par rapport à l'attendu**, calculé sur l'écart de force et l'avantage du terrain : battre plus fort que soi rapporte, battre plus faible ne rapporte presque rien. La cage inviolée est pondérée de la même façon. Et le centre de formation s'ancre pour moitié sur la médiane du **championnat**, pas seulement sur celle du club — sans quoi un club affaibli formait des jeunes plus faibles, indéfiniment.
 
-Mesuré sur quinze saisons : Serie A **13,9 → 13,1** (au lieu de 31,6), Belgique **6,2 → 9,7** (au lieu de 31,1), club le plus faible du monde **60,1** (au lieu de 52).
+Mesuré sur quinze saisons et quatre graines : Serie A **13,9 → 11,8** (au lieu de 31,6), Belgique **6,2 → 10,6** (au lieu de 31,1), club le plus faible du monde **61,8** (au lieu de 52). Les championnats se resserrent ou s'ouvrent de quelques points selon la partie, ils ne partent plus en cliquet.
 
 Les bandes de progression sont par ailleurs exprimées en **quantiles recalculés chaque fin de saison**, et non en valeurs absolues : des seuils fixes ne tenaient qu'une saison, la bande neutre tombant de 54 % à 21 % du monde en vingt ans.
 
+### Un gardien peut redevenir une star
+
+La note d'un gardien ne dépendait que des **buts encaissés** — une propriété d'équipe, que la pondération par l'attendu neutralise ensuite. Son classement à la moyenne de saison était donc presque indépendant de son niveau réel : les bons ne se détachaient jamais, là où un attaquant marque et se détache tout seul. À potentiel égal (86+), **41,5 % des attaquants atteignaient la note de 85, contre 23,6 % des gardiens**, et la part des gardiens dans l'élite tombait de **0,92 à 0,64 fois leur poids démographique** en vingt saisons.
+
+Le gardien reçoit donc une **part individuelle** dans sa note de match, bornée et volontairement plus faible que le bruit d'équipe pour ne pas transformer la ligne en cliquet. Mesuré sur quatre graines et vingt saisons, la dérive de chaque ligne dans l'élite passe de **0,94 à 0,50 point cumulé**, et les quatre lignes s'améliorent à la fois — gardiens **0,64 → 1,07**, défenseurs 0,97 → 0,90, milieux 0,94 → 1,00, attaquants 1,26 → 1,08.
+
 ### Un joueur ne dépasse jamais son potentiel
 
-Le potentiel cessait d'être un plafond à 24 ans : **7 % du monde jouait au-dessus du sien**, jusqu'à +13 points, et des trentenaires progressaient encore au lieu de décliner. Le potentiel plafonne désormais à tout âge — le plafond redevenait 94 dès 24 ans, si bien que le potentiel n'était plus consulté du tout —, le déclin commence bien à 30 ans, et la marche vers le potentiel se prolonge jusqu'au pic au lieu de s'arrêter net à 23 ans. Mesuré sur douze saisons : la part de jeunes atteignant leur potentiel monte de 34 % à **49-74 % selon la ligne**.
+Le potentiel cessait d'être un plafond à 24 ans : **7 % du monde jouait au-dessus du sien**, jusqu'à +13 points, et des trentenaires progressaient encore au lieu de décliner. Le potentiel plafonne désormais à tout âge — le plafond redevenait 94 dès 24 ans, si bien que le potentiel n'était plus consulté du tout —, le déclin commence bien à 30 ans, et la marche vers le potentiel se prolonge jusqu'au pic au lieu de s'arrêter net à 23 ans. Mesuré en suivant une cohorte de 297 jeunes **jusqu'à son pic** — et non quinze ans plus tard, une fois le déclin passé — la part atteignant son potentiel monte de 34 % à **55 %** (50 à 60 % selon la ligne).
 
-Le potentiel lui-même n'est plus un cliquet : il pouvait monter, jamais descendre, si bien que le 95e centile mondial touchait le plafond dur de 94 dès la quatorzième saison. Mesuré sur douze saisons : **p95 à 87**, 17 joueurs au potentiel maximal (contre plus de 290), 42 joueurs notés 90+ (contre 506).
+Le potentiel lui-même n'est plus un cliquet : il pouvait monter, jamais descendre, si bien que le 95e centile mondial touchait le plafond dur de 94 dès la quatorzième saison. Mesuré sur quinze saisons : **p95 à 87**, 12 joueurs au potentiel maximal (contre plus de 290), 34 joueurs notés 90+ (contre 506).
 
 Le trophée de **joueur de la saison** exigeait 8 matchs : il revenait à des remplaçants ayant joué le quart de la saison. Il en demande maintenant les deux tiers, et le nombre de matchs est inscrit sur le trophée.
 
