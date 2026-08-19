@@ -174,6 +174,7 @@ FM.takeOverClub = function(clubId){
   FM.state.managedClubId = c.id;
   FM.state.ligueJoueur  = c.ligue;
   ensureSecondDivision(FM.baseLeagueId(c.ligue));
+  pruneSecondDivisions();                    // les D2 des pays quittés s'en vont
   FM.state.calendrier   = FM.makeSchedule(FM.clubsInMyLeague().map(x=>x.id));
   FM.state.journee = 0; FM.state.resultats = []; FM.state.offres = []; FM.state.progres = {};
   FM.invalidateSchedules();                  // nouveau pays, nouvelles divisions
@@ -220,6 +221,35 @@ function ensureSecondDivision(lgId, cible){
   if (n < cible) createSecondDivision(lgId, cible - n);
 }
 FM.ensureSecondDivision = ensureSecondDivision;
+
+/* Retire les deuxièmes divisions devenues inutiles. Seul le pays du joueur a
+   besoin d'une D2 : la montée/descente ne tourne que dans son championnat.
+   Sans ce ménage, chaque changement de pays ajoutait 18 clubs et ~420 joueurs
+   à la base pour toujours — la sauvegarde dépassait le quota du navigateur
+   au douzième pays, et ces divisions fantômes étaient simulées chaque
+   journée pour rien. */
+function pruneSecondDivisions(){
+  const garder = D2ID(FM.baseLeagueId(FM.state.ligueJoueur));
+  const avant = FM.state.db.clubs.length;
+  const survivants = [];
+  let retires = 0;
+  for (const c of FM.state.db.clubs){
+    if (FM.isD2(c.ligue) && c.ligue !== garder && c.id !== FM.state.managedClubId){
+      /* la trésorerie du club disparaît du circuit : on la sort du grand livre */
+      eco().recettes -= c.budget || 0;
+      retires++;
+      continue;
+    }
+    survivants.push(c);
+  }
+  if (!retires) return 0;
+  FM.state.db.clubs = survivants;
+  FM.invalidateSchedules();
+  if (FM.state.progres) for (const k of Object.keys(FM.state.progres))
+    if (FM.isD2(k) && k !== garder) delete FM.state.progres[k];
+  return avant - survivants.length;
+}
+FM.pruneSecondDivisions = pruneSecondDivisions;
 FM.nRelegated = n => n >= 20 ? 3 : (n >= 14 ? 2 : 1);
 
 /* ---------- Objectif de saison ----------
@@ -614,6 +644,15 @@ function applyResult(dom, ext, res){
    Jusqu'ici ces rencontres — jusqu'à un tiers de la saison d'un club — ne
    laissaient aucune trace sur les fiches de joueurs. */
 FM.accumulateStats = (dom, ext, res) => accumulateStats(dom, ext, res);
+/* Match de coupe ou d'Europe JOUÉ EN DIRECT : les chemins live transmettent
+   un score déjà calculé, ce qui court-circuitait les seuls appels à
+   accumulateStats. Le club du joueur — le seul à jouer ses matchs à l'écran —
+   ne recevait donc AUCUNE statistique de coupe : 26 % de matchs en moins sur
+   une saison, et un titre de meilleur buteur attribué au mauvais joueur. */
+FM.creditLiveMatch = function(dom, ext, hs, as, events){
+  if (!dom || !ext) return;
+  accumulateStats(dom, ext, { domScore:hs, extScore:as, events:events || [] });
+};
 function accumulateStats(dom, ext, res){
   // Buteurs + regroupement des buts par club
   const goalsBy = {};
@@ -625,9 +664,20 @@ function accumulateStats(dom, ext, res){
   }
   const domWin = res.domScore>res.extScore, extWin = res.extScore>res.domScore;
   const drew = res.domScore===res.extScore;
+  /* Force respective des deux camps : sert à mesurer l'écart entre le
+     résultat obtenu et le résultat attendu. simulateMatch les renvoie ;
+     à défaut (résultat forcé d'un match joué en direct) on les recalcule. */
+  const forceD = res.ratingDom != null ? res.ratingDom : FM.teamStrength(dom).global;
+  const forceE = res.ratingExt != null ? res.ratingExt : FM.teamStrength(ext).global;
   for (const c of [dom, ext]){
     const won = (c===dom&&domWin)||(c===ext&&extWin);
     const conceded = c===dom ? res.extScore : res.domScore;
+    /* Part de points attendue (0 = défaite promise, 1 = victoire promise),
+       logistique sur l'écart de force, avec l'avantage du terrain. */
+    const ecart = (c===dom ? forceD - forceE + 3 : forceE - forceD - 3);
+    const attendu = 1 / (1 + Math.exp(-ecart/6));
+    const obtenu = won ? 1 : (drew ? 0.5 : 0);
+    const marques = c===dom ? res.domScore : res.extScore;
     const scorers = goalsBy[c.id] || [];
     const xi = c.onze.map(s=>FM.getPlayer(c, s.id)).filter(Boolean);
     // Passes décisives : un coéquipier (milieu/attaquant de préférence) crédité par but (~65 %)
@@ -652,15 +702,31 @@ function accumulateStats(dom, ext, res){
       /* La passe décisive était comptée mais ne rapportait rien : les milieux
          restaient la seule ligne sans contribution valorisée. */
       note += (passesDuJour[p.id]||0) * 0.6;
-      if (won) note += 0.4; else if (drew) note += 0.1; else note -= 0.2;
+      /* Résultat rapporté à l'ATTENDU, pas au résultat brut. Un bonus fixe de
+         victoire faisait de la note de saison un simple décalque du
+         classement : les joueurs des premiers progressaient tous, ceux des
+         derniers régressaient tous, et l'écart entre clubs se creusait sans
+         rappel — 13,9 à 31,6 points d'étendue en quinze saisons. Battre plus
+         fort que soi rapporte maintenant, battre plus faible ne rapporte
+         presque rien, et perdre contre plus fort ne coûte presque rien.  */
+      note += 0.8 * (obtenu - attendu);
       /* Apport défensif. L'ancien barème (+0,6 pour un clean sheet, −0,15 par
          but encaissé) avait une espérance quasi nulle : gardiens et défenseurs
          restaient structurellement 0,25 point sous les attaquants, qui gagnent
          1,1 par but. Un gardien ne pouvait mathématiquement pas atteindre la
          bande « excellente saison ». */
       if (p.groupe==="D" || p.pos==="GB"){
-        note += conceded===0 ? 0.95 : conceded===1 ? 0.35 : -(conceded-1)*0.30;
+        /* Pondéré par l'attendu, comme le résultat : une cage inviolée vaut
+           moins quand on écrase un promu que quand on tient tête au premier. */
+        const merite = 1.4 - attendu;
+        note += conceded===0 ? 1.22*merite : conceded===1 ? 0.48*merite : -(conceded-1)*0.30;
       }
+      /* Le milieu était la seule ligne sans contribution valorisée : ni but
+         (poids de sélection 2,2 contre 5 pour un attaquant), ni cage inviolée.
+         Sa bande « excellente » était structurellement hors d'atteinte — 0,4 %
+         des milieux centraux, 0 % des sentinelles. On valorise sa part dans la
+         construction : les buts de l'équipe, à un taux modeste. */
+      if (p.groupe==="M") note += marques * 0.11;
       note = Math.max(4.5, Math.min(10, note));
       p.noteTotale = (p.noteTotale||0) + note;
       p.noteMatchs = (p.noteMatchs||0) + 1;
@@ -1143,6 +1209,10 @@ function aiSignFreeAgents(){
     if (!preneurs.length) continue;
     const c = preneurs[FM._ri(0, preneurs.length-1)];
     FM.state.freeAgents = FM.state.freeAgents.filter(x => x.id !== fa.id);
+    /* Sans cette ligne, un vétéran recruté par un club IA était régénéré la
+       saison suivante — le joueur recruté par VOUS l'était bien, lui. */
+    FM.state.usedFreeAgents = FM.state.usedFreeAgents || [];
+    if (!FM.state.usedFreeAgents.includes(fa.nom)) FM.state.usedFreeAgents.push(fa.nom);
     moveMoney(c, null, prix, "primes");
     fa.transferListe = false; fa.contrat = FM._ri(2,4);
     fa.signeFenetre = windowKey();
@@ -1196,6 +1266,17 @@ FM.loanFee = p => Math.max(0.1, Math.round(p.valeur*0.06*10)/10);
 /* Joueurs réellement sous contrat dans un club (les prêts entrants ne
    comptent pas : ils repartent en fin de saison). */
 FM.ownPlayers = club => club.joueurs.filter(p => !(p.loan && p.loan.borrowerId === club.id));
+/* Niveau médian du championnat d'un club : sert d'ancre au centre de
+   formation, pour que les clubs affaiblis ne s'enfoncent pas indéfiniment. */
+FM.leagueMedian = function(club){
+  if (!club || !FM.state || !FM.state.db) return 60;
+  const notes = [];
+  for (const c of FM.state.db.clubs)
+    if (c.ligue === club.ligue) for (const p of c.joueurs) notes.push(p.note);
+  if (!notes.length) return 60;
+  notes.sort((a,b)=>a-b);
+  return notes[Math.floor(notes.length/2)];
+};
 /* Minimum de joueurs par ligne pour qu'un effectif reste jouable. Sans ce
    plancher, retraites et élagages de fin de saison pouvaient laisser un club
    sans le moindre gardien de but. */
@@ -1333,9 +1414,13 @@ function returnLoan(playerId, rembourse){
   player.loanCooldown = FM.state.saison;         /* pas de nouveau prêt tout de suite */
   if (parent){ parent.joueurs.push(player); parent.onze = FM.autoPickXI(parent); }
   FM.state.prets = (FM.state.prets||[]).filter(pr=>pr.playerId!==playerId);
-  if (rembourse && fee > 0 && payeurId != null){
-    /* le bénéficiaire de l'indemnité était forcément le club parent */
-    moveMoney(parent, FM.clubById(payeurId), fee);
+  if (rembourse && fee > 0 && payeurId != null && parent){
+    /* Le bénéficiaire de l'indemnité était forcément le club parent. On ne
+       rembourse que ce qu'il peut réellement rendre : entre le prêt et le
+       rappel sa trésorerie a pu être écrêtée ou dépensée, et un remboursement
+       à découvert poussait des clubs IA en négatif — que l'écrêtage
+       remontait ensuite à zéro, créant de l'argent. */
+    moveMoney(parent, FM.clubById(payeurId), Math.min(fee, Math.max(0, parent.budget)));
   }
   return { ok:true, player, parent, holder, wasOut, fee };
 }
@@ -1406,7 +1491,21 @@ FM.endSeason = function(){
   const champ = t[0];
   FM.snapshotFinalTables();                 // mémorise le classement final pour les coupes
 
-  // --- Trophées individuels du championnat (avant remise à zéro des stats) ---
+  /* Les compétitions que le joueur n'a pas menées à leur terme sont achevées
+     ICI, avant toute lecture de statistiques : leurs matchs ajoutent des buts
+     et des notes. Les trophées étaient sinon décernés sur un total partiel —
+     « meilleur buteur, 22 buts » alors que la fiche du même joueur, écrite
+     quelques lignes plus bas, en affichait 28. */
+  if (FM.state.europe && FM.autoCompleteClubComp){
+    for (const k of ["UCL","UEL","UECL"]){
+      const c = FM.state.europe[k];
+      if (c && !FM.compFinished(c)) FM.autoCompleteClubComp(c);
+    }
+  }
+  if (FM.state.coupe && FM.autoCompleteClubComp && !FM.compFinished(FM.state.coupe))
+    FM.autoCompleteClubComp(FM.state.coupe);
+
+  // --- Trophées individuels du championnat (après clôture, avant remise à zéro) ---
   const lb = FM.leaderboards(FM.state.ligueJoueur, 8);
   const potm = lb.notes[0];                 // Joueur de la saison (meilleure moyenne)
   const pichichi = lb.buteurs[0];           // Meilleur buteur
@@ -1420,18 +1519,6 @@ FM.endSeason = function(){
   if (trophies.passeur) addNews(`${FM.t('Meilleur passeur')} : ${trophies.passeur.nom} (${trophies.passeur.club}) — ${trophies.passeur.passes} ${FM.t('passes')}.`, "award");
   if (trophies.joueur) addNews(`${FM.t('Joueur de la saison')} : ${trophies.joueur.nom} (${trophies.joueur.club}) — ${FM.t('Note moyenne')} ${trophies.joueur.avg}.`, "award");
 
-  /* Les compétitions européennes que le joueur n'a pas menées à leur terme
-     doivent être achevées AVANT de compter la prime et d'écrire le bilan :
-     sinon le club pouvait remporter la Ligue des Champions en coulisses,
-     toucher la prime d'une phase de ligue, et l'apprendre par une actualité
-     de Supercoupe. La Ligue Conférence était en outre la seule à ne jamais
-     être couronnée. */
-  if (FM.state.europe && FM.autoCompleteClubComp){
-    for (const k of ["UCL","UEL","UECL"]){
-      const c = FM.state.europe[k];
-      if (c && !FM.compFinished(c)) FM.autoCompleteClubComp(c);
-    }
-  }
   const euroPrize = europeanPrize();        // prime selon le parcours européen
   const euroSum = FM.state.europe ? europeSummary() : null;
 
@@ -1463,6 +1550,17 @@ FM.endSeason = function(){
   processLoansEndSeason();
 
   const seasonJustEnded = FM.state.saison;
+  /* Bandes de progression en quantiles, recalculées sur la saison qui vient
+     de s'achever (monde entier, joueurs ayant au moins 8 matchs notés). */
+  const bandes = (() => {
+    const notes = [];
+    for (const c of FM.state.db.clubs) for (const p of c.joueurs)
+      if ((p.noteMatchs||0) >= 8) notes.push(FM.playerAvgNote(p));
+    if (notes.length < 50) return { exc:6.78, bon:6.52, moy:6.22, dec:6.03 };  /* repli */
+    notes.sort((a,b)=>a-b);
+    const q = f => notes[Math.min(notes.length-1, Math.floor(notes.length*f))];
+    return { exc:q(0.95), bon:q(0.75), moy:q(0.25), dec:q(0.05) };
+  })();
   for (const c of FM.state.db.clubs){
     c.pts=c.j=c.g=c.n=c.p=c.bp=c.bc=0;
     /* les recettes courantes sont désormais encaissées journée par journée
@@ -1471,6 +1569,21 @@ FM.endSeason = function(){
     const avantPrime = c.budget;
     c.budget = round2(c.budget + (c===my?bonus:0));
     eco().recettes += c.budget - avantPrime;
+    /* Les clubs IA sont écrêtés à chaque journée, le club du joueur ne l'était
+       nulle part : sa trésorerie atteignait 983 M€ en quinze saisons, soit
+       cinq fois le plafond du club le plus riche du monde, et le mercato
+       n'avait plus le moindre enjeu. Les dirigeants réinvestissent donc
+       l'excédent en fin de saison — plafond volontairement généreux (deux
+       saisons de recettes) et annoncé, pas un couperet silencieux. */
+    if (c===my){
+      const plafond = FM.seasonRevenue(c) * 2;
+      if (c.budget > plafond){
+        const repris = round2(c.budget - plafond);
+        c.budget = round2(plafond);
+        eco().recettes -= repris;
+        addNews(`${FM.t("Les dirigeants réinvestissent")} ${repris.toFixed(0)} M€ ${FM.t("de trésorerie excédentaire dans le club (structures, centre de formation).")}`, "money");
+      }
+    }
     /* historique borné : 12 saisons pour notre effectif, 3 ailleurs.
        Une ligne pèse ~94 octets et il y a plus de 5 000 joueurs.        */
     const capCarriere = (c===my) ? 12 : 3;
@@ -1487,18 +1600,17 @@ FM.endSeason = function(){
       //    comptabilisé sans être noté aurait une moyenne de 0 et tomberait
       //    dans la bande « décevante » sans avoir démérité.
       let perf=0, tag=null;
-      /* Seuils calés sur la distribution RÉELLE des notes de match, mesurée
-         sur 3 316 joueurs après une saison complète : p05 6,03 · médiane 6,36
-         · p95 6,78. Les anciens seuils (7,4 et 7,0) étaient hors d'atteinte —
-         la bande « excellente » n'était jamais servie, 81 % des joueurs
-         étaient pénalisés, et le niveau du monde entier s'effondrait saison
-         après saison. Le partage est désormais ~25 % en hausse, ~25 % en
-         baisse, la moitié inchangée. */
+      /* Seuils en QUANTILES de la saison écoulée, et non en valeurs absolues.
+         Des seuils fixes ne tiennent qu'une saison : la dispersion des
+         moyennes s'élargit d'année en année, si bien que la bande neutre
+         passait de 54 % à 21 % du monde en vingt saisons. Un partage en
+         quantiles reste stable indéfiniment : ~5 % excellents, ~20 % bons,
+         ~50 % inchangés, ~20 % moyens, ~5 % décevants. */
       if ((p.noteMatchs||0) >= 8){
-        if (avg>=6.78){ perf=FM._ri(1,2); tag=FM.t("excellente"); }
-        else if (avg>=6.52){ perf=1; tag=FM.t("bonne"); }
-        else if (avg<=6.03){ perf=-FM._ri(1,2); tag=FM.t("décevante"); }
-        else if (avg<=6.22){ perf=-1; tag=FM.t("moyenne"); }
+        if (avg>=bandes.exc){ perf=FM._ri(1,2); tag=FM.t("excellente"); }
+        else if (avg>=bandes.bon){ perf=1; tag=FM.t("bonne"); }
+        else if (avg<=bandes.dec){ perf=-FM._ri(1,2); tag=FM.t("décevante"); }
+        else if (avg<=bandes.moy){ perf=-1; tag=FM.t("moyenne"); }
       }
       // 3) Progression / déclin liés à l'âge
       let ageDelta=0;
@@ -1591,8 +1703,11 @@ FM.endSeason = function(){
            par le plancher gonflaient saison après saison (jusqu'à dix
            gardiens dans un même club). */
         const surnombre = c.joueurs.filter(x=>x.groupe===p.groupe).length - FM.POS_FLOOR[p.groupe];
+        /* Un troisième gardien est bien plus dispensable qu'un septième
+           milieu : le surnombre pèse plus lourd sur les lignes étroites. */
+        const poidsSur = p.groupe==="G" ? 6.0 : 2.2;
         const sc = p.note + Math.max(0, 22-p.age)*0.3 - Math.max(0, p.age-31)*1.4
-                 - Math.max(0, surnombre)*2.2;
+                 - Math.max(0, surnombre)*poidsSur;
         if (sc < pire){ pire = sc; sortant = p; }
       }
       if (!sortant) break;
@@ -1638,7 +1753,13 @@ FM.endSeason = function(){
     FM.state.freeAgents.forEach(p=>{ p.age++; if(p.age>=32) p.note=Math.max(40,p.note-FM._ri(0,2)); p.valeur=FM.playerValue(p.note,p.potentiel,p.age); });
     FM.state.freeAgents = FM.state.freeAgents.filter(p=>p.age<=38);
   }
+  /* makeFreeAgents exclut désormais les noms déjà présents dans le vivier et
+     dans les clubs : la concaténation ne peut plus produire de doublon. Un
+     filet de sécurité par nom reste en place, au cas où une sauvegarde
+     antérieure en porterait déjà. */
+  const vus = new Set();
   FM.state.freeAgents = (FM.state.freeAgents||[]).concat(FM.makeFreeAgents(28, my.pays))
+    .filter(p => { if (vus.has(p.nom)) return false; vus.add(p.nom); return true; })
     .sort((a,b)=>b.note-a.note).slice(0,60);
 
   // Tournoi international de l'été (alterné Coupe du Monde / Championnat d'Europe)
@@ -1828,12 +1949,18 @@ function europeSummary(){
   const e = FM.state.europe; if (!e || !e.playerComp) return null;
   const comp = e[e.playerComp], ko = comp.ko;
   let res;
-  if (comp.phase==="league") res = "phase de ligue";
+  if (comp.phase==="league") res = FM.t("phase de ligue");
   else if (ko && ko.finished && ko.champion===ko.playerSeed) res = FM.t("Vainqueur");
+  else if (ko && ko.playerSeed < 0){
+    /* Le club n'a pas atteint la phase finale : lpFinishToKO pose playerSeed
+       à −1. Aucune confrontation ne le référence, si bien que le bilan restait
+       bloqué sur « en cours » — 23 saisons sur 25 dans le palmarès. */
+    res = FM.t("éliminé en phase de ligue");
+  }
   else if (ko){
     const lost = ko.history.find(h=>h.ties.some(t=>(t.a===ko.playerSeed||t.b===ko.playerSeed)&&t.winner!==ko.playerSeed));
-    res = lost ? ("éliminé en "+lost.nom) : "en cours";
-  } else res = "en cours";
+    res = lost ? (FM.t("éliminé en ")+lost.nom) : FM.t("en cours");
+  } else res = FM.t("en cours");
   return { comp:e.playerComp, nom:comp.nom, resultat:res };
 }
 
@@ -1876,6 +2003,7 @@ FM.migrateState = function(){
   /* Avant toute chose : recaler le compteur d'identifiants sur la partie
      chargée, sinon les prochains joueurs créés reprendront des id existants. */
   if (FM.syncPlayerIds) FM.syncPlayerIds(s);
+  if (FM.setRngCursor && typeof s.rng === "number") FM.setRngCursor(s.rng);
   FM.invalidateSchedules();
   const fix = p => { for (const k in SAVE_DEFAULTS) if (p[k] === undefined) p[k] = SAVE_DEFAULTS[k]; };
   ((s.db && s.db.clubs) || []).forEach(c => (c.joueurs || []).forEach(fix));
@@ -1889,6 +2017,7 @@ FM.migrateState = function(){
      Une partie d'avant le circuit fermé repart ainsi d'une base saine. */
   if (!s.eco || typeof s.eco !== "object" || Array.isArray(s.eco)) s.eco = Object.assign({}, ECO0);
   for (const k of Object.keys(ECO0)) if (!nombreSain(s.eco[k])) s.eco[k] = 0;
+  ((s.db && s.db.clubs) || []).forEach(c => { if (!nombreSain(c.budget)) c.budget = 0; });
   if (!Array.isArray(s.historique)) s.historique = [];
   if (!Array.isArray(s.prets)) s.prets = [];
   if (!Array.isArray(s.offres)) s.offres = [];
@@ -1899,7 +2028,12 @@ FM.migrateState = function(){
 /* Un nombre exploitable : ni NaN, ni ±Infinity, ni chaîne, ni null.
    JSON.stringify sérialise NaN et Infinity en `null` : une trésorerie abîmée
    revenait donc silencieusement à null, et l'argent disparaissait du bilan. */
-const nombreSain = v => typeof v === "number" && isFinite(v);
+/* Une trésorerie plausible tient largement sous ce plafond. isFinite(1e308)
+   est vrai : sans borne d'amplitude, une valeur extrême était acceptée, puis
+   débordait en Infinity au premier calcul, et JSON la réécrivait en null —
+   le jeu produisait lui-même une sauvegarde qu'il refuserait de relire. */
+const MONTANT_MAX = 1e12;
+const nombreSain = v => typeof v === "number" && isFinite(v) && Math.abs(v) <= MONTANT_MAX;
 
 FM.checkState = function(s){
   try { return checkStateInterne(s); }
@@ -1920,11 +2054,32 @@ function checkStateInterne(s){
   const my = s.db.clubs.find(c => c.id === s.managedClubId);
   if (!Array.isArray(my.joueurs) || !my.joueurs.length) return "effectif";
   if (!Array.isArray(my.onze)) return "composition";
+  /* Une composition qui désigne des joueurs absents plante au premier match */
+  const idsEffectif = new Set(my.joueurs.map(p => p && p.id));
+  for (const sl of my.onze){
+    if (!sl || typeof sl !== "object") return "composition";
+    if (sl.id != null && !idsEffectif.has(sl.id)) return "composition";
+  }
+  /* Coupes : elles doivent référencer des clubs qui existent */
+  const compsOK = comp => {
+    if (!comp) return true;
+    if (typeof comp !== "object" || !Array.isArray(comp.teams)) return false;
+    return true;
+  };
+  if (!compsOK(s.coupe)) return "coupe";
+  if (s.europe !== undefined){
+    if (!s.europe || typeof s.europe !== "object") return "coupes d'Europe";
+    for (const k of ["UCL","UEL","UECL"]) if (!compsOK(s.europe[k])) return "coupes d'Europe";
+  }
   /* La trésorerie de CHAQUE club doit être un nombre : une seule valeur
      abîmée fausse toute la comptabilité, pas seulement la vôtre. */
   for (const c of s.db.clubs){
     if (!Array.isArray(c.joueurs)) return "effectifs";
-    if (!nombreSain(c.budget)) return "trésorerie";
+    /* Seule la trésorerie du club DIRIGÉ est rédhibitoire : celle d'un club
+       adverse est réparable, et refuser toute une carrière pour un chiffre
+       abîmé chez un club de fond serait disproportionné (migrateState la
+       ramène à zéro, comme il le fait déjà pour le grand livre). */
+    if (c.id === s.managedClubId && !nombreSain(c.budget)) return "trésorerie";
   }
   /* Le grand livre : s'il est présent, il doit être exploitable. Absent, il
      sera recréé par migrateState. */
@@ -1966,6 +2121,7 @@ function lsDel(k){ try { localStorage.removeItem(k); } catch(e){ FM.storageOK = 
 
 FM.save = function(){
   try {
+    if (FM.rngCursor) FM.state.rng = FM.rngCursor();   // le hasard reprend où il s'est arrêté
     lsSet(SAVE_KEY, JSON.stringify(FM.state, saveReplacer));
     FM.saveError = null;
     FM.storageOK = true;

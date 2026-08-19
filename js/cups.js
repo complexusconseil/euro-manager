@@ -615,7 +615,9 @@ FM.setupEuropeanCups = function(){
     const lid = lg.id;
     let ordered;
     const fin = st._finalOrder && st._finalOrder[lid];
-    if (fin && fin.length) ordered = fin.map(id=>FM.clubById(id)).filter(Boolean);
+    /* Un club relégué depuis le classement final n'est plus qualifiable :
+       sans ce filtre, il disputait la Coupe d'Europe depuis la D2. */
+    if (fin && fin.length) ordered = fin.map(id=>FM.clubById(id)).filter(c=>c && c.ligue===lid);
     else ordered = FM.state.db.clubs.filter(c=>c.ligue===lid)
         .sort((a,b)=> b.rep-a.rep || FM.squadRating(b)-FM.squadRating(a));
     const s = coeffSlots(FM.LEAGUE_COEFF[lid] || 20);

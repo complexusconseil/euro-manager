@@ -385,9 +385,23 @@ const ORIGIN_MIX = {
 };
 
 /* ---------- Générateur pseudo-aléatoire déterministe (seed) ---------- */
-function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+/* Le curseur est gardé HORS de la fermeture pour pouvoir être sauvegardé :
+   sans lui, chaque rechargement de page rembobinait le hasard au même point
+   et deux carrières reprises au même endroit se déroulaient à l'identique. */
+let RNG_CURSEUR = 20260810;
+function mulberry32(a){
+  RNG_CURSEUR = a|0;
+  return function(){
+    RNG_CURSEUR = RNG_CURSEUR + 0x6D2B79F5 | 0;
+    let t = Math.imul(RNG_CURSEUR ^ RNG_CURSEUR>>>15, 1|RNG_CURSEUR);
+    t = t + Math.imul(t ^ t>>>7, 61|t) ^ t;
+    return ((t ^ t>>>14)>>>0)/4294967296;
+  };
+}
 let RNG = mulberry32(20260810);
 FM.setSeed = s => { RNG = mulberry32(s); };
+FM.rngCursor = () => RNG_CURSEUR;
+FM.setRngCursor = v => { if (typeof v === "number" && isFinite(v)) RNG = mulberry32(v); };
 function rnd(){return RNG();}
 function ri(min,max){return Math.floor(rnd()*(max-min+1))+min;}
 function pick(arr){return arr[Math.floor(rnd()*arr.length)];}
@@ -444,7 +458,13 @@ FM.makeYouth = function(club, forcedPos){
      médiane du monde glisse vers le barème du générateur.               */
   const notes = (club && club.joueurs && club.joueurs.length)
     ? club.joueurs.map(j=>j.note).sort((a,b)=>a-b) : null;
-  const niveau = notes ? notes[Math.floor(notes.length/2)] : 40 + rep*6;
+  const medClub = notes ? notes[Math.floor(notes.length/2)] : 40 + rep*6;
+  /* Le centre de formation recrute dans un vivier NATIONAL, pas seulement
+     dans son propre effectif. Se caler sur la seule médiane du club en
+     faisait un cliquet : un club affaibli formait des jeunes plus faibles,
+     donc s'affaiblissait encore, sans jamais de rappel vers la moyenne. */
+  const medLigue = FM.leagueMedian ? FM.leagueMedian(club) : medClub;
+  const niveau = Math.round(0.5*medClub + 0.5*medLigue);
   /* Écart au niveau du club : un jeune entre sous la médiane, mais pas au
      point de tirer le monde vers le bas génération après génération. */
   p.note = Math.max(45, Math.min(80, niveau - ri(4, 13)));
@@ -565,8 +585,17 @@ FM.FREE_AGENT_POOL = [
 ];
 FM.makeFreeAgents = function(n, country){
   n = n || 46;
-  const used = (FM.state && FM.state.usedFreeAgents) ? FM.state.usedFreeAgents : [];
-  const pool = FM.FREE_AGENT_POOL.filter(fa=>!used.includes(fa[0])).slice();
+  /* Un nom déjà consommé, déjà présent dans le vivier, ou déjà sous contrat
+     quelque part ne doit pas être retiré une seconde fois du pool : le même
+     footballeur se retrouvait sinon en cinq exemplaires d'âges différents,
+     et parfois simultanément dans un club et sur le marché. */
+  const pris = new Set((FM.state && FM.state.usedFreeAgents) || []);
+  if (FM.state){
+    for (const p of (FM.state.freeAgents || [])) pris.add(p.nom);
+    for (const c of ((FM.state.db && FM.state.db.clubs) || []))
+      for (const p of (c.joueurs || [])) pris.add(p.nom);
+  }
+  const pool = FM.FREE_AGENT_POOL.filter(fa=>!pris.has(fa[0])).slice();
   // mélange (sans Math.random : Fisher-Yates via ri)
   for (let i=pool.length-1;i>0;i--){ const j=ri(0,i); const t=pool[i]; pool[i]=pool[j]; pool[j]=t; }
   const list = [];

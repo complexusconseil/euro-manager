@@ -346,6 +346,10 @@ const EN = {
   "vient d'arriver : pas de revente avant le prochain mercato.":"has just arrived: no resale before the next transfer window.",
   "est sur la liste des transferts.":"is on the transfer list.",
   "est retiré de la liste des transferts.":"is off the transfer list.",
+  "Les dirigeants réinvestissent":"The board reinvests",
+  "de trésorerie excédentaire dans le club (structures, centre de formation).":"of surplus cash into the club (facilities, academy).",
+  "phase de ligue":"league phase", "éliminé en phase de ligue":"knocked out in the league phase",
+  "éliminé en ":"knocked out in ", "en cours":"ongoing",
   /* --- Libellés de filtres, postes et titres restés en clair --- */
   "Tous les joueurs":"All players", "Transférables":"Transfer-listed",
   "Tous postes":"All positions", "Toute note":"Any rating", "Tout potentiel":"Any potential",

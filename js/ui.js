@@ -1311,7 +1311,9 @@ function playLeagueMatch(comp){
   const homeT = comp.teams[pm.home], awayT = comp.teams[pm.away];
   const dom = FM.clubById(homeT.ref), ext = FM.clubById(awayT.ref);
   const cfg = clubMatchCfg(dom, ext, comp.nom+" · phase de ligue", FM.myClub());
-  cfg.done = (hs,as)=>{ cfg.cleanup(); FM.lpResolveRound(comp,{hs,as}); FM.save(); renderGame(); };
+  cfg.done = (hs,as,goals)=>{ cfg.cleanup();
+    FM.creditLiveMatch(dom, ext, hs, as, goals);      // les stats comptent aussi en direct
+    FM.lpResolveRound(comp,{hs,as}); FM.save(); renderGame(); };
   playLiveMatch(cfg);
 }
 
@@ -1380,6 +1382,7 @@ function playCupTie(comp, opts){
       return qualChip(won)+(pen?` (tab ${playerA?pen[0]:pen[1]}-${playerA?pen[1]:pen[0]})`:"");
     };
     cfg.done = (hs,as,goals)=>{ cfg.cleanup();
+      FM.creditLiveMatch(dom, ext, hs, as, goals);    // idem en coupe
       const winner = hs>as?a : as>hs?b : (pen[0]>pen[1]?a:b);
       finish({ as:hs, es:as, pen, winner, twoLeg:false, ev1:goals }); };
     playLiveMatch(cfg); return;
@@ -1387,8 +1390,9 @@ function playCupTie(comp, opts){
   // ALLER puis RETOUR
   const d1=clubOf(a), e1=clubOf(b);
   const c1 = clubMatchCfg(d1, e1, "Aller · "+comp.nom, my);
-  c1.done = (l1h, l1a)=>{
+  c1.done = (l1h, l1a, g1)=>{
     c1.cleanup();
+    FM.creditLiveMatch(d1, e1, l1h, l1a, g1);         // match aller
     const d2=clubOf(b), e2=clubOf(a);
     let pen=null;
     const c2 = clubMatchCfg(d2, e2, "Retour · "+comp.nom, my);
@@ -1399,7 +1403,8 @@ function playCupTie(comp, opts){
       const won = self>opp || (self===opp && pen && ((playerA?pen[0]:pen[1])>(playerA?pen[1]:pen[0])));
       return `Cumul ${self}-${opp}`+(pen?` · tab ${playerA?pen[0]:pen[1]}-${playerA?pen[1]:pen[0]}`:"")+` · `+qualChip(won);
     };
-    c2.done = (l2h,l2a)=>{ c2.cleanup();
+    c2.done = (l2h,l2a,g2)=>{ c2.cleanup();
+      FM.creditLiveMatch(d2, e2, l2h, l2a, g2);       // match retour
       const agA=l1h+l2a, agB=l1a+l2h;
       const winner = agA>agB?a : agB>agA?b : (pen[0]>pen[1]?a:b);
       finish({ as:agA, es:agB, pen, winner, twoLeg:true, leg1:{as:l1h,es:l1a}, leg2:{as:l2a,es:l2h} }); };

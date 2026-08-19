@@ -156,6 +156,8 @@ La partie est enregistrée dans le navigateur à chaque journée. Quatre garde-f
 - **Alerte visible** : si le navigateur refuse d'écrire, un **bandeau rouge** le dit et propose d'**exporter la partie** en fichier `.json`. Plus de progression perdue en silence.
 - **Contrôle au chargement** : une sauvegarde vide, tronquée ou étrangère est **refusée proprement** avec un message, au lieu de faire planter le jeu. Le contrôle porte sur douze points — présence des résultats et des actualités, cohérence du championnat suivi, effectif et trésorerie du club dirigé, calendrier qui ne désigne que des clubs existants. Les sauvegardes d'anciennes versions sont migrées automatiquement.
 - **Identifiants stables au rechargement** : le compteur d'identifiants repart à 1 au chargement du script. Il est maintenant recalé sur la partie chargée — sans cela, les joueurs créés après un rechargement reprenaient des identifiants déjà utilisés (**442 doublons dès la première saison**), et toute suppression « par identifiant » — retour de prêt, transfert, retraite — pouvait effacer un autre joueur de la base.
+- **Les divisions abandonnées sont nettoyées** : chaque changement de pays créait une deuxième division de 18 clubs qui n'était jamais retirée. Au douzième pays la sauvegarde dépassait le quota du navigateur et la carrière cessait d'être enregistrée. Seul le pays en cours conserve sa D2 : la base reste à **271 clubs** sur vingt saisons au lieu d'enfler jusqu'à 487.
+- **Le hasard reprend où il s'est arrêté** : le curseur du générateur est enregistré. Sans lui, chaque rechargement de page rembobinait le hasard au même point.
 - **Le jeu tourne même sans stockage** : en navigation privée stricte, ou cookies bloqués, le simple fait de *lire* `localStorage` lève une exception. Le jeu la rattrape et reste jouable — sans sauvegarde, mais jouable. L'écran restait auparavant **entièrement blanc**.
 
 Boutons **Exporter / Importer** disponibles depuis le menu principal et la carte Finances.
@@ -169,6 +171,16 @@ Il en découle des classements étrangers réels, des **meilleurs buteurs dans c
 Vérifié sur une saison : 15 championnats joués intégralement, moyenne des qualifiés en C1 à **79,3** contre **72,6** pour le monde entier, le tout en **1,1 seconde**.
 
 Les matchs de **coupe nationale et de coupe d'Europe** comptent désormais eux aussi dans les statistiques individuelles : un joueur pouvait marquer quatorze buts en Ligue des Champions sans qu'aucun n'apparaisse sur sa fiche, soit jusqu'à un tiers de la saison d'un club invisible. Et les compétitions européennes sont menées à leur terme **avant** le calcul des primes — on pouvait remporter la Ligue des Champions en coulisses, toucher la prime d'une phase de ligue, et l'apprendre par une actualité de Supercoupe.
+
+### Le classement ne se transforme plus en cliquet
+
+La note de match récompensait la victoire d'un bonus fixe, sans jamais la rapporter à l'adversaire. La moyenne de saison était donc un décalque du classement : **100 % de l'effectif du premier progressait, 92 % de celui du dernier régressait**, et l'écart se creusait sans rappel — l'étendue des moyennes de club passait de 13,9 à 31,6 points en quinze saisons en Serie A, de 6,2 à 31,1 en Belgique.
+
+Le résultat est maintenant mesuré **par rapport à l'attendu**, calculé sur l'écart de force et l'avantage du terrain : battre plus fort que soi rapporte, battre plus faible ne rapporte presque rien. La cage inviolée est pondérée de la même façon. Et le centre de formation s'ancre pour moitié sur la médiane du **championnat**, pas seulement sur celle du club — sans quoi un club affaibli formait des jeunes plus faibles, indéfiniment.
+
+Mesuré sur quinze saisons : Serie A **13,9 → 13,1** (au lieu de 31,6), Belgique **6,2 → 9,7** (au lieu de 31,1), club le plus faible du monde **60,1** (au lieu de 52).
+
+Les bandes de progression sont par ailleurs exprimées en **quantiles recalculés chaque fin de saison**, et non en valeurs absolues : des seuils fixes ne tenaient qu'une saison, la bande neutre tombant de 54 % à 21 % du monde en vingt ans.
 
 ### Le niveau du monde ne s'effondre plus
 
