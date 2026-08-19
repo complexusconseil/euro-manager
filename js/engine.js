@@ -191,11 +191,11 @@ FM.liveTick = function(dom, ext, minute){
       if (FM._rnd() < 0.00022 * press * tempo * ageF * fat){
         const sev = FM._rnd();
         const duree = sev<0.55 ? FM._ri(1,2) : sev<0.85 ? FM._ri(3,5) : FM._ri(6,12);
-        out.push({ type:"injury", home:isH, joueur:p.nom, id:p.id, min:minute, duree });
+        out.push({ type:"injury", home:isH, joueur:p.nom, nom:p.nom, id:p.id, min:minute, duree });
       } else {
         const rugueux = FM.POS_GROUP[s.slot]==="D" || s.slot==="MDC";
         if (FM._rnd() < 0.0011 * press * (rugueux?1.4:1))
-          out.push({ type: FM._rnd()<0.06 ? "red":"yellow", home:isH, joueur:p.nom, id:p.id, min:minute });
+          out.push({ type: FM._rnd()<0.06 ? "red":"yellow", home:isH, joueur:p.nom, nom:p.nom, id:p.id, min:minute });
       }
     }
   });

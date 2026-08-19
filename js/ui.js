@@ -489,7 +489,21 @@ function renderHome(body){
   play.onclick = ()=> playMatchFlow();
   card.appendChild(play);
   const sim = el("button","btn ghost",_t("Simuler rapidement"));
-  sim.onclick = ()=>{ FM.playMatchday(); currentTab="accueil"; renderGame(); };
+  sim.onclick = ()=>{
+    /* Mêmes garde-fous que « Jouer le match » : sans eux on pouvait simuler
+       toute une saison avec un onze incomplet, sans le moindre message. */
+    const my = FM.myClub();
+    if (my.onze.filter(s=>!s.id).length){
+      toast(_t("Onze incomplet — complétez votre équipe (Tactique).")); currentTab="tactique"; renderGame(); return;
+    }
+    const bloc = FM.blockingEvents();
+    if (bloc.length && confirm(`${bloc[0].titre} ${_t("est à jouer avant de poursuivre le championnat.")}\n\n${_t("OK = y aller · Annuler = jouer quand même le championnat")}`)){
+      currentTab = (bloc[0].kind==="coupe") ? "coupe" : "europe"; renderGame(); return;
+    }
+    try { FM.playMatchday(); }
+    catch(e){ toast(_t("La journée n'a pas pu être jouée. Vérifiez votre composition.")); }
+    currentTab="accueil"; renderGame();
+  };
   card.appendChild(sim);
   body.appendChild(card);
 
@@ -664,7 +678,9 @@ function playLiveMatch(cfg){
   $speed.onclick=()=>{ speed = speed>=4?1:speed*2; $speed.textContent=speed+"×";
     pv.setTempo(1+(speed-1)*0.35); if(!paused) start(); };
   $skip.onclick=()=>{ while(minute<90 && !ended){ step(); } finish(); };
-  if ($coach) $coach.onclick=()=>{ setPaused(true); $coach.classList.remove("urgent"); openCoaching(mg, ()=>{}); };
+  /* La fermeture du panneau doit RELANCER le match : avec un callback vide,
+     le chrono restait figé et le joueur croyait le jeu planté. */
+  if ($coach) $coach.onclick=()=>{ setPaused(true); $coach.classList.remove("urgent"); openCoaching(mg, ()=>setPaused(false)); };
 
   if (mg) openTeamTalkPanel(mg, cfg, ()=>start()); else start();
 }
@@ -801,6 +817,9 @@ function clubMatchCfg(dom, ext, label, myClub){
   FM.clearMatchFlags(dom); FM.clearMatchFlags(ext);
   return {
     home:{nom:dom.nom,couleurs:dom.couleurs}, away:{nom:ext.nom,couleurs:ext.couleurs},
+    /* Nom de l'adversaire : sans lui, la causerie disait « Face à
+       l'adversaire » dans tous les matchs, quel que soit le mode. */
+    oppName: myClub ? (dom.id===myClub.id ? ext.nom : dom.nom) : ext.nom,
     label, manager: myClub ? clubManager(myClub) : null,
     tick:(m)=>FM.liveTick(dom, ext, m),
     fatigue:()=>{ FM.liveFatigue(dom); FM.liveFatigue(ext); },
@@ -866,11 +885,11 @@ function renderSquad(body){
       const badge = el("span","tag loan-tag",_t("Prêt")+" "+(p.loan.parentNom||''));
       tr.lastChild.appendChild(badge);
       const rb = el("button","btn tiny danger-ghost",_t("Rendre"));
-      rb.onclick=()=>{ FM.recallLoan(p.id); renderGame(); };
+      rb.onclick=()=>{ const r=FM.recallLoan(p.id); if(r && r.msg) toast(r.msg); renderGame(); };
       tr.lastChild.appendChild(rb);
     } else {
-      const btn = el("button","btn tiny "+(p.transferListe?"danger-ghost":"ghost"), p.transferListe?"Retirer":"Vendre");
-      btn.onclick=()=>{ FM.toggleTransferList(p.id); renderGame(); };
+      const btn = el("button","btn tiny "+(p.transferListe?"danger-ghost":"ghost"), p.transferListe?_t("Retirer"):_t("Vendre"));
+      btn.onclick=()=>{ const r=FM.toggleTransferList(p.id); if(r && r.msg) toast(r.msg); renderGame(); };
       tr.lastChild.appendChild(btn);
       const lb = el("button","btn tiny ghost",_t("Prêter"));
       if(!FM.marketOpen()){ lb.disabled=true; lb.title=_t("Hors période de mercato"); }
@@ -894,7 +913,7 @@ function renderSquad(body){
       const row = el("div","offer-row");
       row.innerHTML = `<span><span class="pos-badge ${p.groupe}">${p.pos}</span> <b>${p.nom}</b> (${p.note}) → <b>${p.holderNom}</b> · retour fin de saison</span>`;
       const rb = el("button","btn small ghost",_t("Rappeler"));
-      rb.onclick=()=>{ FM.recallLoan(p.id); renderGame(); };
+      rb.onclick=()=>{ const r=FM.recallLoan(p.id); if(r && r.msg) toast(r.msg); renderGame(); };
       row.appendChild(rb);
       lc.appendChild(row);
     });
@@ -975,11 +994,16 @@ function renderTraining(body){
     const tot = (t.physique+t.technique+t.tactique) || 100;
     DEFS.forEach(([k])=>{ vals[k].textContent = Math.round(t[k]/tot*100)+" %"; });
     const eB = FM.trainingEdge("physique"), eT = FM.trainingEdge("technique"), eC = FM.trainingEdge("tactique");
-    const pct = v => (v>=0?"+":"")+Math.round(v)+" %";
+    /* On arrondit AVANT de formater, et on neutralise le zéro négatif :
+       la répartition par défaut affichait « -0.0 note/saison ». */
+    const arr = (v, d) => { const r = +v.toFixed(d); return r === 0 ? 0 : r; };
+    const sgn = (v, d) => { const r = arr(v, d); return (r > 0 ? "+" : "") + r.toFixed(d); };
+    const pct = v => { const r = arr(v, 0); return (r > 0 ? "+" : "") + r + " %"; };
+    const cls = v => { const r = arr(v, 1); return r > 0 ? 'pos' : r < 0 ? 'neg' : ''; };
     bilan.innerHTML =
-      `<div><small>${_t("Risque de blessure")}</small><b class="${eB>0?'pos':eB<0?'neg':''}">${pct(-30*eB)}</b></div>` +
-      `<div><small>${_t("Progression des jeunes")}</small><b class="${eT>0?'pos':eT<0?'neg':''}">${(eT>=0?"+":"")+(eT*1).toFixed(1)} ${_t("note/saison")}</b></div>` +
-      `<div><small>${_t("Force d'équipe")}</small><b class="${eC>0?'pos':eC<0?'neg':''}">${(eC>=0?"+":"")+(1.8*eC).toFixed(1)}</b></div>`;
+      `<div><small>${_t("Risque de blessure")}</small><b class="${cls(eB)}">${pct(-30*eB)}</b></div>` +
+      `<div><small>${_t("Progression des jeunes")}</small><b class="${cls(eT)}">${sgn(eT, 1)} ${_t("note/saison")}</b></div>` +
+      `<div><small>${_t("Force d'équipe")}</small><b class="${cls(eC)}">${sgn(1.8*eC, 1)}</b></div>`;
   }
   DEFS.forEach(([k,lbl,desc])=>{
     const w = el("label","tac-slider");
@@ -1203,7 +1227,7 @@ function renderDomesticCup(body){
     card.appendChild(el("p","round-name",`${FM.roundName(cup.alive.length)} · match sec`));
     if (opp.bye){
       // Exempt ce tour : qualification d'office
-      card.appendChild(el("p","hint",`Votre club est <b>exempt</b> ce tour : qualifié d'office pour le tour suivant.`));
+      card.appendChild(el("p","hint",_t("Votre club est exempt ce tour : qualifié d'office pour le tour suivant.")));
       const go = el("button","btn primary big",_t("Tour suivant"));
       go.onclick=()=>{ FM.resolveTournamentRound(cup); FM.save(); renderGame(); };
       card.appendChild(go);
@@ -1260,7 +1284,7 @@ function renderLeaguePhase(body, comp){
 
   // Classement de la phase de ligue
   const tCard = el("div","card");
-  tCard.appendChild(el("h3",null,"Classement — les 16 premiers qualifiés"));
+  tCard.appendChild(el("h3",null,_t("Classement — les 16 premiers qualifiés")));
   const table = el("table","rank-table");
   table.innerHTML = `<thead><tr><th>#</th><th>Club</th><th>J</th><th>G</th><th>N</th><th>P</th><th>Diff</th><th>Pts</th></tr></thead>`;
   const tb = el("tbody");
@@ -1694,7 +1718,9 @@ function renderMarket(body){
   const filters = el("div","market-filters");
   const mkSel = (opts, cur, on, cls)=>{
     const s=el("select"); if(cls)s.className=cls;
-    opts.forEach(([v,l])=>s.appendChild(new Option(l,v)));
+    /* Traduction centralisée : les libellés d'options étaient écrits en clair
+       dans chaque appel et restaient donc en français en mode anglais. */
+    opts.forEach(([v,l])=>s.appendChild(new Option(_t(String(l)),v)));
     s.value=cur; s.onchange=()=>{ on(s.value); refreshMarket(listBox); }; return s;
   };
   const q = el("input"); q.type="text"; q.placeholder=_t("Nom du joueur…"); q.value=marketFilter.q;
@@ -1705,7 +1731,7 @@ function renderMarket(body){
   filters.appendChild(mkSel([["all","Tous les joueurs"],["libre",_t("Agents libres")],["transf","Transférables"],["pret",_t("Disponibles en prêt")]],
     marketFilter.type, v=>marketFilter.type=v));
   // Poste exact
-  const posOpts = [["","Tous postes"]].concat(FM.POSITIONS.map(p=>[p, `${p} · ${FM.POS_LABEL[p]}`]));
+  const posOpts = [["","Tous postes"]].concat(FM.POSITIONS.map(p=>[p, `${p} · ${_t(FM.POS_LABEL[p])}`]));
   filters.appendChild(mkSel(posOpts, marketFilter.posteExact, v=>marketFilter.posteExact=v));
   // Note min
   filters.appendChild(mkSel([[0,"Toute note"],[60,"Note ≥ 60"],[70,"Note ≥ 70"],[75,"Note ≥ 75"],[80,"Note ≥ 80"],[85,"Note ≥ 85"]],
@@ -1717,8 +1743,12 @@ function renderMarket(body){
   filters.appendChild(mkSel([[40,"Tout âge"],[19,"≤ 19 ans"],[21,"≤ 21 ans"],[23,"≤ 23 ans"],[25,"≤ 25 ans"],[28,"≤ 28 ans"],[32,"≤ 32 ans"]],
     marketFilter.ageMax, v=>marketFilter.ageMax=parseInt(v,10)));
   // Valeur max (budget)
-  filters.appendChild(mkSel([[0,"Tout prix"],[1,"≤ 1 M€"],[5,"≤ 5 M€"],[15,"≤ 15 M€"],[30,"≤ 30 M€"],[60,"≤ 60 M€"],[Math.max(1,Math.floor(my.budget)),"≤ mon budget"]],
-    marketFilter.valeurMax, v=>marketFilter.valeurMax=parseInt(v,10)));
+  /* « ≤ mon budget » doit refléter le budget RÉEL : arrondi à l'entier et
+     planché à 1, il proposait des joueurs inabordables dès que la trésorerie
+     passait sous 1 M€ — ou devenait négative. */
+  const plafondBudget = Math.max(0.1, Math.floor(my.budget*10)/10);
+  filters.appendChild(mkSel([[0,"Tout prix"],[1,"≤ 1 M€"],[5,"≤ 5 M€"],[15,"≤ 15 M€"],[30,"≤ 30 M€"],[60,"≤ 60 M€"],[plafondBudget,"≤ mon budget"]],
+    marketFilter.valeurMax, v=>marketFilter.valeurMax=parseFloat(v)));
   // Tri
   filters.appendChild(mkSel([["note","Trier : note"],["pot","Trier : potentiel"],["valeur","Trier : valeur ↓"],["valeurAsc","Trier : valeur ↑"],["age","Trier : âge ↑"]],
     marketFilter.sort, v=>marketFilter.sort=v));

@@ -152,8 +152,9 @@ FM.simCupMatch = function(comp, ai, bi, forcedResult){
   } else if (comp.kind==="club"){
     const ca = FM.clubById(A.ref), cb = FM.clubById(B.ref);
     const r = FM.simulateMatch(ca, cb);
+    if (FM.accumulateStats) FM.accumulateStats(ca, cb, r);   // buts, matchs et notes comptent
     as = r.domScore; es = r.extScore;
-    events = r.events.map(e=>({min:e.min, joueur:e.joueur, side: e.clubId===ca.id?"a":"b"}));
+    events = r.events.map(e=>({min:e.min, joueur:e.joueur, joueurId:e.joueurId, clubId:e.clubId, side: e.clubId===ca.id?"a":"b"}));
   } else {
     const r = simByRating(A, B);
     as = r.as; es = r.es; events = r.events;
@@ -175,8 +176,10 @@ FM.simCupMatch = function(comp, ai, bi, forcedResult){
 function rawMatch(comp, homeIdx, awayIdx){
   const H = comp.teams[homeIdx], A = comp.teams[awayIdx];
   if (comp.kind==="club"){
-    const r = FM.simulateMatch(FM.clubById(H.ref), FM.clubById(A.ref));
-    return { hs:r.domScore, as:r.extScore, events:r.events.map(e=>({min:e.min, joueur:e.joueur, home:e.clubId===FM.clubById(H.ref).id})) };
+    const ch = FM.clubById(H.ref), cA = FM.clubById(A.ref);
+    const r = FM.simulateMatch(ch, cA);
+    if (FM.accumulateStats) FM.accumulateStats(ch, cA, r);   // idem en phase de ligue
+    return { hs:r.domScore, as:r.extScore, events:r.events.map(e=>({min:e.min, joueur:e.joueur, joueurId:e.joueurId, clubId:e.clubId, home:e.clubId===ch.id})) };
   }
   const r = simByRating(H, A);
   return { hs:r.as, as:r.es, events:r.events.map(e=>({min:e.min, joueur:e.joueur, home:e.side==="a"})) };

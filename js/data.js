@@ -445,8 +445,10 @@ FM.makeYouth = function(club, forcedPos){
   const notes = (club && club.joueurs && club.joueurs.length)
     ? club.joueurs.map(j=>j.note).sort((a,b)=>a-b) : null;
   const niveau = notes ? notes[Math.floor(notes.length/2)] : 40 + rep*6;
-  p.note = Math.max(45, Math.min(80, niveau - ri(6, 18)));
-  p.potentiel = Math.min(94, Math.max(p.note + 4, niveau + ri(-2, 9) + (rep>=4 ? 3 : 0)));
+  /* Écart au niveau du club : un jeune entre sous la médiane, mais pas au
+     point de tirer le monde vers le bas génération après génération. */
+  p.note = Math.max(45, Math.min(80, niveau - ri(4, 13)));
+  p.potentiel = Math.min(94, Math.max(p.note + 5, niveau + ri(0, 10) + (rep>=4 ? 3 : 0)));
   p.valeur = playerValue(p.note, p.potentiel, p.age);
   p.salaire = Math.round((p.valeur*2.2 + p.note*0.3)*10)/10;
   p.contrat = ri(3, 5);
@@ -624,6 +626,26 @@ FM.POSITIONS = POSITIONS;
 FM.POS_GROUP = POS_GROUP;
 /* Poste représentatif de chaque ligne : sert à combler un trou d'effectif */
 FM.POS_BY_GROUP = { G:"GB", D:"DC", M:"MC", A:"BU" };
+/* Recale le compteur d'identifiants sur une partie chargée.
+   PID est une variable de module remise à 1 au chargement du script : après
+   un rechargement de page, les jeunes créés par le centre de formation
+   repartaient de 1 et reprenaient des identifiants DÉJÀ UTILISÉS. Deux
+   joueurs partageaient alors le même id, et toute suppression « par id »
+   (retour de prêt, transfert, retraite) en effaçait plusieurs d'un coup. */
+FM.syncPlayerIds = function(state){
+  let max = 0;
+  const voir = p => { if (p && typeof p.id === "number" && p.id > max) max = p.id; };
+  if (state && state.db && Array.isArray(state.db.clubs))
+    for (const c of state.db.clubs) if (Array.isArray(c.joueurs)) c.joueurs.forEach(voir);
+  if (state && Array.isArray(state.freeAgents)) state.freeAgents.forEach(voir);
+  if (state && state.nations)
+    for (const k of Object.keys(state.nations)){
+      const n = state.nations[k];
+      if (n && Array.isArray(n.squad)) n.squad.forEach(voir);
+    }
+  PID = Math.max(PID, max + 1);
+  return PID;
+};
 FM.POS_LABEL = POS_LABEL;
 FM.FORMATIONS = FORMATIONS;
 FM.LEAGUES = LEAGUES;

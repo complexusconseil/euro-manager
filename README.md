@@ -132,6 +132,10 @@ Mesuré sur une saison complète des 15 championnats, 271 clubs : **écart 0,000
 
 Un club conserve au minimum **16 joueurs sous contrat** — les prêts entrants ne comptent pas — et un **plancher par ligne** (2 gardiens, 5 défenseurs, 4 milieux, 3 attaquants). Ce plancher gouverne aussi les fins de carrière et l'élagage de fin de saison, et le centre de formation comble en priorité une ligne dégarnie. Il était possible de descendre à 16 joueurs dont 6 sous contrat, tous attaquants, sans le moindre gardien.
 
+### Chaque euro a un payeur ET un bénéficiaire
+
+L'arrondi au centime lui-même est comptabilisé : sans cela, un simple achat faisait apparaître ou disparaître quelques milliers d'euros, et un club repris à l'étranger créait **57,6 M€** à partir de rien (les clubs de deuxième division apparaissaient avec leur trésorerie, hors bilan). Les montants aberrants — `NaN`, `Infinity`, négatifs, chaînes — sont ignorés au lieu de détruire la masse monétaire.
+
 ### Le marché vit sans vous
 
 Les clubs gérés par l'ordinateur **mettent des joueurs sur la liste, se les achètent entre eux et signent des agents libres** à chaque journée de mercato. Auparavant le marché n'était alimenté que par les joueurs que *vous* listiez : l'onglet « Transférables » restait vide et les effectifs adverses étaient identiques du début à la fin d'une carrière.
@@ -151,6 +155,7 @@ La partie est enregistrée dans le navigateur à chaque journée. Quatre garde-f
 - **Taille bornée** : l'historique de carrière est limité (12 saisons pour votre effectif, 3 ailleurs) et les champs à leur valeur par défaut ne sont pas écrits. La sauvegarde se stabilise autour de **2,6 Mo** au lieu de dépasser le quota de 5 Mo dès la 8e saison.
 - **Alerte visible** : si le navigateur refuse d'écrire, un **bandeau rouge** le dit et propose d'**exporter la partie** en fichier `.json`. Plus de progression perdue en silence.
 - **Contrôle au chargement** : une sauvegarde vide, tronquée ou étrangère est **refusée proprement** avec un message, au lieu de faire planter le jeu. Le contrôle porte sur douze points — présence des résultats et des actualités, cohérence du championnat suivi, effectif et trésorerie du club dirigé, calendrier qui ne désigne que des clubs existants. Les sauvegardes d'anciennes versions sont migrées automatiquement.
+- **Identifiants stables au rechargement** : le compteur d'identifiants repart à 1 au chargement du script. Il est maintenant recalé sur la partie chargée — sans cela, les joueurs créés après un rechargement reprenaient des identifiants déjà utilisés (**442 doublons dès la première saison**), et toute suppression « par identifiant » — retour de prêt, transfert, retraite — pouvait effacer un autre joueur de la base.
 - **Le jeu tourne même sans stockage** : en navigation privée stricte, ou cookies bloqués, le simple fait de *lire* `localStorage` lève une exception. Le jeu la rattrape et reste jouable — sans sauvegarde, mais jouable. L'écran restait auparavant **entièrement blanc**.
 
 Boutons **Exporter / Importer** disponibles depuis le menu principal et la carte Finances.
@@ -162,6 +167,14 @@ Les **15 championnats sont disputés en parallèle** du vôtre. Chaque journée,
 Il en découle des classements étrangers réels, des **meilleurs buteurs dans chaque pays**, et surtout des **places européennes attribuées au mérite**. Auparavant seule votre ligue était simulée : les 235 clubs étrangers finissaient la saison à **0 point et 0 match**, et la Ligue des Champions se peuplait donc par **ordre alphabétique**.
 
 Vérifié sur une saison : 15 championnats joués intégralement, moyenne des qualifiés en C1 à **79,3** contre **72,6** pour le monde entier, le tout en **1,1 seconde**.
+
+Les matchs de **coupe nationale et de coupe d'Europe** comptent désormais eux aussi dans les statistiques individuelles : un joueur pouvait marquer quatorze buts en Ligue des Champions sans qu'aucun n'apparaisse sur sa fiche, soit jusqu'à un tiers de la saison d'un club invisible. Et les compétitions européennes sont menées à leur terme **avant** le calcul des primes — on pouvait remporter la Ligue des Champions en coulisses, toucher la prime d'une phase de ligue, et l'apprendre par une actualité de Supercoupe.
+
+### Le niveau du monde ne s'effondre plus
+
+Les seuils de progression de fin de saison étaient hors d'atteinte : mesuré sur 3 316 joueurs, **81 % étaient pénalisés et 0,2 % récompensés**, la bande « excellente saison » n'étant jamais servie. Un gardien ne pouvait mathématiquement pas l'atteindre — l'apport défensif avait une espérance nulle et la passe décisive ne rapportait rien.
+
+Les seuils sont désormais calés sur la distribution réelle (p05 6,03 · médiane 6,36 · p95 6,78), l'apport défensif et la passe décisive sont valorisés, et les quatre lignes se tiennent à 0,13 point près. La note médiane mondiale se stabilise autour de **69** au lieu de glisser jusqu'à 63 et de continuer à descendre.
 
 ## 🏆 Compétitions européennes (mode Carrière & Master League)
 
