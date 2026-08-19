@@ -411,7 +411,11 @@ FM.validAmount = m => typeof m === "number" && isFinite(m) && m >= 0;
 /* masse salariale hebdomadaire, en k€ */
 FM.wageBill = club => club.joueurs.reduce((a,p)=>a+(p.salaire||0), 0);
 /* recettes de la saison pour un club, avant modulation par le classement */
-FM.seasonRevenue = club => REV_BY_REP[club.rep] || 30;
+/* Les recettes dépendent de la réputation ET de la division : un relégué ne
+   perdait qu'un cran de réputation, si bien qu'un club de D2 pouvait encaisser
+   deux fois plus qu'un club de l'élite — et son plafond de trésorerie suivait.
+   La deuxième division touche 45 % du barème. */
+FM.seasonRevenue = club => (REV_BY_REP[club.rep] || 30) * (FM.isD2(club.ligue) ? 0.45 : 1);
 
 /* Encaisse les recettes et paie les salaires de la journée écoulée.
    Le classement module les recettes de −15 % (dernier) à +15 % (premier). */
@@ -1316,6 +1320,19 @@ FM.loanablePlayers = function(filter){
   return list.slice(0, filter.limit || 60);
 };
 
+/* Un joueur peut-il partir en prêt ? Le critère est RELATIF à l'effectif : un
+   remplaçant reste un remplaçant même dans un grand club. Un plafond de note
+   absolu (celui qui s'applique aux prêts ENTRANTS, pour qu'on n'emprunte pas
+   une star) rendait ici tout prêt impossible dans les meilleurs clubs, où
+   personne n'est noté sous 77. Les cadres sont protégés par leur rang, et les
+   pépites par leur potentiel. */
+FM.loanableAway = function(club, p){
+  if (!club || !p) return false;
+  const rang = club.joueurs.slice().sort((a,b)=>b.note-a.note).findIndex(x=>x.id===p.id);
+  const pepite = p.potentiel>=84 && p.age<=21;
+  return !pepite && (rang>=16 || (p.age<=20 && rang>=11));
+};
+
 /* Coût d'une indemnité de prêt (M€) — payée par le club PRENEUR au club
    PARENT, dans les deux sens de prêt. */
 FM.loanFee = p => Math.max(0.1, Math.round(p.valeur*0.06*10)/10);
@@ -1412,6 +1429,11 @@ FM.loanOut = function(playerId){
   if (player.loan) return { ok:false, msg:FM.t("Ce joueur est déjà concerné par un prêt.") };
   const bloque = FM.departureBlock(my, player);
   if (bloque) return { ok:false, msg:bloque };
+  /* Même filtre de réalisme qu'à l'entrée : le jeu refusait qu'un club IA
+     prête un cadre, mais laissait le joueur expédier le sien — un attaquant
+     à 133 M€ partait chez un promu contre 4 % de sa valeur. */
+  if (!FM.loanableAway(my, player))
+    return { ok:false, msg:`${player.nom} ${FM.t("est un élément trop important pour partir en prêt.")}` };
   if (loanBlockedByCooldown(player))
     return { ok:false, msg:`${player.nom} ${FM.t("rentre tout juste d'un prêt : laissez-lui la saison.")}` };
   /* Le prêt contournait la règle « pas de revente dans la foulée » : on
@@ -1473,7 +1495,15 @@ function returnLoan(playerId, rembourse, finSaison){
      sans le +1, le marqueur était déjà périmé à la reprise et le même joueur
      pouvait repartir en prêt huit saisons d'affilée. */
   player.loanCooldown = FM.state.saison + (finSaison ? 1 : 0);
-  if (parent){ parent.joueurs.push(player); parent.onze = FM.autoPickXI(parent); }
+  if (parent && parent.joueurs.length < 30){ parent.joueurs.push(player); parent.onze = FM.autoPickXI(parent); }
+  else if (parent){
+    /* Effectif plein : le joueur reste chez son détenteur une saison de plus.
+       Sans ce contrôle, des rappels en série portaient l'effectif à 34 alors
+       que tous les autres chemins d'arrivée s'arrêtent à 30. */
+    holder.joueurs.push(player); holder.onze = FM.autoPickXI(holder);
+    if (parent.id === FM.state.managedClubId)
+      addNews(`${player.nom} ${FM.t("ne peut pas revenir : votre effectif est au complet (30).")}`, "loan");
+  }
   else {
     /* Club parent disparu : le joueur reste chez son détenteur plutôt que de
        s'évaporer du monde — il avait été retiré de holder.joueurs juste avant. */
@@ -1572,12 +1602,15 @@ FM.endSeason = function(){
       if (c && !FM.compFinished(c)) FM.autoCompleteClubComp(c);
     }
   }
-  /* La coupe nationale n'est PAS une compétition de clubs européenne : c'est
-     un tournoi simple, sans .ko ni .lp. FM.compFinished la déclare donc
-     toujours inachevée et FM.autoCompleteClubComp, ne trouvant aucune phase,
-     se contentait de réécrire `finished` à false — y compris sur une coupe
-     que le joueur venait de gagner. finishDomesticCup(), appelé plus bas,
-     sait déjà la clôturer proprement : on ne touche pas à la coupe ici. */
+  /* La coupe nationale est un tournoi SIMPLE (ni .ko ni .lp) : elle se clôture
+     avec FM.autoCompleteCup, pas avec autoCompleteClubComp — laquelle, ne
+     trouvant aucune phase, réécrivait `finished` à false, y compris sur une
+     coupe que le joueur venait de gagner. Il faut la mener à son terme ICI,
+     avant toute lecture de statistiques : ses derniers tours ajoutent des
+     buts, et le meilleur buteur annoncé était faux dans huit saisons sur
+     douze — trois fois ce n'était même pas le bon joueur. */
+  if (FM.state.coupe && !FM.state.coupe.finished && FM.autoCompleteCup)
+    FM.autoCompleteCup(FM.state.coupe);
 
   // --- Trophées individuels du championnat (après clôture, avant remise à zéro) ---
   /* Le seuil était de 8 matchs : le titre revenait régulièrement à un
@@ -1704,8 +1737,18 @@ FM.endSeason = function(){
       }
       // 3) Progression / déclin liés à l'âge
       let ageDelta=0;
-      if (p.age<=23 && p.note<p.potentiel) ageDelta=FM._ri(0,3);
-      else if (p.age>=31) ageDelta=-FM._ri(0,2);
+      /* La marche vers le potentiel ne s'arrête plus net à 23 ans : elle se
+         prolonge jusqu'au pic en s'atténuant. Et le déclin commence bien à
+         30 ans — `p.age` vaut ici l'âge PENDANT la saison écoulée, si bien
+         qu'un seuil à 31 laissait les trentenaires traverser leur saison
+         sans le moindre malus. */
+      if (p.note < p.potentiel){
+        if (p.age<=23) ageDelta = FM._ri(0,3);
+        else if (p.age<=26) ageDelta = FM._ri(0,2);
+        else if (p.age<=29) ageDelta = FM._ri(0,1);
+      }
+      if (p.age>=30) ageDelta -= FM._ri(0,2);
+      if (p.age>=34) ageDelta -= 1;              /* fin de carrière plus nette */
       // 3 bis) Travail technique de la saison (club géré uniquement)
       if (c===my){
         const tech = FM.trainingEdge("technique");
@@ -1865,6 +1908,12 @@ FM.endSeason = function(){
   // Agents libres : vieillissement + renouvellement du vivier
   if (FM.state.freeAgents){
     FM.state.freeAgents.forEach(p=>{ p.age++; if(p.age>=32) p.note=Math.max(40,p.note-FM._ri(0,2)); p.valeur=FM.playerValue(p.note,p.potentiel,p.age); });
+    /* Un vétéran qui sort par la limite d'âge doit être marqué comme consommé,
+       sinon le pool le régénère à l'identique : Sergio Ramos réapparaissait
+       19 fois en 25 saisons, toujours 40 ans, toujours noté 73. */
+    FM.state.usedFreeAgents = FM.state.usedFreeAgents || [];
+    for (const p of FM.state.freeAgents)
+      if (p.age > 38 && !FM.state.usedFreeAgents.includes(p.nom)) FM.state.usedFreeAgents.push(p.nom);
     FM.state.freeAgents = FM.state.freeAgents.filter(p=>p.age<=38);
   }
   /* makeFreeAgents exclut désormais les noms déjà présents dans le vivier et
@@ -2223,7 +2272,7 @@ FM.migrateState = function(){
    est vrai : sans borne d'amplitude, une valeur extrême était acceptée, puis
    débordait en Infinity au premier calcul, et JSON la réécrivait en null —
    le jeu produisait lui-même une sauvegarde qu'il refuserait de relire. */
-const MONTANT_MAX = 1e12;
+const MONTANT_MAX = 1e9;      /* au-delà, round2 cesse d'être exact au centime */
 const nombreSain = v => typeof v === "number" && isFinite(v) && Math.abs(v) <= MONTANT_MAX;
 
 FM.checkState = function(s){
@@ -2266,7 +2315,10 @@ function checkStateInterne(s){
      connue et des consignes présentes. Sans ces contrôles la sauvegarde était
      acceptée puis le moteur déréférençait dans le vide au premier match. */
   if (!my.onze.some(sl => sl && sl.id != null && idsEffectif.has(sl.id))) return "composition";
-  if (my.formation != null && FM.FORMATIONS && !FM.FORMATIONS[my.formation]) return "formation";
+  /* `!= null` laissait passer null/undefined, sur quoi autoPickXI plante
+     (`slots is not iterable`) : la sauvegarde était acceptée puis la partie
+     devenait injouable au premier bouton. */
+  if (FM.FORMATIONS && !FM.FORMATIONS[my.formation]) return "formation";
   if (!my.tactique || typeof my.tactique !== "object") return "consignes";
   /* Identifiants de joueurs : exploitables et uniques. Une sauvegarde
      antérieure au recalage du compteur en porte jusqu'à 412 en double, et un
@@ -2409,6 +2461,8 @@ FM.load = function(){
     return false;
   }
   FM.loadError = null;
+  FM.conflitOnglet = false;                  /* la relecture résout le conflit */
+  if (FM.saveError === "conflit") FM.saveError = null;
   verConnue = FM.state.ver || 0;             /* on suit désormais cette lignée */
   return true;
 };
@@ -2430,7 +2484,10 @@ FM.importSave = function(txt){
     return "structure";
   }
   adopterVersionDisque();                    /* remplacement voulu : on écrase */
-  FM.save();
+  /* La valeur de retour était ignorée : sur un quota saturé l'interface
+     annonçait « Partie importée » alors que le disque n'avait pas bougé, et
+     le joueur retombait sur l'ancienne partie au rechargement suivant. */
+  if (!FM.save()) return FM.saveError === "quota" ? "quota" : "écriture";
   return null;
 };
 FM.saveSizeKo = () => Math.round(JSON.stringify(FM.state, saveReplacer).length/1024);

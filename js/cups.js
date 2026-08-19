@@ -151,9 +151,16 @@ FM.simCupMatch = function(comp, ai, bi, forcedResult){
     as = forcedResult.as; es = forcedResult.es; events = forcedResult.events||[];
   } else if (comp.kind==="club"){
     const ca = FM.clubById(A.ref), cb = FM.clubById(B.ref);
-    const r = FM.simulateMatch(ca, cb);
-    if (FM.accumulateStats) FM.accumulateStats(ca, cb, r);   // buts, matchs et notes comptent
-    as = r.domScore; es = r.extScore;
+    /* L'équipe `a` recevait à TOUS les tours, finale comprise : la tête de
+       série disputait ses 44 matchs de coupe à domicile et n'allait jamais
+       chez personne. Le terrain est maintenant tiré au sort, de façon
+       déterministe pour que le résultat ne change pas d'un rendu à l'autre. */
+    const aRecoit = FM._rnd() < 0.5;
+    const dom = aRecoit ? ca : cb, ext = aRecoit ? cb : ca;
+    const r = FM.simulateMatch(dom, ext);
+    if (FM.accumulateStats) FM.accumulateStats(dom, ext, r);  // buts, matchs et notes comptent
+    as = aRecoit ? r.domScore : r.extScore;
+    es = aRecoit ? r.extScore : r.domScore;
     events = r.events.map(e=>({min:e.min, joueur:e.joueur, joueurId:e.joueurId, clubId:e.clubId, side: e.clubId===ca.id?"a":"b"}));
   } else {
     const r = simByRating(A, B);

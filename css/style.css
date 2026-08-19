@@ -391,12 +391,12 @@ tbody tr:last-child{border-bottom:0}
   font-weight:800;color:#fff;letter-spacing:.05em;font-family:var(--ff-display);
   text-transform:uppercase;font-style:var(--slant);text-shadow:0 1px 1px rgba(0,0,0,.35)}
 .pos-badge.G{background:linear-gradient(180deg,#f2c229,#c08a05);color:#3a2a00;text-shadow:none}
-.pos-badge.D{background:linear-gradient(180deg,#4ea3e8,#0d4f96)}
-.pos-badge.M{background:linear-gradient(180deg,#4cc47a,#12793f)}
-.pos-badge.A{background:linear-gradient(180deg,#ff9d4d,#d1600b)}
+.pos-badge.D{background:linear-gradient(180deg,#1a72c4,#083a70)}
+.pos-badge.M{background:linear-gradient(180deg,#177a3f,#0b5b2e)}
+.pos-badge.A{background:linear-gradient(180deg,#a95205,#7a3a04)}
 .note{font-family:var(--ff-display);font-weight:700;padding:0 7px;font-size:16px;letter-spacing:.01em;
   font-style:var(--slant);border:1px solid rgba(0,0,0,.18)}
-.note.elite{background:linear-gradient(180deg,#5cb0f0,#0d4f96);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.35)}
+.note.elite{background:linear-gradient(180deg,#1a72c4,#083a70);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.35)}
 .note.good{background:linear-gradient(180deg,#5ccd88,#12793f);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.3)}
 .note.ok{background:linear-gradient(180deg,#fff,var(--sil3));color:var(--ink)}
 .note.low{background:linear-gradient(180deg,var(--sil2),var(--sil4));color:var(--mut)}
@@ -600,7 +600,7 @@ input[type=range]{width:100%;accent-color:var(--b500);cursor:pointer}
   border:1px solid var(--line2);color:var(--ink2);
   font-family:var(--ff-display);text-transform:uppercase;letter-spacing:.07em;font-style:var(--slant);
   font-size:11.5px;font-weight:700;padding:0 8px}
-.tag.free{background:linear-gradient(180deg,#5ccd88,#12793f);color:#fff;border-color:#0d5c30}
+.tag.free{background:linear-gradient(180deg,#177a3f,#0b5b2e);color:#fff;border-color:#0b5b2e}
 .tag.loan-tag{background:linear-gradient(180deg,#a385e8,#5b34ad);color:#fff;border-color:#3d1f7d}
 .mkt-window{margin-top:10px;padding:9px 13px;font-size:13.5px;border:1px solid var(--line2);
   background:linear-gradient(180deg,#fff,var(--sil2))}
@@ -771,6 +771,10 @@ input[type=range]{width:100%;accent-color:var(--b500);cursor:pointer}
 }
 @media(max-width:560px){
   #app{padding:10px 9px 30px}
+  /* La valeur ne rentrait pas dans sa case (55 px de texte pour 54 px) et
+     chevauchait le séparateur : on la laisse rétrécir plutôt que déborder. */
+  .topbar .stats>div{overflow:hidden}
+  .topbar .stats b{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
   /* Terrain : les cartes de poste passent à la ligne plutôt que de sortir du
      terrain et de faire défiler la page latéralement. */
   .pitch{padding:12px 5px}

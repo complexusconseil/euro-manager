@@ -186,11 +186,17 @@ Les bandes de progression sont par ailleurs exprimées en **quantiles recalculé
 
 ### Un joueur ne dépasse jamais son potentiel
 
-Le potentiel cessait d'être un plafond à 24 ans : **7 % du monde jouait au-dessus du sien**, jusqu'à +13 points, et des trentenaires progressaient encore au lieu de décliner. Le potentiel plafonne désormais à tout âge — le plafond redevenait 94 dès 24 ans, si bien que le potentiel n'était plus consulté du tout —, le déclin commence à 30 ans, et la marche vers le potentiel se prolonge jusqu'au pic au lieu de s'arrêter net à 23 ans.
+Le potentiel cessait d'être un plafond à 24 ans : **7 % du monde jouait au-dessus du sien**, jusqu'à +13 points, et des trentenaires progressaient encore au lieu de décliner. Le potentiel plafonne désormais à tout âge — le plafond redevenait 94 dès 24 ans, si bien que le potentiel n'était plus consulté du tout —, le déclin commence bien à 30 ans, et la marche vers le potentiel se prolonge jusqu'au pic au lieu de s'arrêter net à 23 ans. Mesuré sur douze saisons : la part de jeunes atteignant leur potentiel monte de 34 % à **49-74 % selon la ligne**.
 
 Le potentiel lui-même n'est plus un cliquet : il pouvait monter, jamais descendre, si bien que le 95e centile mondial touchait le plafond dur de 94 dès la quatorzième saison. Mesuré sur douze saisons : **p95 à 87**, 17 joueurs au potentiel maximal (contre plus de 290), 42 joueurs notés 90+ (contre 506).
 
 Le trophée de **joueur de la saison** exigeait 8 matchs : il revenait à des remplaçants ayant joué le quart de la saison. Il en demande maintenant les deux tiers, et le nombre de matchs est inscrit sur le trophée.
+
+### Le palmarès raconte enfin la carrière
+
+Coupe nationale, parcours européen, Supercoupe et trophées individuels étaient enregistrés à chaque fin de saison mais lus par aucun écran : le palmarès n'affichait que le rang et le champion. Tout y figure désormais.
+
+Le trophée de **meilleur buteur** annonçait par ailleurs un total faux dans huit saisons sur douze — trois fois ce n'était même pas le bon joueur : les derniers tours de coupe se jouaient *après* le calcul. Vérifié sur 40 saisons : **0 total faux**.
 
 ### Les salaires suivent les joueurs
 

@@ -1417,19 +1417,29 @@ function playCupTie(comp, opts){
   const twoLeg = comp.kind==="club" && !comp.singleLeg && comp.alive.length > 2;
 
   if (!twoLeg){
-    const dom=clubOf(a), ext=clubOf(b);
+    /* Le terrain est tiré au sort, comme dans le tour simulé : la tête de
+       série recevait à tous les tours et le club du joueur ne se déplaçait
+       jamais en coupe (44 matchs, 44 à domicile). `aRecoit` sert ensuite à
+       remettre les scores dans l'ordre du tableau (a puis b). */
+    const aRecoit = FM._rnd() < 0.5;
+    const dom = aRecoit ? clubOf(a) : clubOf(b);
+    const ext = aRecoit ? clubOf(b) : clubOf(a);
+    const scoreA = (hs,as)=> aRecoit ? hs : as;
+    const scoreB = (hs,as)=> aRecoit ? as : hs;
     let pen=null;
     const cfg = clubMatchCfg(dom, ext, comp.nom, my);
     cfg.endText = (hs,as)=>{
-      if (hs===as) pen = FM.penaltyShootout(comp,a,b);
-      const self=playerA?hs:as, opp=playerA?as:hs;
+      const sa=scoreA(hs,as), sb=scoreB(hs,as);
+      if (sa===sb) pen = FM.penaltyShootout(comp,a,b);
+      const self=playerA?sa:sb, opp=playerA?sb:sa;
       const won = self>opp || (self===opp && pen && ((playerA?pen[0]:pen[1])>(playerA?pen[1]:pen[0])));
       return qualChip(won)+(pen?` (tab ${playerA?pen[0]:pen[1]}-${playerA?pen[1]:pen[0]})`:"");
     };
     cfg.done = (hs,as,goals)=>{ cfg.cleanup();
       FM.creditLiveMatch(dom, ext, hs, as, goals);    // idem en coupe
-      const winner = hs>as?a : as>hs?b : (pen[0]>pen[1]?a:b);
-      finish({ as:hs, es:as, pen, winner, twoLeg:false, ev1:goals }); };
+      const sa=scoreA(hs,as), sb=scoreB(hs,as);
+      const winner = sa>sb?a : sb>sa?b : (pen[0]>pen[1]?a:b);
+      finish({ as:sa, es:sb, pen, winner, twoLeg:false, ev1:goals }); };
     playLiveMatch(cfg); return;
   }
   // ALLER puis RETOUR
@@ -1624,7 +1634,7 @@ function openSquadPicker(kind, nation, cb){
   function render(){
     box.innerHTML="";
     box.appendChild(el("h3",null,icon("globe")+`${kind==="WC"?_t("Coupe du Monde"):_t("Championnat d'Europe")} — ${_t("Composez votre")} ${nation}`));
-    box.appendChild(el("p","hint","Choisissez 11 titulaires + des remplaçants (23 max) parmi ~500 joueurs. ★ = titulaire, ✕ = retirer."));
+    box.appendChild(el("p","hint",_t("Choisissez 11 titulaires + des remplaçants (23 max) parmi ~500 joueurs. ★ = titulaire, ✕ = retirer.")));
     const cols=el("div","sp-cols");
     // --- Vivier (gauche) ---
     const left=el("div","sp-pool");
@@ -2051,8 +2061,29 @@ function renderNews(body){
   if (FM.state.historique.length){
     const h = el("div","card");
     h.appendChild(el("h3",null,icon("cup")+_t("Palmarès / historique")));
-    FM.state.historique.forEach(s=> h.appendChild(el("p","news-item",
-      `Saison ${s.saison} — ${FM.myClub().nom} : ${s.classement}${ord(s.classement)} · Champion : ${s.champion}`)));
+    /* La ligne n'affichait que le rang et le champion : coupe nationale,
+       parcours européen, Supercoupe et trophées individuels étaient bel et
+       bien enregistrés par la fin de saison, mais lus par aucun rendu. */
+    FM.state.historique.forEach(s=>{
+      const bouts = [`${_t("Saison")} ${s.saison} — ${FM.myClub().nom} : ${s.classement}${ord(s.classement)}`,
+                     `${_t("Champion")} : ${s.champion}`];
+      if (s.coupe && s.coupe.nom)
+        bouts.push(`${s.coupe.nom} : ${s.coupe.vainqueur || s.coupe.champion || "—"}`
+          + (s.coupe.playerWon ? " " + _t("(vous)") : ""));
+      if (s.europe && s.europe.nom)
+        bouts.push(`${s.europe.nom} : ${s.europe.resultat}`);
+      if (s.superCup && s.superCup.vainqueur)
+        bouts.push(`${_t("Supercoupe")} : ${s.superCup.vainqueur}`
+          + (s.superCup.playerWon ? " " + _t("(vous)") : ""));
+      const li = el("p","news-item", bouts.join(" · "));
+      const t = s.trophies || {};
+      const tro = [];
+      if (t.buteur)  tro.push(`${_t("Meilleur buteur")} : ${t.buteur.nom} (${t.buteur.buts})`);
+      if (t.passeur) tro.push(`${_t("Meilleur passeur")} : ${t.passeur.nom} (${t.passeur.passes})`);
+      if (t.joueur)  tro.push(`${_t("Joueur de la saison")} : ${t.joueur.nom} (${t.joueur.avg})`);
+      if (tro.length) li.appendChild(el("small","hist-tro", tro.join(" · ")));
+      h.appendChild(li);
+    });
     body.appendChild(h);
   }
 }
