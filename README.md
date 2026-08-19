@@ -152,11 +152,13 @@ Mesuré sur 10 saisons : âge moyen stable autour de 25 ans (contre 36 auparavan
 
 La partie est enregistrée dans le navigateur à chaque journée. Quatre garde-fous :
 
-- **Taille bornée** : l'historique de carrière est limité (12 saisons pour votre effectif, 3 ailleurs) et les champs à leur valeur par défaut ne sont pas écrits. La sauvegarde se stabilise autour de **2,6 Mo** au lieu de dépasser le quota de 5 Mo dès la 8e saison.
+- **Taille bornée** : l'historique de carrière est limité (12 saisons pour votre effectif, 3 ailleurs) et les champs à leur valeur par défaut ne sont pas écrits. La sauvegarde se stabilise autour de **3,3 Mo** — mesuré sur 20 saisons — au lieu de dépasser le quota de 5 Mo dès la 8e saison.
 - **Alerte visible** : si le navigateur refuse d'écrire, un **bandeau rouge** le dit et propose d'**exporter la partie** en fichier `.json`. Plus de progression perdue en silence.
 - **Contrôle au chargement** : une sauvegarde vide, tronquée ou étrangère est **refusée proprement** avec un message, au lieu de faire planter le jeu. Le contrôle porte sur douze points — présence des résultats et des actualités, cohérence du championnat suivi, effectif et trésorerie du club dirigé, calendrier qui ne désigne que des clubs existants. Les sauvegardes d'anciennes versions sont migrées automatiquement.
 - **Identifiants stables au rechargement** : le compteur d'identifiants repart à 1 au chargement du script. Il est maintenant recalé sur la partie chargée — sans cela, les joueurs créés après un rechargement reprenaient des identifiants déjà utilisés (**442 doublons dès la première saison**), et toute suppression « par identifiant » — retour de prêt, transfert, retraite — pouvait effacer un autre joueur de la base.
 - **Les divisions abandonnées sont nettoyées** : chaque changement de pays créait une deuxième division de 18 clubs qui n'était jamais retirée. Au douzième pays la sauvegarde dépassait le quota du navigateur et la carrière cessait d'être enregistrée. Seul le pays en cours conserve sa D2 : la base reste à **271 clubs** sur vingt saisons au lieu d'enfler jusqu'à 487.
+- **Deux onglets ne s'écrasent plus** : chaque enregistrement porte un numéro de version. Un second onglet qui jouait effaçait silencieusement la progression du premier — quinze journées pouvaient disparaître sans le moindre message. Le conflit est maintenant détecté et annoncé, avec un bouton pour recharger.
+- **Les sauvegardes héritées sont réparées** : une partie d'avant le recalage du compteur porte jusqu'à 412 identifiants en double, qui faisaient disparaître deux joueurs à la première vente. Ils sont renumérotés au chargement plutôt que de faire refuser la carrière.
 - **Le hasard reprend où il s'est arrêté** : le curseur du générateur est enregistré. Sans lui, chaque rechargement de page rembobinait le hasard au même point.
 - **Le jeu tourne même sans stockage** : en navigation privée stricte, ou cookies bloqués, le simple fait de *lire* `localStorage` lève une exception. Le jeu la rattrape et reste jouable — sans sauvegarde, mais jouable. L'écran restait auparavant **entièrement blanc**.
 
@@ -181,6 +183,14 @@ Le résultat est maintenant mesuré **par rapport à l'attendu**, calculé sur l
 Mesuré sur quinze saisons : Serie A **13,9 → 13,1** (au lieu de 31,6), Belgique **6,2 → 9,7** (au lieu de 31,1), club le plus faible du monde **60,1** (au lieu de 52).
 
 Les bandes de progression sont par ailleurs exprimées en **quantiles recalculés chaque fin de saison**, et non en valeurs absolues : des seuils fixes ne tenaient qu'une saison, la bande neutre tombant de 54 % à 21 % du monde en vingt ans.
+
+### Un joueur ne dépasse jamais son potentiel
+
+Le potentiel cessait d'être un plafond à 24 ans : **7 % du monde jouait au-dessus du sien**, jusqu'à +13 points, et des trentenaires progressaient encore au lieu de décliner. Le potentiel plafonne désormais à tout âge, le déclin commence à 30 ans, et la marche vers le potentiel se prolonge jusqu'au pic au lieu de s'arrêter net à 23 ans.
+
+Le potentiel lui-même n'est plus un cliquet : il pouvait monter, jamais descendre, si bien que le 95e centile mondial touchait le plafond dur de 94 dès la quatorzième saison. Mesuré sur douze saisons : **p95 à 87**, 17 joueurs au potentiel maximal (contre plus de 290), 42 joueurs notés 90+ (contre 506).
+
+Le trophée de **joueur de la saison** exigeait 8 matchs : il revenait à des remplaçants ayant joué le quart de la saison. Il en demande maintenant les deux tiers, et le nombre de matchs est inscrit sur le trophée.
 
 ### Le niveau du monde ne s'effondre plus
 

@@ -506,11 +506,22 @@ function makeRealSquad(nom, rep, country){
   const data = (FM.CLUBDATA && FM.CLUBDATA[nom]);
   if (!data || !data.p || !data.p.length) return makeSquad(rep, country);
   const squad = data.p.map(([n,pos,age,note]) => makeRealPlayer(n,pos,age,note));
-  // Complète la profondeur pour atteindre au moins 20 joueurs (jeunes du centre de formation)
-  const need = Math.max(0, 20 - squad.length);
+  /* Complète la profondeur. Les postes manquants passent EN PREMIER : le
+     cycle fixe ne regardait pas la composition réelle, si bien que neuf clubs
+     naissaient sous le plancher — huit avec un seul gardien. Un titulaire
+     blessé et c'est un milieu qui gardait les buts dès la 4e journée. */
+  const PLANCHER = { G:2, D:5, M:4, A:3 };
+  const REPRESENTANT = { G:"GB", D:"DC", M:"MC", A:"BU" };
+  const manquants = [];
+  for (const g of Object.keys(PLANCHER)){
+    let manque = PLANCHER[g] - squad.filter(x => POS_GROUP[x.pos] === g).length;
+    while (manque-- > 0) manquants.push(REPRESENTANT[g]);
+  }
   const fillPos = ["DC","MC","AD","GB","BU","DG","MDC","AG"];
+  const need = Math.max(manquants.length, 20 - squad.length);
   for (let i=0;i<need;i++){
-    const p = makePlayer(Math.max(1, rep-2), fillPos[i%fillPos.length], country);
+    const pos = i < manquants.length ? manquants[i] : fillPos[(i-manquants.length)%fillPos.length];
+    const p = makePlayer(Math.max(1, rep-2), pos, country);
     p.age = ri(17,20); p.note = Math.max(58, p.note-6);
     p.potentiel = Math.max(p.note, Math.min(88, p.note + ri(3,12)));
     p.valeur = playerValue(p.note, p.potentiel, p.age);

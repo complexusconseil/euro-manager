@@ -225,7 +225,7 @@ function renderStart(){
     });
     card.appendChild(kitRow);
 
-    const info = el("p","ml-info","Vous démarrez dans le <b>championnat de votre choix</b> (sélectionné ci-dessus), à la place de son club le plus faible, avec un effectif « maison » aux <b>noms iconiques (Castolo, Espimas, Minanda…)</b> et un petit budget. Piochez parmi les <b>agents libres</b> ou achetez à d'autres clubs, puis bâtissez une grande équipe au fil des saisons — comme la Ligue des Masters d'antan.");
+    const info = el("p","ml-info",_t("Vous démarrez dans le championnat de votre choix (sélectionné ci-dessus), à la place de son club le plus faible, avec un effectif « maison » aux noms iconiques (Castolo, Espimas, Minanda…) et un petit budget. Piochez parmi les agents libres ou achetez à d'autres clubs, puis bâtissez une grande équipe au fil des saisons — comme la Ligue des Masters d'antan."));
     card.appendChild(info);
 
     const btn = el("button","btn primary big",icon("cup")+_t("Lancer la Master League"));
@@ -255,7 +255,7 @@ function renderStart(){
     };
     compSel.onchange = fillNations; fillNations();
 
-    const info = el("p","ml-info","Disputez le tournoi à élimination directe avec la sélection de votre choix. La force de chaque nation est réaliste ; les effectifs sont représentatifs (générés).");
+    const info = el("p","ml-info",_t("Disputez le tournoi à élimination directe avec la sélection de votre choix. La force de chaque nation est réaliste ; les effectifs sont représentatifs (générés)."));
     card.appendChild(info);
 
     const btn = el("button","btn primary big",icon("globe")+_t("Lancer le tournoi"));
@@ -661,7 +661,22 @@ function playLiveMatch(cfg){
         }
       }
     }
-    if (minute===45 && !halfDone){ halfDone=true; feed("<b>"+_t("Mi-temps")+"</b>", -1, "info"); setPaused(true); }
+    if (minute===45 && !halfDone){
+      halfDone=true;
+      feed("<b>"+_t("Mi-temps")+"</b>", -1, "info");
+      setPaused(true);
+      /* Le match se figeait sans le moindre écran : aucune modale, aucune
+         consigne, juste des joueurs immobiles — un nouveau joueur en concluait
+         que le jeu avait planté. La mi-temps ouvre maintenant le panneau de
+         coaching, comme le fait déjà la pause sur blessure. */
+      if (mg){
+        feed(_t("Mi-temps — ajustez vos consignes et vos remplacements."), -1, "info");
+        if ($coach) $coach.classList.add("urgent");
+        openCoaching(mg, ()=>setPaused(false));
+      } else {
+        feed(_t("Mi-temps — reprenez quand vous êtes prêt."), -1, "info");
+      }
+    }
     if (minute>=90) finish();
   }
   function finish(){
@@ -753,7 +768,7 @@ function clubManager(club){
               .map(p=>({id:p.id,nom:p.nom,pos:p.pos,note:p.note})),
     sub:(o,i)=>{ if(left<=0) return false; if(FM.substitute(club,o,i)){ left--; return true; } return false; },
     subsLeft:()=>left,
-    strength:()=>{ const st=FM.teamStrength(club); return `Attaque ${Math.round(st.att)} · Milieu ${Math.round(st.mid)} · Défense ${Math.round(st.def)}`; }
+    strength:()=>{ const st=FM.teamStrength(club); return `${_t("Attaque")} ${Math.round(st.att)} · ${_t("Milieu")} ${Math.round(st.mid)} · ${_t("Défense")} ${Math.round(st.def)}`; }
   };
 }
 function nationManager(team, tac){
@@ -852,7 +867,7 @@ function runInteractiveMatch(dom, ext, opts, onFinish){
 function renderSquad(body){
   const my = FM.myClub();
   const card = el("div","card");
-  card.appendChild(el("h3",null,icon("squad")+`${_t("Effectif")} — ${my.joueurs.length} ${_t("joueurs")} · ${_t("Masse salariale")} ~${my.joueurs.reduce((a,p)=>a+p.salaire,0).toFixed(0)} k€/sem`));
+  card.appendChild(el("h3",null,icon("squad")+`${_t("Effectif")} — ${my.joueurs.length} ${_t("joueurs")} · ${_t("Masse salariale")} ~${my.joueurs.reduce((a,p)=>a+p.salaire,0).toFixed(0)} k€/${_t("sem")}`));
 
   const table = el("table","squad-table");
   const showNat = my.joueurs.some(p=>p.nat);
@@ -1050,7 +1065,17 @@ function renderTactics(body){
   setup.appendChild(row);
 
   const auto = el("button","btn ghost small",_t("Composer automatiquement"));
-  auto.onclick=()=>{ my.onze=FM.autoPickXI(my); FM.save(); renderGame(); };
+  auto.onclick=()=>{
+    const avant = my.onze.map(s=>s.id).join(",");
+    my.onze = FM.autoPickXI(my); FM.save();
+    /* Seul bouton de l'interface qui ne disait rien : sur un onze déjà
+       optimal, rien ne bougeait et on ne pouvait pas distinguer « rien à
+       changer » de « le bouton est cassé ». */
+    toast(my.onze.map(s=>s.id).join(",") === avant
+      ? _t("Votre onze est déjà le meilleur possible.")
+      : _t("Onze recomposé automatiquement."));
+    renderGame();
+  };
   setup.appendChild(auto);
   body.appendChild(setup);
 
@@ -1059,7 +1084,7 @@ function renderTactics(body){
   pitchCard.appendChild(el("h3",null,icon("tactics")+_t("Composition sur le terrain")));
   const st = FM.teamStrength(my);
   pitchCard.appendChild(el("p","strength-line",
-    `Attaque <b>${Math.round(st.att)}</b> · Milieu <b>${Math.round(st.mid)}</b> · Défense <b>${Math.round(st.def)}</b> · Global <b>${st.global}</b>`));
+    `${_t("Attaque")} <b>${Math.round(st.att)}</b> · ${_t("Milieu")} <b>${Math.round(st.mid)}</b> · ${_t("Défense")} <b>${Math.round(st.def)}</b> · ${_t("Global")} <b>${st.global}</b>`));
   const pitch = el("div","pitch");
   const slots = FM.FORMATIONS[my.formation];
   const rows = pitchRows(my.formation);
@@ -1095,10 +1120,12 @@ function renderTactics(body){
 
 function sliderTac(title, labels, val, onchange){
   const box = el("label","tac-slider");
-  box.appendChild(el("span","tac-title",title));
-  const out = el("span","tac-val",labels[val]);
+  /* Titre et valeurs traduits ici plutôt qu'à chaque appel : les six appels
+     passaient les libellés en clair, qui restaient donc en français. */
+  box.appendChild(el("span","tac-title",_t(title)));
+  const out = el("span","tac-val",_t(labels[val]));
   const inp = el("input"); inp.type="range"; inp.min=0; inp.max=2; inp.value=val;
-  inp.oninput=()=>{ out.textContent=labels[inp.value]; onchange(parseInt(inp.value,10)); };
+  inp.oninput=()=>{ out.textContent=_t(labels[inp.value]); onchange(parseInt(inp.value,10)); };
   box.appendChild(inp); box.appendChild(out);
   return box;
 }
@@ -1123,19 +1150,19 @@ function openPlayerPicker(slotIdx, slotPos){
   const my = FM.myClub();
   const overlay = el("div","overlay");
   const box = el("div","card picker");
-  box.appendChild(el("h3",null,`Choisir un joueur — ${FM.POS_LABEL[slotPos]} (${slotPos})`));
+  box.appendChild(el("h3",null,`${_t("Choisir un joueur")} — ${_t(FM.POS_LABEL[slotPos])} (${slotPos})`));
   const list = el("div","picker-list");
   const usedIds = new Set(my.onze.filter((_,i)=>i!==slotIdx).map(s=>s.id));
   my.joueurs.slice().sort((a,b)=>(FM.playerAvailable(b)?1:0)-(FM.playerAvailable(a)?1:0) || b.note-a.note).forEach(p=>{
     const row = el("div","picker-row"+(usedIds.has(p.id)?" used":""));
     row.innerHTML = `<span class="pos-badge ${p.groupe}">${p.pos}</span>
       <b>${p.nom}</b> <span class="note ${noteClass(p.note)}">${p.note}</span>
-      <small>${formeIcon(p.forme)} ${usedIds.has(p.id)?'· déjà titulaire':''}</small>`;
+      <small>${formeIcon(p.forme)} ${usedIds.has(p.id)?'· '+_t("déjà titulaire"):''}</small>`;
     row.onclick=()=>{ FM.setStarter(slotIdx, p.id); overlay.remove(); renderGame(); };
     list.appendChild(row);
   });
   box.appendChild(list);
-  const close = el("button","btn ghost","Fermer");
+  const close = el("button","btn ghost",_t("Fermer"));
   close.onclick=()=> overlay.remove();
   box.appendChild(close);
   overlay.appendChild(box);
@@ -1153,7 +1180,7 @@ function renderEurope(body){
   ["UCL","UEL","UECL"].forEach(k=>{
     const c=e[k];
     let stat;
-    if (c.phase==="league") stat = `Phase de ligue J${c.lp.cur}/${c.lp.rounds}`;
+    if (c.phase==="league") stat = `${_t("Phase de ligue")} J${c.lp.cur}/${c.lp.rounds}`;
     else if (FM.compFinished(c)) stat = FM.compChampionTeam(c).nom;
     else stat = FM.roundName(c.ko.alive.length);
     const pill = el("div","comp-pill"+(e.playerComp===k?" mine":""));
@@ -1186,7 +1213,7 @@ function renderEurope(body){
     const tie = FM.playerTie(ko);
     const opp = ko.teams[tie[0]===ko.playerSeed?tie[1]:tie[0]];
     const me = FM.myClub();
-    card.appendChild(el("p","round-name",`${FM.roundName(ko.alive.length)}${ko.alive.length>2?' · aller-retour':' · match sec'}`));
+    card.appendChild(el("p","round-name",`${FM.roundName(ko.alive.length)}${ko.alive.length>2?' · '+_t("aller-retour"):' · '+_t("match sec")}`));
     const tieBox = el("div","tie-box");
     tieBox.innerHTML = `
       <div class="tie-side">${clubCrest(me,52)}<b>${me.nom}</b><small>${FM.squadRating(me)}</small></div>
@@ -1224,7 +1251,7 @@ function renderDomesticCup(body){
     const tie = FM.playerTie(cup);
     const oppIdx = tie[0]===cup.playerSeed?tie[1]:tie[0];
     const opp = cup.teams[oppIdx];
-    card.appendChild(el("p","round-name",`${FM.roundName(cup.alive.length)} · match sec`));
+    card.appendChild(el("p","round-name",`${FM.roundName(cup.alive.length)} · ${_t("match sec")}`));
     if (opp.bye){
       // Exempt ce tour : qualification d'office
       card.appendChild(el("p","hint",_t("Votre club est exempt ce tour : qualifié d'office pour le tour suivant.")));
@@ -1797,7 +1824,7 @@ function refreshMarket(container){
       tr.lastChild.appendChild(btn);
     } else {
       const btn = el("button","btn tiny primary",p.libre?_t("Signer"):_t("Offre"));
-      if(!mktOpen){ btn.disabled=true; btn.title="Hors période de mercato"; }
+      if(!mktOpen){ btn.disabled=true; btn.title=_t("Hors période de mercato"); }
       btn.onclick=()=> openBid(p);
       tr.lastChild.appendChild(btn);
     }
@@ -1806,19 +1833,22 @@ function refreshMarket(container){
   table.appendChild(tb);
   const scroll = el("div","table-scroll"); scroll.appendChild(table);
   container.appendChild(scroll);
-  if(!list.length) container.appendChild(el("p","hint",loanMode?"Aucun joueur disponible en prêt selon ces filtres.":"Aucun joueur ne correspond aux filtres."));
+  if(!list.length) container.appendChild(el("p","hint",loanMode?_t("Aucun joueur disponible en prêt selon ces filtres."):_t("Aucun joueur ne correspond aux filtres.")));
 }
 function openBid(p){
   const my = FM.myClub();
   const overlay = el("div","overlay");
   const box = el("div","card picker");
   const prime = p.libre ? FM.freeAgentPrime(p, my.rep) : 0;
-  const suggested = p.libre ? prime : Math.round(p.valeur*(p.dispo?1.0:1.2)*10)/10;
-  box.innerHTML = `<h3>${p.libre?'Signer '+p.nom+' (libre)':'Offre pour '+p.nom}</h3>
-    <p><span class="pos-badge ${p.groupe}">${p.pos}</span> ${FM.POS_LABEL[p.pos]} · ${p.clubNom} · ${p.age} ans · Note <b>${p.note}</b></p>
-    <p>Valeur estimée : <b>${p.valeur.toFixed(1)} M€</b> · Votre budget : <b>${my.budget.toFixed(1)} M€</b>${p.libre?` · <b>prime demandée ≈ ${prime.toFixed(1)} M€</b> (aucune indemnité de transfert)`:''}</p>`;
+  /* Le montant pré-rempli dépassait allègrement le budget : l'offre partait
+     et se faisait refuser par le moteur, sans que rien n'ait prévenu. */
+  const brut = p.libre ? prime : Math.round(p.valeur*(p.dispo?1.0:1.2)*10)/10;
+  const suggested = Math.min(brut, Math.max(0, Math.floor(my.budget*10)/10));
+  box.innerHTML = `<h3>${p.libre?_t("Signer")+' '+p.nom+' ('+_t("libre")+')':_t("Offre pour")+' '+p.nom}</h3>
+    <p><span class="pos-badge ${p.groupe}">${p.pos}</span> ${_t(FM.POS_LABEL[p.pos])} · ${p.clubNom} · ${p.age} ${_t("ans")} · ${_t("Note")} <b>${p.note}</b></p>
+    <p>${_t("Valeur estimée")} : <b>${p.valeur.toFixed(1)} M€</b> · ${_t("Votre budget")} : <b>${my.budget.toFixed(1)} M€</b>${p.libre?` · <b>${_t("prime demandée")} ≈ ${prime.toFixed(1)} M€</b> (${_t("aucune indemnité de transfert")})`:''}</p>`;
   const inp = el("input"); inp.type="number"; inp.step="0.5"; inp.min="0"; inp.value=suggested;
-  box.appendChild(el("label",null,p.libre?"Prime à la signature (M€)":"Montant de l'offre (M€)"));
+  box.appendChild(el("label",null,p.libre?_t("Prime à la signature (M€)"):_t("Montant de l'offre (M€)")));
   box.appendChild(inp);
   const msg = el("p","bid-msg","");
   const send = el("button","btn primary",_t("Soumettre l'offre"));
@@ -1838,7 +1868,7 @@ function openBid(p){
   };
   box.appendChild(send);
   box.appendChild(msg);
-  const close = el("button","btn ghost","Annuler");
+  const close = el("button","btn ghost",_t("Annuler"));
   close.onclick=()=> overlay.remove();
   box.appendChild(close);
   overlay.appendChild(box);
@@ -2088,6 +2118,19 @@ function importSaveFile(onDone){
 function saveAlert(){
   if (!FM.saveError) return null;
   const w = el("div","save-alert");
+  /* Conflit entre deux onglets : l'un des deux perdrait sa progression. On le
+     dit, au lieu de laisser le dernier à écrire effacer l'autre en silence. */
+  if (FM.saveError === "conflit"){
+    w.innerHTML = `<span class="sa-txt"><b>${_t("Partie ouverte dans un autre onglet")}</b> `
+      + _t("Cette partie a été modifiée ailleurs : pour ne rien perdre, gardez un seul onglet ouvert.")
+      + "</span>";
+    const r = el("button","btn small", icon("swap")+_t("Recharger la partie enregistrée"));
+    r.onclick = ()=>{ if (FM.load()){ FM.saveError=null; currentTab="accueil"; renderGame(); } };
+    const x = el("button","btn small ghost", icon("upload")+_t("Exporter la partie"));
+    x.onclick = exportSaveFile;
+    w.appendChild(r); w.appendChild(x);
+    return w;
+  }
   w.innerHTML = `<span class="sa-txt"><b>${_t("Sauvegarde impossible")}</b> `
     + (FM.saveError==="quota"
         ? _t("La mémoire du navigateur est pleine : votre progression n'est plus enregistrée.")

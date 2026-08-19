@@ -335,11 +335,15 @@ function eco(){
 FM.eco = eco;
 const round2 = v => Math.round(v*100)/100;
 /* Somme des trésoreries : doit rester stable à chaque transfert ou prêt */
-FM.moneyMass = () => round2(FM.state.db.clubs.reduce((a,c)=>a+(c.budget||0), 0));
+/* Pas de round2 sur le TOTAL : chaque arrondi individuel est déjà porté au
+   grand livre, arrondir la somme réintroduisait un résidu constant. */
+FM.moneyMass = () => FM.state.db.clubs.reduce((a,c)=>a+(c.budget||0), 0);
 /* Déplace `m` M€ du club `from` vers le club `to`. L'un des deux peut être
    null (club hors base) : le mouvement est alors porté au poste `poste`. */
 function moveMoney(from, to, m, poste){
-  if (!(m > 0) || !isFinite(m)) return;      /* NaN, Infinity, montant nul */
+  /* typeof est indispensable : la chaîne "12" satisfait `> 0` et isFinite par
+     coercition, et déplaçait donc réellement 12 M€. */
+  if (typeof m !== "number" || !isFinite(m) || m <= 0 || m > MONTANT_MAX) return;
   m = round2(m);
   const E = eco();
   /* L'arrondi au centime de CHAQUE trésorerie crée un écart : il est porté au
@@ -1506,18 +1510,21 @@ FM.endSeason = function(){
     FM.autoCompleteClubComp(FM.state.coupe);
 
   // --- Trophées individuels du championnat (après clôture, avant remise à zéro) ---
-  const lb = FM.leaderboards(FM.state.ligueJoueur, 8);
+  /* Le seuil était de 8 matchs : le titre revenait régulièrement à un
+     remplaçant ayant joué le quart de la saison. On exige les deux tiers. */
+  const lb = FM.leaderboards(FM.state.ligueJoueur, Math.max(12, Math.round(FM.totalMatchdays()*0.6)));
   const potm = lb.notes[0];                 // Joueur de la saison (meilleure moyenne)
   const pichichi = lb.buteurs[0];           // Meilleur buteur
   const passeur = lb.passeurs[0];           // Meilleur passeur
   const trophies = {
-    joueur:   potm ? { nom:potm.nom, club:potm.clubNom, avg:+FM.playerAvgNote(potm).toFixed(2) } : null,
+    joueur:   potm ? { nom:potm.nom, club:potm.clubNom, avg:+FM.playerAvgNote(potm).toFixed(2),
+                      matchs:potm.noteMatchs||0 } : null,
     buteur:   pichichi ? { nom:pichichi.nom, club:pichichi.clubNom, buts:pichichi.buts } : null,
     passeur:  passeur ? { nom:passeur.nom, club:passeur.clubNom, passes:passeur.passes||0 } : null
   };
   if (trophies.buteur) addNews(`${FM.t('Meilleur buteur')} : ${trophies.buteur.nom} (${trophies.buteur.club}) — ${trophies.buteur.buts} ${FM.t('buts')}.`, "award");
   if (trophies.passeur) addNews(`${FM.t('Meilleur passeur')} : ${trophies.passeur.nom} (${trophies.passeur.club}) — ${trophies.passeur.passes} ${FM.t('passes')}.`, "award");
-  if (trophies.joueur) addNews(`${FM.t('Joueur de la saison')} : ${trophies.joueur.nom} (${trophies.joueur.club}) — ${FM.t('Note moyenne')} ${trophies.joueur.avg}.`, "award");
+  if (trophies.joueur) addNews(`${FM.t('Joueur de la saison')} : ${trophies.joueur.nom} (${trophies.joueur.club}) — ${FM.t('Note moyenne')} ${trophies.joueur.avg} ${FM.t('en')} ${trophies.joueur.matchs} ${FM.t('matchs')}.`, "award");
 
   const euroPrize = europeanPrize();        // prime selon le parcours européen
   const euroSum = FM.state.europe ? europeSummary() : null;
@@ -1646,8 +1653,18 @@ FM.endSeason = function(){
       // finissait par tomber tous les cinq matchs.
       p.matchs=0; p.buts=0; p.passes=0; p.noteTotale=0; p.noteMatchs=0; p.selJeunes=null;
       p.cartons=0; p.suspension=0;
-      delete p.signeFenetre; delete p.loanCooldown;
+      delete p.signeFenetre;
+      /* loanCooldown n'est PAS effacé ici : il l'était quelques lignes après
+         avoir été posé par le retour de prêt, si bien que le même joueur
+         pouvait repartir en prêt six saisons d'affilée. La comparaison de
+         saison le périme d'elle-même. */
       p.age++;
+      /* Invariant : la note ne dépasse jamais le potentiel. Des chemins
+         détournés (bonus de retour de prêt, ajustements du centre de
+         formation, héritage d'une ancienne sauvegarde) laissaient 7 % du
+         monde au-dessus du sien, jusqu'à +13 — un plafond affiché que le
+         joueur voyait franchi. Ce qui a été atteint devient le plafond. */
+      if (p.note > p.potentiel) p.potentiel = Math.min(94, p.note);
       p.valeur = FM.playerValue(p.note, p.potentiel, p.age);
       p.contrat = Math.max(0, p.contrat-1);
     }
@@ -1832,8 +1849,17 @@ function playSuperCup(){
   if (!ucl || !uel) return null;
   // Force d'équipe = note d'effectif pré-calculée + aléa
   const sA = (ucl.note||70)+FM._rnd()*6, sB = (uel.note||70)+FM._rnd()*6;
-  let ga = 1 + Math.round(Math.max(0,(sA-sB))/5 + FM._rnd()*2);
-  let gb = 1 + Math.round(Math.max(0,(sB-sA))/5 + FM._rnd()*2);
+  /* Le score partait de 1 but garanti par camp : sur 25 finales, aucune ne
+     s'est terminée sans que les deux équipes marquent, pour 4,88 buts par
+     match contre 2,7 ailleurs. On tire maintenant une loi de Poisson autour
+     d'une espérance dérivée de l'écart de force, comme les autres matchs. */
+  const poissonSC = lam => {
+    let k = 0, pr = Math.exp(-lam), cum = pr, u = FM._rnd();
+    while (u > cum && k < 9){ k++; pr = pr*lam/k; cum += pr; }
+    return k;
+  };
+  let ga = poissonSC(Math.max(0.25, 1.35 + (sA-sB)*0.06));
+  let gb = poissonSC(Math.max(0.25, 1.35 + (sB-sA)*0.06));
   let winner;
   if (ga===gb){ // prolongation / tirs au but
     winner = FM._rnd() < (sA/(sA+sB)) ? ucl : uel;
@@ -1842,8 +1868,10 @@ function playSuperCup(){
   const isMe = t => (t.ref===myId || t.key===myId);
   const playerInvolved = isMe(ucl) || isMe(uel);
   const playerWon = isMe(winner);
+  /* La catégorie retombait sur « info » faute de second argument, et le
+     suffixe restait en français en mode anglais. */
   addNews(`${FM.t('Supercoupe d\'Europe')} : ${ucl.nom} ${ga}–${gb} ${uel.nom}. ${winner.nom} ${FM.t('soulève le trophée !')}` +
-    (playerInvolved ? (playerWon ? " Bravo, c'est VOTRE club !" : " Votre club s'incline de justesse.") : ""));
+    (playerInvolved ? (playerWon ? " "+FM.t("Bravo, c'est VOTRE club !") : " "+FM.t("Votre club s'incline de justesse.")) : ""), "cup");
   return { ucl:ucl.nom, uel:uel.nom, ga, gb, vainqueur:winner.nom, playerInvolved, playerWon };
 }
 
@@ -1879,11 +1907,20 @@ function applyPromotionRelegation(finalTable){
   while (montants.length < descendants.length){
     const neuf = makePromotedClub(metaD1);
     FM.state.db.clubs.push(neuf);
+    eco().recettes += neuf.budget || 0;      /* comme createSecondDivision */
     montants.push(neuf);
   }
-  const place = (c, meta) => { c.ligue = meta.id; c.ligueNom = meta.nom; };
-  descendants.forEach(c => place(c, metaD2));
-  montants.forEach(c => place(c, metaD1));
+  /* La réputation suit la division. Les recettes en dépendent (REV_BY_REP) et
+     elle n'était jamais réassignée : un club relégué gardait sa réputation de
+     première division et encaissait jusqu'à deux fois plus qu'un club de D1,
+     depuis la D2. Descendre coûte donc désormais un cran, remonter en rend un. */
+  const place = (c, meta, sens) => {
+    c.ligue = meta.id; c.ligueNom = meta.nom;
+    if (sens === "bas") c.rep = Math.max(1, (c.rep||1) - 1);
+    else if (sens === "haut") c.rep = Math.min(5, (c.rep||1) + 1);
+  };
+  descendants.forEach(c => place(c, metaD2, "bas"));
+  montants.forEach(c => place(c, metaD1, "haut"));
 
   const joueurDescend = descendants.some(c=>c.id===myId);
   const joueurMonte   = montants.some(c=>c.id===myId);
@@ -2018,6 +2055,32 @@ FM.migrateState = function(){
   if (!s.eco || typeof s.eco !== "object" || Array.isArray(s.eco)) s.eco = Object.assign({}, ECO0);
   for (const k of Object.keys(ECO0)) if (!nombreSain(s.eco[k])) s.eco[k] = 0;
   ((s.db && s.db.clubs) || []).forEach(c => { if (!nombreSain(c.budget)) c.budget = 0; });
+  /* Renumérotation des identifiants en double, hérités d'une sauvegarde
+     antérieure au recalage du compteur : deux joueurs partageant un id
+     étaient effacés ensemble à la première vente, au premier prêt ou à la
+     première retraite. Le premier vu garde son identifiant. */
+  if (s.db && Array.isArray(s.db.clubs)){
+    const vus = new Set(), aRenumeroter = [];
+    for (const c of s.db.clubs) for (const p of (c.joueurs || [])){
+      if (!p) continue;
+      if (vus.has(p.id)) aRenumeroter.push(p); else vus.add(p.id);
+    }
+    for (const p of (s.freeAgents || [])){
+      if (!p) continue;
+      if (vus.has(p.id)) aRenumeroter.push(p); else vus.add(p.id);
+    }
+    if (aRenumeroter.length){
+      let suivant = Math.max(0, ...vus) + 1;
+      for (const p of aRenumeroter){ p.id = suivant++; vus.add(p.id); }
+      if (FM.syncPlayerIds) FM.syncPlayerIds(s);
+      /* les compositions pointant sur un id désormais réattribué sont refaites */
+      for (const c of s.db.clubs){
+        const ids = new Set((c.joueurs || []).map(x => x && x.id));
+        if (Array.isArray(c.onze)) c.onze.forEach(sl => { if (sl && sl.id != null && !ids.has(sl.id)) sl.id = null; });
+      }
+    }
+  }
+  if (typeof s.ver !== "number" || !isFinite(s.ver)) s.ver = 0;
   if (!Array.isArray(s.historique)) s.historique = [];
   if (!Array.isArray(s.prets)) s.prets = [];
   if (!Array.isArray(s.offres)) s.offres = [];
@@ -2071,6 +2134,22 @@ function checkStateInterne(s){
     if (!s.europe || typeof s.europe !== "object") return "coupes d'Europe";
     for (const k of ["UCL","UEL","UECL"]) if (!compsOK(s.europe[k])) return "coupes d'Europe";
   }
+  /* Le onze doit rester jouable : au moins un titulaire réel, une formation
+     connue et des consignes présentes. Sans ces contrôles la sauvegarde était
+     acceptée puis le moteur déréférençait dans le vide au premier match. */
+  if (!my.onze.some(sl => sl && sl.id != null && idsEffectif.has(sl.id))) return "composition";
+  if (my.formation != null && FM.FORMATIONS && !FM.FORMATIONS[my.formation]) return "formation";
+  if (!my.tactique || typeof my.tactique !== "object") return "consignes";
+  /* Identifiants de joueurs : exploitables et uniques. Une sauvegarde
+     antérieure au recalage du compteur en porte jusqu'à 412 en double, et un
+     identifiant démesuré fige le compteur (au-delà de 2^53, max+1 === max). */
+  for (const c of s.db.clubs) for (const p of c.joueurs){
+    if (!p || typeof p.id !== "number" || !isFinite(p.id) || p.id < 0 || p.id > 1e12)
+      return "identifiants";
+  }
+  /* Les DOUBLONS d'identifiant ne sont pas rédhibitoires : migrateState les
+     renumérote. Une carrière héritée d'avant le recalage du compteur en porte
+     jusqu'à 412, et la refuser en bloc serait disproportionné. */
   /* La trésorerie de CHAQUE club doit être un nombre : une seule valeur
      abîmée fausse toute la comptabilité, pas seulement la vôtre. */
   for (const c of s.db.clubs){
@@ -2119,12 +2198,38 @@ function lsGet(k){
 function lsSet(k, v){ localStorage.setItem(k, v); }   /* l'appelant gère l'échec */
 function lsDel(k){ try { localStorage.removeItem(k); } catch(e){ FM.storageOK = false; } }
 
+/* Identité de l'onglet courant et compteur de version : deux onglets ouverts
+   sur la même partie s'écrasaient mutuellement en silence — quinze journées
+   pouvaient disparaître sans le moindre message. Chaque écriture incrémente
+   la version ; si celle du disque a bougé sans nous, c'est qu'un autre onglet
+   a joué, et on refuse d'écraser. */
+const SESSION_ID = "s" + Math.floor(Math.random()*1e9).toString(36) + Date.now().toString(36);
+FM.sessionId = SESSION_ID;
+FM.conflitOnglet = false;
+function versionSurDisque(){
+  const raw = lsGet(SAVE_KEY);
+  if (!raw) return null;
+  /* lecture ciblée : inutile de désérialiser plusieurs mégaoctets */
+  const m = /"ver"\s*:\s*(\d+)/.exec(raw);
+  return m ? parseInt(m[1], 10) : null;
+}
 FM.save = function(){
   try {
     if (FM.rngCursor) FM.state.rng = FM.rngCursor();   // le hasard reprend où il s'est arrêté
+    const attendue = FM.state.ver || 0;
+    const surDisque = versionSurDisque();
+    if (surDisque != null && surDisque > attendue){
+      /* un autre onglet a écrit depuis notre dernier enregistrement */
+      FM.conflitOnglet = true;
+      FM.saveError = "conflit";
+      return false;
+    }
+    FM.state.ver = attendue + 1;
+    FM.state.sess = SESSION_ID;
     lsSet(SAVE_KEY, JSON.stringify(FM.state, saveReplacer));
     FM.saveError = null;
     FM.storageOK = true;
+    FM.conflitOnglet = false;
     return true;
   } catch(e){
     if (e && (e.name === "QuotaExceededError" || e.code === 22)) FM.saveError = "quota";
