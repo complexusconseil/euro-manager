@@ -45,6 +45,7 @@ FM.newGame = function(managerName, clubId, seed){
   /* Le monde est en place : le grand livre repart de zéro, il ne comptabilise
      que ce qui bouge À PARTIR DE MAINTENANT. */
   FM.state.eco = Object.assign({}, ECO0);
+  adopterVersionDisque();                    /* nouvelle partie : on écrase l'ancienne */
   FM.save();
   return FM.state;
 };
@@ -110,6 +111,7 @@ FM.newMasterLeague = function(managerName, clubName, leagueId, seed, kitColors){
   FM.state.freeAgents = FM.makeFreeAgents(56, lgMeta.pays);
   addNews(`${FM.state.freeAgents.length} ${FM.t('agents libres disponibles (onglet Mercato).')}`, "transfer");
   FM.state.eco = Object.assign({}, ECO0);     /* cf. newGame : baseline à zéro */
+  adopterVersionDisque();                    /* nouvelle partie : on écrase l'ancienne */
   FM.save();
   return FM.state;
 };
@@ -2206,6 +2208,13 @@ function lsDel(k){ try { localStorage.removeItem(k); } catch(e){ FM.storageOK = 
 const SESSION_ID = "s" + Math.floor(Math.random()*1e9).toString(36) + Date.now().toString(36);
 FM.sessionId = SESSION_ID;
 FM.conflitOnglet = false;
+/* Version que NOUS croyons être sur le disque, du fait de nos propres
+   lectures et écritures. Un conflit, c'est le disque qui a bougé sans nous —
+   pas une version simplement plus haute que celle de l'état en mémoire.
+   Sans cette distinction, démarrer une seconde carrière ou importer une
+   sauvegarde plus ancienne était pris pour un conflit et n'était jamais
+   enregistré : le joueur jouait une partie qui disparaissait au rechargement. */
+let verConnue = null;
 function versionSurDisque(){
   const raw = lsGet(SAVE_KEY);
   if (!raw) return null;
@@ -2213,20 +2222,29 @@ function versionSurDisque(){
   const m = /"ver"\s*:\s*(\d+)/.exec(raw);
   return m ? parseInt(m[1], 10) : null;
 }
+/* Remplacement délibéré (nouvelle partie, import) : on adopte la lignée du
+   disque, l'écriture qui suit ne peut pas être prise pour un conflit. */
+function adopterVersionDisque(){ verConnue = versionSurDisque(); }
+FM.adopterVersionDisque = adopterVersionDisque;
 FM.save = function(){
   try {
     if (FM.rngCursor) FM.state.rng = FM.rngCursor();   // le hasard reprend où il s'est arrêté
-    const attendue = FM.state.ver || 0;
     const surDisque = versionSurDisque();
-    if (surDisque != null && surDisque > attendue){
-      /* un autre onglet a écrit depuis notre dernier enregistrement */
+    if (verConnue != null && surDisque != null && surDisque !== verConnue){
+      /* le disque a bougé depuis notre dernière lecture ou écriture :
+         un autre onglet a joué. */
       FM.conflitOnglet = true;
       FM.saveError = "conflit";
       return false;
     }
-    FM.state.ver = attendue + 1;
+    FM.state.ver = Math.max(surDisque || 0, FM.state.ver || 0) + 1;
     FM.state.sess = SESSION_ID;
     lsSet(SAVE_KEY, JSON.stringify(FM.state, saveReplacer));
+    /* La lignée n'avance qu'APRÈS une écriture réussie : la faire avancer
+       avant laissait, sur un échec de quota, une version en mémoire absente
+       du disque — toute écriture ultérieure était alors prise pour un conflit
+       et le joueur ne pouvait plus jamais enregistrer, même le quota libéré. */
+    verConnue = FM.state.ver;
     FM.saveError = null;
     FM.storageOK = true;
     FM.conflitOnglet = false;
@@ -2256,10 +2274,11 @@ FM.load = function(){
     return false;
   }
   FM.loadError = null;
+  verConnue = FM.state.ver || 0;             /* on suit désormais cette lignée */
   return true;
 };
 FM.hasSave = () => !!lsGet(SAVE_KEY);
-FM.deleteSave = function(){ lsDel(SAVE_KEY); FM.state=null; FM.saveError=null; };
+FM.deleteSave = function(){ lsDel(SAVE_KEY); FM.state=null; FM.saveError=null; verConnue=null; };
 /* Export / import : filet de sécurité si le navigateur refuse d'écrire */
 FM.exportSave = () => JSON.stringify(FM.state, saveReplacer);
 FM.importSave = function(txt){
@@ -2275,6 +2294,7 @@ FM.importSave = function(txt){
     FM.state = ancien;
     return "structure";
   }
+  adopterVersionDisque();                    /* remplacement voulu : on écrase */
   FM.save();
   return null;
 };
