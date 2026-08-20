@@ -159,12 +159,12 @@ function evaluerObjectif(rang, nClubs){
   const monClub = FM.myClub();
   FM.state.fin = FM.state.fin || { rec:0, sal:0 };
   if (monClub && monClub.budget < 0){
-    FM.state.fin.saisonsRouge = (FM.state.fin.saisonsRouge || 0) + 1;
-    majConfiance(FM.state.fin.saisonsRouge >= 2 ? -20 : -8);
+    FM.state.saisonsRouge = (FM.state.saisonsRouge || 0) + 1;
+    majConfiance(FM.state.saisonsRouge >= 2 ? -20 : -8);
     addNews(`${FM.t("Exercice clos dans le rouge")} (${monClub.budget.toFixed(1)} M€) — `
       + `${FM.t("Confiance")} : ${FM.confianceLabel()}.`, "money");
-  } else FM.state.fin.saisonsRouge = 0;
-  const ruine = (FM.state.fin.saisonsRouge || 0) >= 2;
+  } else FM.state.saisonsRouge = 0;
+  const ruine = (FM.state.saisonsRouge || 0) >= 2;
   /* Licenciement */
   if ((FM.state.echecs >= 2 || FM.confiance() <= 0 || ruine) && FM.state.mode !== "master"){
     FM.state.sacked = true;
@@ -195,6 +195,7 @@ FM.takeOverClub = function(clubId){
   FM.state.confiance = 60; FM.state.echecs = 0;
   FM.state.sacked = false; FM.state.sackOffers = null;
   FM.state.fin = { rec:0, sal:0, alerte:false };
+  FM.state.saisonsRouge = 0;          /* la dette du club précédent ne suit pas */
   FM.setObjective();
   FM.setupEuropeanCups();
   FM.setupDomesticCup();
@@ -2005,6 +2006,10 @@ FM.endSeason = function(){
     c.onze = FM.autoPickXI(c);
   }
 
+  /* saisonsRouge NE vit pas ici : `fin` est un cumul de saison remis à neuf à
+     trois endroits, dont celui-ci, six lignes avant qu'evaluerObjectif ne lise
+     le compteur. La sanction « deux exercices dans le rouge coûtent la place »
+     était donc du code mort — jamais déclenchée en 40 saisons. */
   FM.state.fin = { rec:0, sal:0, alerte:false };
 
   // --- Convocations en sélections de jeunes (U17/U19/U21) ---

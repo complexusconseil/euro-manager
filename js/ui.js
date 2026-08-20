@@ -115,6 +115,14 @@ function ouvrirModale(overlay, fermer){
   document.addEventListener("keydown", onKey, true);
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
+  /* Le dégel ne doit PAS dépendre du chemin de fermeture. Sur les quatorze
+     fenêtres du jeu, une seule passait par le close() renvoyé ici — toutes les
+     autres appellent overlay.remove() directement (bouton « Fermer », clic sur
+     le fond, « Continuer » de fin de match). Le fond restait donc gelé à vie
+     dès la première fenêtre refermée autrement qu'avec Échap, et la partie
+     devenait injouable à la troisième journée. On enveloppe donc remove(). */
+  const retirer = overlay.remove.bind(overlay);
+  overlay.remove = () => { retirer(); libererFond(); };
   document.body.appendChild(overlay);
   verrouillerFond();
   const f = focusables();
@@ -389,6 +397,10 @@ function renderStart(){
 
 /* ============= COQUE DU JEU ============= */
 function renderGame(){
+  /* Filet de sécurité : un overlay retiré par un chemin qu'on n'aurait pas
+     prévu ne doit jamais laisser la page figée. libererFond() ne fait rien
+     tant qu'une fenêtre reste ouverte. */
+  libererFond();
   if (startKeyHandler){ document.removeEventListener("keydown", startKeyHandler); startKeyHandler = null; }
   const app = $("#app");
   app.innerHTML = "";
