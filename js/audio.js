@@ -58,7 +58,8 @@ const S = {
   playing:false, idx:0, vol:.5, step:0, nextT:0, timer:null,
   custom:[],          /* {nom, blob, url} chargés par le joueur */
   el:null,            /* <audio> pour les fichiers du joueur     */
-  onChange:null
+  onChange:null,
+  onPisteMorte:null
 };
 const LS_ON="fm_music_on", LS_VOL="fm_music_vol", LS_IDX="fm_music_idx";
 
@@ -174,15 +175,42 @@ function tick(){
 }
 
 /* ---------- Pistes du joueur (fichiers locaux) ---------- */
+/* Retire la piste importée en cours de lecture, du disque comme de la
+   playlist, et renvoie true si elle a bien été retirée.
+   Motif : un fichier illisible (vide, encodage non supporté, blob perdu) ne
+   déclenche JAMAIS "ended" — le seul événement écouté jusqu'ici. La lecture
+   restait donc bloquée dessus en silence, et comme l'index de piste est
+   mémorisé, la bande son du jeu était éteinte pour toutes les sessions
+   suivantes. Le splice fait avancer S.idx sur la piste suivante de lui-même ;
+   si toutes les pistes du joueur échouent, la playlist retombe sur les
+   compositions embarquées et la boucle s'arrête d'elle-même. */
+function retirerPisteMorte(){
+  const i = S.idx - TRACKS.length;
+  const mort = (i >= 0) ? S.custom[i] : null;
+  if (!mort) return false;
+  try{ URL.revokeObjectURL(mort.url); }catch(e){}
+  S.custom.splice(i, 1);
+  if (mort.cle != null) idbDelete(mort.cle);
+  if (S.idx >= playlist().length) S.idx = 0;
+  if (S.onPisteMorte) S.onPisteMorte(mort.nom);
+  return true;
+}
 function ensureEl(){
   if (S.el) return S.el;
   const a = new Audio();
   a.volume = S.vol;
   a.addEventListener("ended", ()=> FM.audio.next());
+  a.addEventListener("error", ()=>{
+    /* vider src dans stopEl() lève aussi un "error" : ne pas le confondre
+       avec un fichier réellement illisible. */
+    if (a.__ferme || S.el !== a) return;
+    if (retirerPisteMorte()){ if (S.playing) startCurrent(); else if (S.onChange) S.onChange(); }
+    else FM.audio.next();
+  });
   S.el = a;
   return a;
 }
-function stopEl(){ if (S.el){ S.el.pause(); S.el.src=""; S.el=null; } }
+function stopEl(){ if (S.el){ S.el.__ferme = true; S.el.pause(); S.el.src=""; S.el=null; } }
 
 /* IndexedDB : conserve les fichiers du joueur entre deux sessions */
 const DB_NAME="fm_music", STORE="tracks";
@@ -204,11 +232,32 @@ async function idbAll(){
     });
   }catch(e){ return []; }
 }
+/* Les clés du magasin, dans le même ordre que idbAll() : sans elles on ne peut
+   supprimer qu'en bloc, et une seule piste illisible imposait d'effacer toute
+   la bibliothèque du joueur. */
+async function idbAllKeys(){
+  try{
+    const db = await idb();
+    return await new Promise((res,rej)=>{
+      const tx = db.transaction(STORE,"readonly").objectStore(STORE).getAllKeys();
+      tx.onsuccess = ()=> res(tx.result||[]); tx.onerror = ()=> rej(tx.error);
+    });
+  }catch(e){ return []; }
+}
 async function idbAdd(rec){
   try{
     const db = await idb();
-    await new Promise((res,rej)=>{
+    return await new Promise((res,rej)=>{
       const tx = db.transaction(STORE,"readwrite").objectStore(STORE).add(rec);
+      tx.onsuccess=()=>res(tx.result); tx.onerror=()=>rej(tx.error);
+    });
+  }catch(e){ return null; }
+}
+async function idbDelete(cle){
+  try{
+    const db = await idb();
+    await new Promise((res,rej)=>{
+      const tx = db.transaction(STORE,"readwrite").objectStore(STORE).delete(cle);
       tx.onsuccess=res; tx.onerror=()=>rej(tx.error);
     });
   }catch(e){}
@@ -239,7 +288,14 @@ function startCurrent(){
     const own = S.custom[S.idx - TRACKS.length];
     const a = ensureEl();
     a.src = own.url; a.volume = S.vol; a.loop = false;
-    a.play().catch(()=>{});
+    a.play().catch(err => {
+      /* NotAllowedError = politique d'autoplay du navigateur, le fichier n'y
+         est pour rien : surtout ne pas le supprimer. Toute autre erreur veut
+         dire que cette piste-là est illisible. */
+      if (err && err.name === "NotAllowedError") return;
+      if (a.__ferme || S.el !== a) return;
+      if (retirerPisteMorte() && S.playing) startCurrent();
+    });
   } else {
     S.step = 0; S.nextT = ctx.currentTime + .08;
   }
@@ -297,6 +353,8 @@ FM.audio = {
     try{ localStorage.setItem(LS_VOL, String(S.vol)); }catch(e){}
   },
   onChange(fn){ S.onChange = fn; },
+  /* prévenue quand une piste importée s'avère illisible et est retirée */
+  onPisteMorte(fn){ S.onPisteMorte = fn; },
 
   /* bruitages de menu : tick sec au déplacement, son plus plein à la validation */
   sfx(kind){
@@ -318,8 +376,10 @@ FM.audio = {
     for (const f of files){
       if (!f.type.startsWith("audio")) continue;
       const nom = f.name.replace(/\.[^.]+$/,"");
-      S.custom.push({ nom, blob:f, url:URL.createObjectURL(f) });
-      await idbAdd({ nom, blob:f });
+      /* la clé est conservée pour pouvoir retirer CETTE piste-là si elle
+         s'avère illisible, sans effacer toute la bibliothèque */
+      const cle = await idbAdd({ nom, blob:f });
+      S.custom.push({ nom, blob:f, url:URL.createObjectURL(f), cle });
     }
     if (S.onChange) S.onChange();
   },
@@ -335,7 +395,8 @@ FM.audio = {
     try{ const v = localStorage.getItem(LS_VOL); if (v!==null) S.vol = parseFloat(v); }catch(e){}
     try{ const i = localStorage.getItem(LS_IDX); if (i!==null) S.idx = parseInt(i,10)||0; }catch(e){}
     const recs = await idbAll();
-    S.custom = recs.map(r=>({ nom:r.nom, blob:r.blob, url:URL.createObjectURL(r.blob) }));
+    const cles = await idbAllKeys();
+    S.custom = recs.map((r,i)=>({ nom:r.nom, blob:r.blob, url:URL.createObjectURL(r.blob), cle:cles[i] }));
     if (S.onChange) S.onChange();
     /* reprise automatique après un geste du joueur (politique des navigateurs) */
     let wanted=false;

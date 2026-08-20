@@ -525,7 +525,13 @@ function renderHome(body){
       <p>Champion : <b>${t[0].nom}</b></p>
       <p>${my.nom} termine <b>${rank}${ord(rank)}</b> avec ${my.pts} pts.</p>`;
     const b = el("button","btn primary big",_t("Saison suivante"));
-    b.onclick=()=>{ FM.endSeason(); currentTab="accueil"; renderGame(); };
+    /* Seule transition irréversible du jeu qui n'était pas protégée : une
+       exception ici laissait la partie à moitié basculée, sans un mot. */
+    b.onclick=()=>{
+      try { FM.endSeason(); }
+      catch(e){ toast(_t("La saison n'a pas pu être clôturée. Exportez votre sauvegarde avant de poursuivre.")); }
+      currentTab="accueil"; renderGame();
+    };
     c.appendChild(b);
     body.appendChild(c);
     return;
@@ -986,7 +992,14 @@ function renderSquad(body){
       tr.lastChild.appendChild(btn);
       const lb = el("button","btn tiny ghost",_t("Prêter"));
       if(!FM.marketOpen()){ lb.disabled=true; lb.title=_t("Hors période de mercato"); }
-      lb.onclick=()=>{ const r=FM.loanOut(p.id); toast(r.msg); renderGame(); };
+      /* Confirmation obligatoire : « Prêter » et « Vendre » sont voisins, et un
+         appui 14 px trop bas expédiait le joueur en prêt pour une saison
+         entière, sans retour possible et sans un mot. C'est la seule action
+         irréversible de ce tableau qui n'en demandait pas. */
+      lb.onclick=()=>{
+        if (!confirm(`${_t("Prêter")} ${p.nom} ?\n\n${_t("Il part une saison entière et ne pourra pas être rappelé avant plusieurs journées.")}`)) return;
+        const r=FM.loanOut(p.id); toast(r.msg); renderGame();
+      };
       tr.lastChild.appendChild(lb);
     }
     tb.appendChild(tr);
@@ -2293,6 +2306,9 @@ function audioBar(){
     if (FM.audio.hasOwn()) mk("cross","",_t("Retirer mes musiques"), ()=>FM.audio.clearOwn());
   };
   FM.audio.onChange(()=>{ if (bar.isConnected) draw(); });
+  /* Une piste importée illisible est retirée d'office : le joueur doit savoir
+     pourquoi son morceau a disparu de la liste. */
+  FM.audio.onPisteMorte(nom => toast(`${nom} : ${_t("fichier illisible, piste retirée.")}`));
   draw();
   return bar;
 }

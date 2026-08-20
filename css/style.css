@@ -96,6 +96,13 @@ h3{font-size:18px;font-weight:700}
 .btn.big{width:100%;padding:13px;font-size:19px;margin-top:12px}
 .btn.small{padding:5px 12px;font-size:13.5px}
 .btn.tiny{padding:3px 10px;font-size:12.5px}
+/* Cibles tactiles. « Vendre » et « Prêter » se suivent dans la même cellule
+   avec 4 px d'espace mort entre deux boutons de 24 px de haut : c'est moins
+   que la tolérance d'ajustement du navigateur, qui rabattait donc un appui
+   14 px trop bas sur le mauvais bouton et expédiait le joueur en prêt. */
+@media(pointer:coarse){
+  .btn.tiny,.btn.small{min-height:44px;margin-top:8px}
+}
 .btn svg{width:15px;height:15px;flex-shrink:0}
 
 /* ---------- Écran de démarrage ---------- */
@@ -814,8 +821,21 @@ input[type=range]{width:100%;accent-color:var(--b500);cursor:pointer}
   .match-teams{gap:5px}
   .match-teams .side{padding:9px 4px}
   .match-teams .side b{font-size:17px}
-  .ls-score b{font-size:31px}
-  .ls-team{font-size:16px}
+  /* Bandeau de score : .ls-score imposait 142 px de large — 48 % des 294 px
+     disponibles à 320 px — rien que pour loger « Ligue 1 · 6' ». Il ne restait
+     que 30 px par équipe pour 53 px de texte, et on lisait littéralement
+     « PA…  0 - 0  LE … ». La colonne centrale se réduit maintenant à son
+     score, le nom de la compétition passe à la ligne dessous, et les deux
+     colonnes d'équipe peuvent rétrécir sans se faire tronquer. */
+  .ls-head{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:6px;padding:10px 12px}
+  /* La colonne centrale se dimensionne sur le plus large de ses deux enfants :
+     tant que le sous-titre reste sur une ligne, c'est LUI qui fixe la largeur
+     et non le score. Sa taille est donc réduite avec celle du score, sinon
+     « Manchester City » manquait encore de 7 px à 390 px. */
+  .ls-score{min-width:0}
+  .ls-score b{font-size:28px}
+  .ls-score small{font-size:10px;letter-spacing:.04em;display:block;white-space:normal}
+  .ls-team{font-size:15px;gap:6px}
   .pc-attrs{grid-template-columns:repeat(2,1fr)}
   .card{padding:12px}
   .card h3{margin:-12px -12px 10px;padding:7px 11px}

@@ -357,6 +357,15 @@ FM.trainingEdge = function(cle){
    (mesuré : masse salariale annuelle médiane 21 / 29 / 42 / 66 / 129 M€
     pour les réputations 1 à 5)                                          */
 const REV_BY_REP = { 1:21.5, 2:29.5, 3:42.5, 4:66, 5:128 };
+/* Une saison vaut 38 semaines de salaire, quel que soit le championnat suivi.
+   C'est l'unité sur laquelle REV_BY_REP est calibré, et elle doit l'être des
+   deux côtés du compte : applyFinances étale la recette annuelle sur le
+   calendrier réellement joué, et doit étaler la masse salariale de la même
+   façon. Sans cela, suivre un championnat court enrichissait le monde entier
+   — une carrière écossaise (22 journées) ne prélevait que 22 semaines de
+   salaire pour une année pleine de recettes, et le Celtic encaissait
+   9 621 M€ pour 5 776 M€ de salaires. */
+const SEMAINES_PAR_SAISON = 38;
 
 /* ---------- CIRCUIT MONÉTAIRE ----------
    Règle : tout euro qui quitte la trésorerie d'un club arrive dans celle d'un
@@ -432,7 +441,9 @@ function applyFinances(){
   FM.state.fin = FM.state.fin || { rec:0, sal:0 };
   const E = eco();
   for (const c of FM.state.db.clubs){
-    const sal = FM.wageBill(c)/1000;                        /* M€ pour la semaine */
+    /* M€ pour la journée : la masse salariale ANNUELLE (38 semaines) étalée
+       sur le calendrier joué, exactement comme la recette juste en dessous. */
+    const sal = (FM.wageBill(c)/1000) * (SEMAINES_PAR_SAISON/total);
     const perf = rank[c.id] && n>1 ? 0.85 + 0.30*(1 - (rank[c.id]-1)/(n-1)) : 1;
     const rec = (FM.seasonRevenue(c)/total) * perf;
     const avantArrondi = c.budget + rec - sal;
@@ -2366,9 +2377,22 @@ function checkStateInterne(s){
     if (sl.id != null && !idsEffectif.has(sl.id)) return "composition";
   }
   /* Coupes : elles doivent référencer des clubs qui existent */
+  /* Un tableau `teams` VIDE passait ce contrôle : la sauvegarde était acceptée,
+     puis l'onglet Coupe levait « Cannot read properties of undefined (reading
+     'bye') » dès le premier rendu, et resolveTournamentRound plantait au tour
+     suivant. On exige donc des équipes, et surtout que chaque indice encore en
+     lice dans `alive` désigne bien une entrée existante de `teams` — c'est
+     l'incohérence entre les deux tableaux qui fait déréférencer dans le vide,
+     pas leur absence. */
   const compsOK = comp => {
     if (!comp) return true;
     if (typeof comp !== "object" || !Array.isArray(comp.teams)) return false;
+    if (!comp.teams.length) return false;
+    if (comp.teams.some(t => !t || typeof t !== "object")) return false;
+    if (comp.alive !== undefined){
+      if (!Array.isArray(comp.alive)) return false;
+      if (comp.alive.some(i => !Number.isInteger(i) || i < 0 || i >= comp.teams.length)) return false;
+    }
     return true;
   };
   if (!compsOK(s.coupe)) return "coupe";

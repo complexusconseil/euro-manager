@@ -112,6 +112,8 @@ Les **salaires sont prélevés à chaque journée** et les **recettes encaissée
 
 Les recettes de référence sont calées sur les masses salariales réelles de la base (21 / 29 / 42 / 66 / 128 M€ par saison selon la réputation du club) : **un effectif conforme au rang du club équilibre ses comptes**, un effectif surpayé passe dans le rouge, un bon classement dégage une marge pour le mercato. Les clubs gérés par l'ordinateur tiennent une comptabilité simplifiée et bornée — ni faillite en spirale, ni magot infini.
 
+Recettes **et** salaires sont désormais rapportés à la même unité : **une saison vaut 38 semaines de salaire**, quel que soit le championnat suivi. Le barème est calibré là-dessus, mais seule la recette était étalée sur le calendrier réellement joué — une carrière écossaise (22 journées) ne prélevait donc que 22 semaines de salaire pour une année pleine de recettes, et enrichissait **le monde entier** de 14,1 M€ par club et par saison. Mesuré sur une saison complète, la masse salariale mondiale est maintenant identique dans les deux cas (9 977 M€ en Écosse comme en France) et le solde du monde revient à **−0,34 M€ par club** au lieu de +14,12.
+
 ### Un circuit monétaire fermé
 
 **Tout euro qui quitte la trésorerie d'un club arrive dans celle d'un autre.** Transferts et prêts sont de pures redistributions ; les seules entrées et sorties du circuit sont explicites et tenues dans un grand livre (`FM.state.eco`) : recettes, salaires, primes de signature et régulations. L'égalité se vérifie à tout instant :

@@ -197,6 +197,14 @@ function rawMatch(comp, homeIdx, awayIdx){
    {as,es}=score cumulé, pen, winner, twoLeg, leg1/leg2 {as,es} orientés a/b. */
 FM.simCupTie = function(comp, ai, bi){
   const A = comp.teams[ai], B = comp.teams[bi];
+  /* Garde-fou : un indice qui ne désigne aucune équipe déréférençait dans le
+     vide et emportait tout le tour. Le contrôle d'intégrité refuse désormais
+     une telle sauvegarde, mais la coupe doit rester capable de se terminer
+     plutôt que de planter — l'équipe manquante déclare forfait. */
+  if (!A || !B){
+    const winner = A ? ai : (B ? bi : ai);
+    return { as:0, es:0, pen:null, winner, twoLeg:false, ev1:[], bye:true };
+  }
   // Exempt (bye) : l'équipe réelle passe sans jouer
   if (A.bye || B.bye){
     const winner = A.bye ? bi : ai;
