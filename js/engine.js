@@ -327,6 +327,13 @@ function addGoalEvents(events, club, n, isHome, half){
     return { p, w };
   }).filter(Boolean);
   const total = weights.reduce((a,x)=>a+x.w,0);
+  /* Un onze dont aucun joueur n'est retrouvable (effectif vide, `forme`
+     absente d'une sauvegarde amputée) faisait planter `weights[0].p` en
+     PLEINE journée : la moitié des matchs était déjà appliquée, le compteur
+     de journée non incrémenté, et l'effectif se retrouvait avec 15 matchs
+     pour 14 à ses adversaires. On sort sans buteur plutôt que d'emporter
+     toute la journée. */
+  if (!weights.length || total <= 0) return;
   const lo = half===2 ? 46 : 1, hi = half===1 ? 45 : 90;
   for (let i=0;i<n;i++){
     let r = FM._rnd()*total, chosen=weights[0].p;

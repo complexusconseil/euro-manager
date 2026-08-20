@@ -29,6 +29,8 @@ Le jeu embarque **cinq musiques originales** — *Coup d'envoi, Sous les project
 
 **Vos propres musiques** : le bouton d'import permet de charger vos fichiers audio personnels. Ils sont conservés **localement** (IndexedDB, ils ne quittent jamais votre machine), s'ajoutent à la playlist et sont rejoués aux sessions suivantes.
 
+La bande son est **incassable** : une piste importée illisible — fichier vide, encodage non supporté — ne déclenchait jamais l'événement de fin, le seul écouté. La lecture restait bloquée dessus en silence et, l'index de piste étant mémorisé, **la musique du jeu restait éteinte pour toutes les sessions suivantes**. La piste fautive est maintenant retirée de la playlist et du stockage local, la lecture repart, et vous en êtes averti. Changer de piste ne superpose plus une seconde de l'ancienne sur la nouvelle, la pause coupe vraiment (le premier bruitage de menu faisait sonner la fin de la musique à onze fois son niveau, c'est désormais 1,0×), et un fichier écarté à l'import est compté et annoncé au lieu de disparaître sans un mot — un vrai MP3 dont le navigateur ne devine pas le type est d'ailleurs accepté sur son extension.
+
 > Les bandes originales de PES 5 / PES 6 appartiennent à Konami : elles ne peuvent pas être distribuées avec le jeu. Les pistes fournies sont des compositions originales dans le même esprit ; si vous possédez d'autres musiques, l'import local est là pour ça.
 
 ## 🎮 Comment jouer en local
@@ -130,6 +132,12 @@ Mesuré sur une saison complète des 15 championnats, 271 clubs : **écart 0,000
 - **un agent libre n'est plus une machine à cash** : la prime passe de 20 % à 60 % de la valeur, et un joueur tout juste signé ne peut pas être revendu dans la même fenêtre. Le rapport valeur/prime tombe de **3,4×** à **1,66×** ;
 - **un montant d'offre invalide est refusé** : un champ vide donnait `NaN` et contaminait définitivement le budget.
 
+### La dette a enfin des conséquences
+
+Le club dirigé était le **seul au monde sans plancher de trésorerie ni la moindre sanction** : les clubs gérés par l'ordinateur sont écrêtés à zéro chaque journée et le vôtre est plafonné par le haut en fin de saison, mais rien ne le bornait par le bas. Mesuré sur 40 saisons sans intervention : **−53,3 M€** au plus bas, 16 saisons sur 40 dans le rouge, et la confiance des dirigeants ne dépendait que du classement.
+
+La trésorerie n'est pas bornée — cela masquerait le problème — elle est **sanctionnée** : passé un demi-exercice de dette, les dirigeants perdent confiance et placent d'office votre plus gros salaire sur la liste des transferts ; une saison close dans le rouge coûte de la confiance, deux d'affilée coûtent la place.
+
 ### Un effectif ne peut plus être vidé
 
 Un club conserve au minimum **16 joueurs sous contrat** — les prêts entrants ne comptent pas — et un **plancher par ligne** (2 gardiens, 5 défenseurs, 4 milieux, 3 attaquants). Ce plancher gouverne aussi les fins de carrière et l'élagage de fin de saison, et le centre de formation comble en priorité une ligne dégarnie. Il était possible de descendre à 16 joueurs dont 6 sous contrat, tous attaquants, sans le moindre gardien.
@@ -158,13 +166,17 @@ La partie est enregistrée dans le navigateur à chaque journée. Quatre garde-f
 - **Alerte visible** : si le navigateur refuse d'écrire, un **bandeau rouge** le dit et propose d'**exporter la partie** en fichier `.json`. Plus de progression perdue en silence.
 - **Contrôle au chargement** : une sauvegarde vide, tronquée ou étrangère est **refusée proprement** avec un message, au lieu de faire planter le jeu. Le contrôle porte sur douze points — présence des résultats et des actualités, cohérence du championnat suivi, effectif et trésorerie du club dirigé, calendrier qui ne désigne que des clubs existants. Les sauvegardes d'anciennes versions sont migrées automatiquement.
 - **Identifiants stables au rechargement** : le compteur d'identifiants repart à 1 au chargement du script. Il est maintenant recalé sur la partie chargée — sans cela, les joueurs créés après un rechargement reprenaient des identifiants déjà utilisés (**442 doublons dès la première saison**), et toute suppression « par identifiant » — retour de prêt, transfert, retraite — pouvait effacer un autre joueur de la base.
-- **Les divisions abandonnées sont nettoyées** : chaque changement de pays créait une deuxième division de 18 clubs qui n'était jamais retirée. Au douzième pays la sauvegarde dépassait le quota du navigateur et la carrière cessait d'être enregistrée. Seul le pays en cours conserve sa D2 : la base reste à **271 clubs** sur vingt saisons au lieu d'enfler jusqu'à 487.
+- **Les divisions abandonnées sont nettoyées** : chaque changement de pays créait une deuxième division de 18 clubs qui n'était jamais retirée. Au douzième pays la sauvegarde dépassait le quota du navigateur et la carrière cessait d'être enregistrée. Seul le pays en cours conserve sa D2 : mesuré sur vingt saisons et trois graines, avec changements de pays, la base se stabilise autour de **282 clubs** (277 à 288) au lieu d'enfler jusqu'à 487. Les quelques clubs en trop sont ceux des D2 abandonnées : ils y restent en l'état plutôt que de gonfler l'élite du pays — remonter un club réel en première division la ferait passer de 20 à 22 équipes.
 - **Deux onglets ne s'écrasent plus** : chaque enregistrement porte un numéro de version. Un second onglet qui jouait effaçait silencieusement la progression du premier — quinze journées pouvaient disparaître sans le moindre message. Le conflit est maintenant détecté et annoncé, avec un bouton pour recharger.
 - **Les sauvegardes héritées sont réparées** : une partie d'avant le recalage du compteur porte jusqu'à 412 identifiants en double, qui faisaient disparaître deux joueurs à la première vente. Ils sont renumérotés au chargement plutôt que de faire refuser la carrière.
 - **Le hasard reprend où il s'est arrêté** : le curseur du générateur est enregistré. Sans lui, chaque rechargement de page rembobinait le hasard au même point.
 - **Le jeu tourne même sans stockage** : en navigation privée stricte, ou cookies bloqués, le simple fait de *lire* `localStorage` lève une exception. Le jeu la rattrape et reste jouable — sans sauvegarde, mais jouable. L'écran restait auparavant **entièrement blanc**.
 
 Boutons **Exporter / Importer** disponibles depuis le menu principal et la carte Finances.
+
+### Une sauvegarde abîmée ne casse plus la partie
+
+Le contrôle d'intégrité laissait passer trois états qui explosaient ensuite : une **compétition au tableau vide** (l'onglet Coupe levait une exception non rattrapée), un **club sans effectif** (la simulation tombait en pleine journée, la moitié des matchs déjà appliqués et les compteurs incohérents d'un club à l'autre), et une **note nulle ou absente** (l'effectif tombait à 0 de moyenne et la saison se jouait à 0 point, sans un mot à l'écran). Les deux premiers sont désormais refusés à l'import, le troisième est redressé au chargement, le moteur ne déréférence plus dans le vide, et la clôture de saison — dernière transition irréversible sans garde-fou — est protégée.
 
 ## 🌍 Le reste de l'Europe joue aussi
 
@@ -206,11 +218,25 @@ Coupe nationale, parcours européen, Supercoupe et trophées individuels étaien
 
 Le trophée de **meilleur buteur** annonçait par ailleurs un total faux dans huit saisons sur douze — trois fois ce n'était même pas le bon joueur : les derniers tours de coupe se jouaient *après* le calcul. Vérifié sur 40 saisons : **0 total faux**.
 
+Chaque ligne retient enfin **le club et la division de sa saison**. Le palmarès relisait le club dirigé *aujourd'hui* : quatre saisons du Havre s'affichaient au nom de Malaga après un changement d'employeur, dont un parcours en Coupe de France, et une saison de D2 s'annonçait « 16e » sans mentionner la division.
+
+Et le trophée de **joueur de la saison** exige bien les deux tiers des journées : le code en appliquait 60 %, en contradiction avec sa propre documentation, et le titre revenait encore à des joueurs à 18 matchs sur 30.
+
 ### Les places européennes se gagnent sur le terrain
 
 Le barème par coefficient ne couvre que 78 des 96 tickets européens ; les 18 autres étaient attribués à la **note d'effectif seule**, sans regarder le classement — un 12e et un 15e se retrouvaient en Ligue des Champions. Ils vont désormais au mérite sportif : place au classement d'abord, coefficient du pays pour départager. Mesuré : pire place qualifiée en C1 **4e** au lieu de 15e, et plus aucun club devancé par un moins bien classé de son propre championnat.
 
 Les échéances des coupes sont par ailleurs calculées **au prorata de la saison**. Codées en dur (J21, J25, J29, J33), elles tombaient hors saison dans un championnat court : avec 22 journées, la 8e journée de phase de ligue et les quatre tours de phase finale n'étaient **jamais** proposés — le Celtic voyait tout son parcours européen se jouer en coulisses. Vérifié : 8/8 journées offertes chaque saison, et la phase finale s'ouvre dès la qualification.
+
+### Le jeu se joue au doigt
+
+Tout avait été vérifié au clavier et à la souris, jamais au doigt. Trois défauts en sortaient :
+
+- **« Vendre » et « Prêter » se marchaient dessus.** Quatre pixels d'espace mort entre deux boutons de 24 px, soit moins que la tolérance d'ajustement du navigateur : un appui 14 px trop bas expédiait le joueur en **prêt pour une saison entière**, sans confirmation ni retour possible. Le prêt demande maintenant confirmation, et sur écran tactile les boutons d'action font 44 px avec 8 px d'écart.
+- **Le fond défilait derrière les modales.** Un glissement sur le fond faisait bouger la page de 190 px pendant que la fenêtre restait ouverte : on perdait sa place sans comprendre pourquoi. Le fond est gelé à l'ouverture et la position exacte rendue à la fermeture.
+- **La raison d'un bouton grisé n'existait que dans un attribut `title`** — invisible au doigt, et introuvable pour un lecteur d'écran. La bannière « Mercato fermé — réouverture journée 18 » s'affiche désormais aussi sur l'onglet Effectif, et les boutons désactivés portent un `aria-label`.
+
+Le **bandeau de score** réduisait par ailleurs les deux noms d'équipe à deux lettres sur mobile — on lisait « PA… 0 - 0 LE … » — parce que le sous-titre de compétition s'octroyait 48 % de la largeur. Les noms tiennent désormais en entier dès 320 px.
 
 ### Le jeu se pilote au clavier
 
@@ -218,7 +244,7 @@ Les onze postes du terrain et les noms de joueurs sont des éléments non natifs
 
 ### Les salaires suivent les joueurs
 
-Le salaire n'était écrit qu'à la création : un jeune passé de 60 à 94 gardait à vie son salaire de jeune, et comme les gros salaires partaient à la retraite, la masse salariale mondiale fondait de 35 % en vingt saisons — l'argent cessait d'être une contrainte pour l'ordinateur. Elle se réévalue maintenant par paliers à chaque fin de saison, plus vite en fin de contrat. Mesuré sur vingt saisons : **99 à 107 %** de la masse de départ.
+Le salaire n'était écrit qu'à la création : un jeune passé de 60 à 94 gardait à vie son salaire de jeune, et comme les gros salaires partaient à la retraite, la masse salariale mondiale fondait de 35 % en vingt saisons — l'argent cessait d'être une contrainte pour l'ordinateur. Elle se réévalue maintenant par paliers à chaque fin de saison, plus vite en fin de contrat. Mesuré sur vingt saisons et trois graines : **88 à 103 %** de la masse de départ **par joueur**. Rapportée au monde entier, elle va de 92 à 114 %, la différence tenant à la croissance de la base de clubs et non aux salaires eux-mêmes.
 
 ### Le niveau du monde ne s'effondre plus
 

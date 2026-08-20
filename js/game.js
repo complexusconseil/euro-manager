@@ -153,8 +153,20 @@ function evaluerObjectif(rang, nClubs){
       + `${FM.t('Confiance')} : ${FM.confianceLabel()}.`
     : `${FM.t('Objectif manqué')} (${ord(rang)} / ${nClubs}, ${FM.t('attendu')} ${ord(cible)}) — `
       + `${FM.t('Confiance')} : ${FM.confianceLabel()}.`, "season");
+  /* Volet financier du bilan : une saison bouclée dans le rouge coûte de la
+     confiance, deux d'affilée coûtent la place. Sans cela on pouvait creuser
+     45 M€ de dette sans que personne ne s'en émeuve. */
+  const monClub = FM.myClub();
+  FM.state.fin = FM.state.fin || { rec:0, sal:0 };
+  if (monClub && monClub.budget < 0){
+    FM.state.fin.saisonsRouge = (FM.state.fin.saisonsRouge || 0) + 1;
+    majConfiance(FM.state.fin.saisonsRouge >= 2 ? -20 : -8);
+    addNews(`${FM.t("Exercice clos dans le rouge")} (${monClub.budget.toFixed(1)} M€) — `
+      + `${FM.t("Confiance")} : ${FM.confianceLabel()}.`, "money");
+  } else FM.state.fin.saisonsRouge = 0;
+  const ruine = (FM.state.fin.saisonsRouge || 0) >= 2;
   /* Licenciement */
-  if ((FM.state.echecs >= 2 || FM.confiance() <= 0) && FM.state.mode !== "master"){
+  if ((FM.state.echecs >= 2 || FM.confiance() <= 0 || ruine) && FM.state.mode !== "master"){
     FM.state.sacked = true;
     FM.state.sackOffers = proposerClubs();
     addNews(`${FM.t('Vous êtes remercié par')} ${FM.myClub().nom}. ${FM.t('Trois clubs vous font signe.')}`, "season");
@@ -460,6 +472,27 @@ function applyFinances(){
         FM.state.fin.alerte = true;
         addNews(FM.t("Vos comptes sont dans le rouge : la masse salariale dépasse vos recettes."), "money");
       } else if (c.budget >= 0) FM.state.fin.alerte = false;
+      /* Le club dirigé était le SEUL au monde sans plancher de trésorerie ni
+         la moindre sanction : les clubs IA sont écrêtés à 0 chaque journée
+         (branche ci-dessous) et le nôtre est plafonné par le haut en fin de
+         saison, mais rien ne le bornait par le bas — mesuré −53,3 M€ sur
+         40 saisons sans manager, 16 saisons sur 40 dans le rouge, et la
+         confiance des dirigeants ne dépendait que du classement.
+         On ne borne pas la trésorerie — cela masquerait le problème — on la
+         sanctionne : les dirigeants s'inquiètent et vendent pour vous. */
+      const seuilGrave = -0.5 * FM.seasonRevenue(c);
+      if (c.budget < seuilGrave && !FM.state.fin.grave){
+        FM.state.fin.grave = true;
+        majConfiance(-12);
+        const gros = (FM.ownPlayers(c) || []).filter(p => !p.transferListe && !p.loan)
+                       .sort((a,b) => b.salaire - a.salaire)[0];
+        if (gros){
+          gros.transferListe = true;
+          addNews(`${FM.t("Dette trop lourde : les dirigeants placent")} ${gros.nom} ${FM.t("sur la liste des transferts.")}`, "money");
+        } else {
+          addNews(FM.t("Dette trop lourde : les dirigeants s'alarment."), "money");
+        }
+      } else if (c.budget >= 0) FM.state.fin.grave = false;
     } else {
       /* club IA : trésorerie bornée, ni faillite en spirale ni magot infini.
          L'écart créé par l'écrêtage est porté au poste « regul » pour que le
@@ -930,8 +963,11 @@ FM.pendingEvents = function(){
   if (fx){
     const dom = FM.clubById(fx.dom), ext = FM.clubById(fx.ext);
     const chezMoi = fx.dom===FM.state.managedClubId;
-    out.push({ kind:"league", ic:"cup", titre:`${FM.myClub().ligueNom} — journée ${j+1}`,
-               detail:`${dom.nom} vs ${ext.nom} (${chezMoi?"domicile":"extérieur"})`, due:j, enRetard:false });
+    /* Ces chaînes étaient les seules de l'agenda à ne pas passer par FM.t :
+       l'interface anglaise annonçait « Ligue 1 — journée 1 » et
+       « (extérieur) » entre deux libellés traduits. */
+    out.push({ kind:"league", ic:"cup", titre:`${FM.myClub().ligueNom} — ${FM.t("journée")} ${j+1}`,
+               detail:`${dom.nom} vs ${ext.nom} (${chezMoi?FM.t("domicile"):FM.t("extérieur")})`, due:j, enRetard:false });
   }
 
   // 2) Coupe nationale : tour dû ?
@@ -940,8 +976,9 @@ FM.pendingEvents = function(){
     const due = dueMatchday("coupe", cup.round);
     if (j >= due){
       const tie = FM.playerTie(cup);
-      let adv = "à jouer";
-      if (tie){ const o = cup.teams[tie[0]===cup.playerSeed?tie[1]:tie[0]]; adv = o.bye ? "exempt (qualifié d'office)" : ("contre "+o.nom); }
+      let adv = FM.t("à jouer");
+      if (tie){ const o = cup.teams[tie[0]===cup.playerSeed?tie[1]:tie[0]];
+                adv = o.bye ? FM.t("exempt (qualifié d'office)") : (FM.t("contre")+" "+o.nom); }
       out.push({ kind:"coupe", ic:"cup", nat:cup.nat, titre:`${cup.nom} — ${FM.roundName(cup.alive.length)}`,
                  detail:adv, due, enRetard:j>due });
     }
@@ -955,16 +992,17 @@ FM.pendingEvents = function(){
       const due = dueMatchday("euroLp", comp.lp.cur);
       if (j >= due){
         const pm = FM.lpPlayerMatch(comp);
-        let d = `journée ${comp.lp.cur+1}/${comp.lp.rounds} de la phase de ligue`;
-        if (pm){ const o = comp.teams[pm.playerHome?pm.away:pm.home]; d = `contre ${o.nom} (${pm.playerHome?"domicile":"extérieur"})`; }
-        out.push({ kind:"euro", ic:comp.ic, titre:`${comp.nom} — phase de ligue`, detail:d, due, enRetard:j>due });
+        let d = `${FM.t("journée")} ${comp.lp.cur+1}/${comp.lp.rounds} ${FM.t("de la phase de ligue")}`;
+        if (pm){ const o = comp.teams[pm.playerHome?pm.away:pm.home];
+                 d = `${FM.t("contre")} ${o.nom} (${pm.playerHome?FM.t("domicile"):FM.t("extérieur")})`; }
+        out.push({ kind:"euro", ic:comp.ic, titre:`${comp.nom} — ${FM.t("phase de ligue")}`, detail:d, due, enRetard:j>due });
       }
     } else if (comp.ko && !comp.ko.finished && comp.ko.playerAlive){
       const due = dueMatchday("euroKo", comp.ko.round);
       if (j >= due){
         const tie = FM.playerTie(comp.ko);
-        let d = "à jouer";
-        if (tie){ const o = comp.ko.teams[tie[0]===comp.ko.playerSeed?tie[1]:tie[0]]; d = "contre "+o.nom; }
+        let d = FM.t("à jouer");
+        if (tie){ const o = comp.ko.teams[tie[0]===comp.ko.playerSeed?tie[1]:tie[0]]; d = FM.t("contre")+" "+o.nom; }
         out.push({ kind:"euro", ic:comp.ic, titre:`${comp.nom} — ${FM.roundName(comp.ko.alive.length)}`, detail:d, due, enRetard:j>due });
       }
     }
@@ -974,8 +1012,8 @@ FM.pendingEvents = function(){
   const pi = FM.state.pendingIntl;
   if (pi && !pi.fait){
     out.push({ kind:"intl", ic:"globe", nat: pi.kind==="WC"?null:"EUR",
-               titre: (pi.kind==="WC"?"Coupe du Monde":"Championnat d'Europe")+" — cet été",
-               detail:`facultatif · sélection : ${pi.defaultNation}`, due:j, enRetard:false, facultatif:true });
+               titre: (pi.kind==="WC"?FM.t("Coupe du Monde"):FM.t("Championnat d'Europe"))+" — "+FM.t("cet été"),
+               detail:`${FM.t("facultatif · sélection :")} ${pi.defaultNation}`, due:j, enRetard:false, facultatif:true });
   }
   // Les rendez-vous en retard d'abord (à ne pas manquer), puis par échéance
   out.sort((a,b)=> (b.enRetard?1:0)-(a.enRetard?1:0) || a.due-b.due);
@@ -1117,7 +1155,7 @@ FM.buyPlayer = function(playerId, offreM){
     if (my.joueurs.length >= 30) return { ok:false, msg:FM.t("Effectif complet (30 max). Vendez d'abord.") };
     const prime = FM.freeAgentPrime(fa, my.rep);           // prime à la signature (jamais de refus)
     if (offreM+1e-9 < prime) return { ok:false, msg:`${fa.nom} demande une prime d'environ ${prime.toFixed(1)} M€ pour signer.` };
-    if (offreM > my.budget) return { ok:false, msg:`Budget insuffisant : ${offreM.toFixed(1)} M€ demandé, ${my.budget.toFixed(1)} M€ dispo.` };
+    if (offreM > my.budget) return { ok:false, msg:`${FM.t("Budget insuffisant :")} ${offreM.toFixed(1)} ${FM.t("M€ demandé,")} ${my.budget.toFixed(1)} ${FM.t("M€ dispo.")}` };
     FM.state.freeAgents = FM.state.freeAgents.filter(x=>x.id!==playerId);
     FM.state.usedFreeAgents = FM.state.usedFreeAgents || [];
     if (!FM.state.usedFreeAgents.includes(fa.nom)) FM.state.usedFreeAgents.push(fa.nom);
@@ -1152,7 +1190,7 @@ FM.buyPlayer = function(playerId, offreM){
   // Le club vendeur veut-il vendre ? (réticence accrue si le joueur est un cadre)
   const cadre = player.note >= (seller.rep>=4?80:seller.rep>=3?76:72);
   if (cadre && !player.transferListe && FM._rnd() < 0.5)
-    return { ok:false, msg:`${seller.nom} ne souhaite pas se séparer de ${player.nom}, un cadre de l'effectif.` };
+    return { ok:false, msg:`${seller.nom} ${FM.t("ne souhaite pas se séparer de")} ${player.nom}, ${FM.t("un cadre de l'effectif.")}` };
   const seuil = player.valeur * will.mult * (player.transferListe ? 0.95 : (1.2 + seller.rep*0.07));
   if (offreM < seuil){
     return { ok:false, msg:`${seller.nom} refuse. Il faut environ ${seuil.toFixed(1)} M€ pour ${player.nom}${will.mult>1?" (et le convaincre)":""}.` };
@@ -1465,13 +1503,13 @@ FM.loanIn = function(playerId){
   const r = parent.joueurs.slice().sort((a,b)=>b.note-a.note).findIndex(x=>x.id===playerId);
   const wonderkid = player.potentiel>=84 && player.age<=21;
   const prettable = !wonderkid && player.note<=77 && ( r>=16 || (player.age<=20 && r>=11) );
-  if (!prettable) return { ok:false, msg:`${parent.nom} ne prête pas ${player.nom} (élément trop important).` };
+  if (!prettable) return { ok:false, msg:`${parent.nom} ${FM.t("ne prête pas")} ${player.nom} (${FM.t("élément trop important")}).` };
   if (loanBlockedByCooldown(player))
     return { ok:false, msg:`${player.nom} ${FM.t("rentre tout juste d'un prêt : son club le garde cette saison.")}` };
   if (FM.departureBlock(parent, player))
     return { ok:false, msg:`${parent.nom} ${FM.t("a un effectif trop court pour prêter")} ${player.nom}.` };
   const fee = FM.loanFee(player);
-  if (fee > my.budget) return { ok:false, msg:`Budget insuffisant pour l'indemnité de prêt (${fee.toFixed(1)} M€).` };
+  if (fee > my.budget) return { ok:false, msg:`${FM.t("Budget insuffisant pour l'indemnité de prêt")} (${fee.toFixed(1)} M€).` };
   parent.joueurs = parent.joueurs.filter(x=>x.id!==playerId);
   parent.onze = FM.autoPickXI(parent);
   moveMoney(my, parent, fee);                 /* l'indemnité va au club parent */
@@ -1483,7 +1521,7 @@ FM.loanIn = function(playerId){
   FM.state.prets.push({ playerId, parentId:parent.id, borrowerId:my.id, saison:FM.state.saison, type:"in" });
   addNews(`${FM.t('Prêt')} : ${player.nom} (${player.note}) ${FM.t('arrive de')} ${parent.nom} ${FM.t("jusqu'en fin de saison")} (${fee.toFixed(1)} M€).`, "loan");
   FM.save();
-  return { ok:true, msg:`${player.nom} rejoint ${my.nom} en prêt.` };
+  return { ok:true, msg:`${player.nom} ${FM.t("rejoint")} ${my.nom} ${FM.t("en prêt.")}` };
 };
 
 /* Prêter un de nos joueurs à un club preneur (prêt sortant) */
@@ -1525,7 +1563,7 @@ FM.loanOut = function(playerId){
   moveMoney(borrower, my, fee);               /* le preneur paie l'indemnité */
   addNews(`${FM.t('Prêt')} : ${player.nom} ${FM.t('rejoint')} ${borrower.nom} ${FM.t('pour la saison')}${fee>0?` (+${fee.toFixed(1)} M€)`:''}.`, "loan");
   FM.save();
-  return { ok:true, msg:`${player.nom} est prêté à ${borrower.nom}.` };
+  return { ok:true, msg:`${player.nom} ${FM.t("est prêté à")} ${borrower.nom}.` };
 };
 
 /* Liste des prêts en cours impliquant le club du joueur */
@@ -1680,8 +1718,12 @@ FM.endSeason = function(){
 
   // --- Trophées individuels du championnat (après clôture, avant remise à zéro) ---
   /* Le seuil était de 8 matchs : le titre revenait régulièrement à un
-     remplaçant ayant joué le quart de la saison. On exige les deux tiers. */
-  const lb = FM.leaderboards(FM.state.ligueJoueur, Math.max(12, Math.round(FM.totalMatchdays()*0.6)));
+     remplaçant ayant joué le quart de la saison. On exige les deux tiers —
+     le code appliquait 60 %, en contradiction avec ce commentaire et avec le
+     README, et le titre revenait encore à des joueurs sous les deux tiers
+     (18 matchs sur 30, 19 sur 30). Le plancher de 12 est retiré : il n'était
+     jamais atteint, la plus courte des ligues comptant 22 journées. */
+  const lb = FM.leaderboards(FM.state.ligueJoueur, Math.ceil(FM.totalMatchdays()*2/3));
   const potm = lb.notes[0];                 // Joueur de la saison (meilleure moyenne)
   const pichichi = lb.buteurs[0];           // Meilleur buteur
   const passeur = lb.passeurs[0];           // Meilleur passeur
@@ -1706,6 +1748,12 @@ FM.endSeason = function(){
 
   FM.state.historique.push({
     saison: FM.state.saison,
+    /* Le club et la division de la saison ÉCOULÉE. Sans eux, le palmarès
+       relisait FM.myClub() au rendu et réattribuait toute la carrière passée
+       au club dirigé aujourd'hui : quatre saisons du Havre s'affichaient au
+       nom de Malaga, dont un parcours en Coupe de France. */
+    club: FM.myClub().nom,
+    d2: FM.isD2(FM.myClub().ligue) || false,
     classement: rank,
     champion: champ.nom,
     pts: FM.myClub().pts,
@@ -2265,7 +2313,19 @@ FM.migrateState = function(){
   if (FM.syncPlayerIds) FM.syncPlayerIds(s);
   if (FM.setRngCursor && typeof s.rng === "number") FM.setRngCursor(s.rng);
   FM.invalidateSchedules();
-  const fix = p => { for (const k in SAVE_DEFAULTS) if (p[k] === undefined) p[k] = SAVE_DEFAULTS[k]; };
+  /* Attributs chiffrés d'un joueur. Une note NaN — que JSON écrit `null` —
+     ou un potentiel manquant passait tous les contrôles : l'effectif tombait
+     à 0 de moyenne, la saison se jouait à 0 point et 0 but marqué, et
+     l'écran affichait « NOTE EFFECTIF 0 » sans un mot. Plutôt qu'un refus en
+     bloc à l'import — disproportionné pour un état que le jeu ne produit
+     jamais — on ramène l'attribut au plancher déjà utilisé ailleurs. */
+  const PLANCHER = { note:40, potentiel:40, age:16, valeur:0, salaire:0, forme:0, moral:60 };
+  const redresse = p => {
+    for (const k in PLANCHER) if (p[k] !== undefined && !nombreSain(p[k])) p[k] = PLANCHER[k];
+    if (!nombreSain(p.note)) p.note = PLANCHER.note;
+    if (!nombreSain(p.potentiel)) p.potentiel = Math.max(p.note, PLANCHER.potentiel);
+  };
+  const fix = p => { for (const k in SAVE_DEFAULTS) if (p[k] === undefined) p[k] = SAVE_DEFAULTS[k]; redresse(p); };
   ((s.db && s.db.clubs) || []).forEach(c => (c.joueurs || []).forEach(fix));
   (s.freeAgents || []).forEach(fix);
   (s.news || []).forEach(n => { if (!n.kind) n.kind = "info"; });
@@ -2396,6 +2456,12 @@ function checkStateInterne(s){
     return true;
   };
   if (!compsOK(s.coupe)) return "coupe";
+  /* TOUS les clubs doivent avoir un effectif, pas seulement le nôtre : un
+     adversaire vidé de ses joueurs faisait exploser la simulation en pleine
+     journée, laissant la moitié des matchs appliqués et les compteurs de
+     matchs incohérents d'un club à l'autre. */
+  for (const c of s.db.clubs)
+    if (!Array.isArray(c.joueurs) || !c.joueurs.length) return "effectif";
   if (s.europe !== undefined){
     if (!s.europe || typeof s.europe !== "object") return "coupes d'Europe";
     for (const k of ["UCL","UEL","UECL"]) if (!compsOK(s.europe[k])) return "coupes d'Europe";

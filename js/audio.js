@@ -57,6 +57,7 @@ let ctx=null, master=null, bus=null;
 const S = {
   playing:false, idx:0, vol:.5, step:0, nextT:0, timer:null,
   custom:[],          /* {nom, blob, url} chargés par le joueur */
+  voix:[],            /* voix programmées par le séquenceur, pour les couper */
   el:null,            /* <audio> pour les fichiers du joueur     */
   onChange:null,
   onPisteMorte:null
@@ -76,6 +77,42 @@ function boot(){
   return true;
 }
 
+/* ---------- Voix ----------
+   Le séquenceur programme jusqu'à 250 ms de musique À L'AVANCE. Rien ne les
+   arrêtait : `pause()` se contentait de suspendre le contexte, si bien que le
+   premier bruitage de menu — qui le réveille — faisait sonner la fin de la
+   musique par-dessus (0,44 de crête contre 0,004 pour le bruitage seul), et
+   changer de piste superposait 1,3 s de l'ancienne sur la nouvelle. On tient
+   donc la liste des voix en cours pour pouvoir les couper net. Les bruitages
+   n'y entrent pas : ils durent 40 à 120 ms et ne se recouvrent pas. */
+let enSequence = false;
+function enregistrer(n, g){
+  if (!enSequence) return;
+  const v = { n, g };
+  S.voix.push(v);
+  n.addEventListener("ended", ()=>{ const i = S.voix.indexOf(v); if (i>=0) S.voix.splice(i,1); });
+}
+const FONDU = 0.03;                 /* s */
+function couperVoix(){
+  if (!ctx) { S.voix.length = 0; return; }
+  const t = ctx.currentTime, fin = t + FONDU;
+  for (const v of S.voix){
+    /* Couper net produit un CLIC. Suspendre le contexte juste après le figeait
+       sans le rendre, et il ressortait au réveil : le premier bruitage de menu
+       claquait à onze fois son propre niveau. On referme donc l'enveloppe. */
+    try {
+      if (v.g){
+        const val = Math.max(1e-4, v.g.gain.value);
+        v.g.gain.cancelScheduledValues(t);
+        v.g.gain.setValueAtTime(val, t);
+        v.g.gain.exponentialRampToValueAtTime(1e-4, fin);
+      }
+    } catch(e){}
+    try { v.n.stop(fin); } catch(e){}
+  }
+  S.voix.length = 0;
+}
+
 /* ---------- Voix ---------- */
 function env(g, t, a, d, peak){
   g.gain.setValueAtTime(0, t);
@@ -93,7 +130,7 @@ function tone(t, f, dur, type, peak, cutoff){
   }
   env(g, t, .008, dur, peak);
   o.connect(g); node.connect(bus);
-  o.start(t); o.stop(t+dur+.06);
+  o.start(t); o.stop(t+dur+.06); enregistrer(o, g);
 }
 function kick(t){
   const o=ctx.createOscillator(), g=ctx.createGain();
@@ -102,7 +139,7 @@ function kick(t){
   o.frequency.exponentialRampToValueAtTime(44, t+.10);
   g.gain.setValueAtTime(.9, t);
   g.gain.exponentialRampToValueAtTime(.0001, t+.24);
-  o.connect(g); g.connect(bus); o.start(t); o.stop(t+.28);
+  o.connect(g); g.connect(bus); o.start(t); o.stop(t+.28); enregistrer(o, g);
 }
 function noise(t, dur, hp, peak, q){
   const n = Math.floor(ctx.sampleRate*dur)+1;
@@ -113,7 +150,7 @@ function noise(t, dur, hp, peak, q){
   const f = ctx.createBiquadFilter(); f.type="highpass"; f.frequency.value=hp; f.Q.value=q||1;
   const g = ctx.createGain(); g.gain.setValueAtTime(peak, t);
   g.gain.exponentialRampToValueAtTime(.0001, t+dur);
-  src.connect(f); f.connect(g); g.connect(bus); src.start(t); src.stop(t+dur+.02);
+  src.connect(f); f.connect(g); g.connect(bus); src.start(t); src.stop(t+dur+.02); enregistrer(src, g);
 }
 const snare = t => { noise(t,.16,1200,.26); tone(t,185,.10,"triangle",.19); };
 const hat   = t => noise(t,.03,5200,.055,.9);
@@ -133,6 +170,7 @@ function pad(t, notes, dur, type, bright){
     g.gain.exponentialRampToValueAtTime(.0001, t+dur);
     o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(bus);
     o.start(t); o2.start(t); o.stop(t+dur+.05); o2.stop(t+dur+.05);
+    enregistrer(o, g); enregistrer(o2, g);
   });
 }
 
@@ -143,6 +181,10 @@ function chordNotes(tr, bar){
   return { root: tr.root + c[0], notes: shape.map(s => tr.root + c[0] + s + 12) };
 }
 function scheduleStep(tr, step, t){
+  enSequence = true;
+  try { sequencer(tr, step, t); } finally { enSequence = false; }
+}
+function sequencer(tr, step, t){
   const bar = Math.floor(step/16) % tr.prog.length;
   const s = step % 16;
   const { root, notes } = chordNotes(tr, Math.floor(step/16));
@@ -284,6 +326,7 @@ function startCurrent(){
   const all = playlist();
   const cur = all[S.idx % all.length];
   stopEl();
+  couperVoix();          /* sinon 1,3 s de l'ancienne piste se superpose */
   if (cur && cur.own){
     const own = S.custom[S.idx - TRACKS.length];
     const a = ensureEl();
@@ -325,7 +368,11 @@ FM.audio = {
     S.playing = false;
     if (S.timer){ clearInterval(S.timer); S.timer=null; }
     stopEl();
-    if (ctx) ctx.suspend();
+    couperVoix();        /* sinon le prochain bruitage réveille le contexte
+                            et rejoue la fin de la musique par-dessus */
+    /* Geler seulement APRÈS que les enveloppes se soient refermées : suspendre
+       dans la foulée figeait le fondu au lieu de le rendre. */
+    if (ctx){ const c = ctx; setTimeout(()=>{ if (!S.playing) c.suspend(); }, FONDU*1000 + 30); }
     try{ localStorage.setItem(LS_ON,"0"); }catch(e){}
     if (S.onChange) S.onChange();
   },
@@ -372,16 +419,25 @@ FM.audio = {
   },
 
   /* fichiers du joueur */
+  /* Renvoie {ajoutes, ignores} : un fichier écarté l'était en silence, et
+     l'import semblait n'avoir rien fait du tout. */
   async addFiles(files){
+    let ajoutes = 0, ignores = 0;
     for (const f of files){
-      if (!f.type.startsWith("audio")) continue;
+      /* Repli sur l'extension quand le navigateur ne devine pas le type : un
+         vrai MP3 sans type MIME était rejeté comme un fichier texte. */
+      const estAudio = (f.type && f.type.startsWith("audio")) ||
+                       /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|weba|webm)$/i.test(f.name || "");
+      if (!estAudio){ ignores++; continue; }
       const nom = f.name.replace(/\.[^.]+$/,"");
       /* la clé est conservée pour pouvoir retirer CETTE piste-là si elle
          s'avère illisible, sans effacer toute la bibliothèque */
       const cle = await idbAdd({ nom, blob:f });
       S.custom.push({ nom, blob:f, url:URL.createObjectURL(f), cle });
+      ajoutes++;
     }
     if (S.onChange) S.onChange();
+    return { ajoutes, ignores };
   },
   async clearOwn(){
     S.custom.forEach(c=>URL.revokeObjectURL(c.url));

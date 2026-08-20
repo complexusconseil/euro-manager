@@ -332,7 +332,10 @@ input:focus,select:focus{border-color:var(--b500);outline:none;box-shadow:0 0 0 
 /* ---------- Overlays ---------- */
 .overlay{position:fixed;inset:0;background:rgba(20,40,70,.55);backdrop-filter:blur(3px);
   display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;
-  animation:fade .15s ease}
+  animation:fade .15s ease;overscroll-behavior:contain}
+/* Le geste qui atteint le bout d'une boîte à défilement interne ne doit pas
+   se propager au document derrière la modale. */
+.picker,.player-card,.coach-box,.ht-subs{overscroll-behavior:contain}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 .picker,.player-card,.talk-box,.coach-box,.squad-picker{box-shadow:var(--sh-lg)}
 

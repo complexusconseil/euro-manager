@@ -62,8 +62,35 @@ function activable(node, fn){
   return node;
 }
 
+/* Gel du fond pendant qu'une modale est ouverte. Sans lui, un glissement du
+   doigt sur le fond faisait défiler la page de 190 px derrière la fenêtre,
+   qui restait ouverte : on perdait sa place dans le tableau sans comprendre
+   pourquoi. Le déverrouillage vérifie qu'aucune autre modale n'est ouverte,
+   ce qui évite de dégeler trop tôt quand elles s'empilent. */
+const GEL = { position:"fixed", left:"0", right:"0", width:"100%", overflow:"hidden" };
+function verrouillerFond(){
+  if (document.body.dataset.fmScroll != null) return;
+  /* `overflow:hidden` sur <body> ne suffit pas : c'est <html> qui défile ici
+     (document.scrollingElement === HTML), et le glissement passait au travers.
+     `position:fixed` immobilise pour de bon, et mémoriser le décalage rend
+     ensuite la position exacte plutôt qu'un retour en haut de page. */
+  const y = window.scrollY || document.documentElement.scrollTop || 0;
+  document.body.dataset.fmScroll = String(y);
+  for (const k in GEL) document.body.style[k] = GEL[k];
+  document.body.style.top = `-${y}px`;
+}
+function libererFond(){
+  if (document.querySelector(".overlay")) return;
+  if (document.body.dataset.fmScroll == null) return;
+  const y = parseInt(document.body.dataset.fmScroll, 10) || 0;
+  delete document.body.dataset.fmScroll;
+  for (const k in GEL) document.body.style[k] = "";
+  document.body.style.top = "";
+  window.scrollTo(0, y);
+}
+
 /* Ouvre une fenêtre modale : Échap ferme, la tabulation reste piégée dedans,
-   et le focus revient à l'élément qui l'a ouverte. */
+   le fond est gelé, et le focus revient à l'élément qui l'a ouverte. */
 function ouvrirModale(overlay, fermer){
   const avant = document.activeElement;
   const focusables = () => Array.prototype.slice.call(overlay.querySelectorAll(
@@ -72,6 +99,7 @@ function ouvrirModale(overlay, fermer){
   function close(){
     document.removeEventListener("keydown", onKey, true);
     if (fermer) fermer(); else overlay.remove();
+    libererFond();
     if (avant && avant.focus) try { avant.focus(); } catch(e){}
   }
   function onKey(e){
@@ -88,6 +116,7 @@ function ouvrirModale(overlay, fermer){
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
   document.body.appendChild(overlay);
+  verrouillerFond();
   const f = focusables();
   if (f.length) f[0].focus();
   return close;
@@ -543,7 +572,7 @@ function renderHome(body){
     w.innerHTML = `<h3>${icon("hospital")}${_t("Infirmerie & suspensions")} (${indispo.length})</h3>` +
       indispo.map(p=>`<div class="inj-row"><span class="pos-badge ${p.groupe}">${p.pos}</span> <b>${p.nom}</b> — ${outChip(p)} ${FM.unavailableReason(p)}</div>`).join("");
     const inXI = my.onze.map(s2=>FM.getPlayer(my,s2.id)).filter(p=>p && !FM.playerAvailable(p));
-    if (inXI.length) w.innerHTML += `<p class="ht-alert">${inXI.length} indisponible(s) dans votre onze — corrigez la composition (onglet Tactique).</p>`;
+    if (inXI.length) w.innerHTML += `<p class="ht-alert">${inXI.length} ${_t("indisponible(s) dans votre onze — corrigez la composition (onglet Tactique).")}</p>`;
     body.appendChild(w);
   }
   const fx = FM.nextFixture();
@@ -638,7 +667,7 @@ function playMatchFlow(){
   if (my.onze.filter(s=>!s.id).length){ toast(_t("Onze incomplet — complétez votre équipe (Tactique).")); currentTab="tactique"; renderGame(); return; }
   // Un tour de coupe en retard ne doit pas passer à la trappe
   const bloc = FM.blockingEvents();
-  if (bloc.length && !confirm(`${bloc[0].titre} est à jouer avant de poursuivre le championnat.\n\nOK = y aller · Annuler = jouer quand même le championnat`)){
+  if (bloc.length && !confirm(`${bloc[0].titre} ${_t("est à jouer avant de poursuivre le championnat.")}\n\n${_t("OK = y aller · Annuler = jouer quand même le championnat")}`)){
     // l'utilisateur choisit de continuer le championnat
   } else if (bloc.length){
     currentTab = (bloc[0].kind==="coupe") ? "coupe" : "europe"; renderGame(); return;
@@ -952,6 +981,15 @@ function renderSquad(body){
   const my = FM.myClub();
   const card = el("div","card");
   card.appendChild(el("h3",null,icon("squad")+`${_t("Effectif")} — ${my.joueurs.length} ${_t("joueurs")} · ${_t("Masse salariale")} ~${my.joueurs.reduce((a,p)=>a+p.salaire,0).toFixed(0)} k€/${_t("sem")}`));
+  /* La raison des boutons grisés n'existait que dans un attribut `title` :
+     invisible au doigt, et introuvable pour un lecteur d'écran. On reprend
+     ici la bannière déjà construite pour l'onglet Mercato. */
+  if (!FM.marketOpen()){
+    const w = FM.transferWindow();
+    const bandeau = el("div","mkt-window closed");
+    bandeau.innerHTML = `<b><span class="dot off"></span>${w.nom}</b> — ${w.info}`;
+    card.appendChild(bandeau);
+  }
 
   const table = el("table","squad-table");
   const showNat = my.joueurs.some(p=>p.nat);
@@ -991,7 +1029,11 @@ function renderSquad(body){
       btn.onclick=()=>{ const r=FM.toggleTransferList(p.id); if(r && r.msg) toast(r.msg); renderGame(); };
       tr.lastChild.appendChild(btn);
       const lb = el("button","btn tiny ghost",_t("Prêter"));
-      if(!FM.marketOpen()){ lb.disabled=true; lb.title=_t("Hors période de mercato"); }
+      if(!FM.marketOpen()){
+        lb.disabled = true;
+        lb.title = _t("Hors période de mercato");
+        lb.setAttribute("aria-label", `${_t("Prêter")} — ${_t("Hors période de mercato")}`);
+      }
       /* Confirmation obligatoire : « Prêter » et « Vendre » sont voisins, et un
          appui 14 px trop bas expédiait le joueur en prêt pour une saison
          entière, sans retour possible et sans un mot. C'est la seule action
@@ -1845,7 +1887,7 @@ function renderMarket(body){
   head.innerHTML = `<h3>${icon("market")}${_t("Mercato")} — Budget : <span class="${my.budget<0?'neg':'pos'}">${money(my.budget)}</span></h3>
     <div class="mkt-window ${w.open?'open':'closed'}">
       <b><span class="dot ${w.open?'on':'off'}"></span>${w.nom}</b> — ${w.info}
-      ${w.open?'':'<small>Aucun achat, vente ou prêt possible pour vous comme pour les clubs IA.</small>'}
+      ${w.open?'':`<small>${_t("Aucun achat, vente ou prêt possible pour vous comme pour les clubs IA.")}</small>`}
     </div>`;
 
   const listBox = el("div","card"); listBox.id="marketList";
@@ -2139,7 +2181,11 @@ function renderNews(body){
        parcours européen, Supercoupe et trophées individuels étaient bel et
        bien enregistrés par la fin de saison, mais lus par aucun rendu. */
     FM.state.historique.forEach(s=>{
-      const bouts = [`${_t("Saison")} ${s.saison} — ${FM.myClub().nom} : ${s.classement}${ord(s.classement)}`,
+      /* s.club : le club de CETTE saison-là. Les sauvegardes antérieures ne le
+         portent pas — on retombe alors sur le club actuel, faute de mieux. */
+      const clubAlors = s.club || FM.myClub().nom;
+      const div = s.d2 ? ` (${_t("Division 2")})` : "";
+      const bouts = [`${_t("Saison")} ${s.saison} — ${clubAlors}${div} : ${s.classement}${ord(s.classement)}`,
                      `${_t("Champion")} : ${s.champion}`];
       if (s.coupe && s.coupe.nom)
         bouts.push(`${s.coupe.nom} : ${s.coupe.vainqueur || s.coupe.champion || "—"}`
@@ -2300,7 +2346,14 @@ function audioBar(){
 
     const file = el("input"); file.type="file"; file.accept="audio/*";
     file.multiple = true; file.style.display="none";
-    file.onchange = async ()=>{ await FM.audio.addFiles(Array.from(file.files||[])); };
+    file.onchange = async ()=>{
+      const n = (file.files||[]).length;
+      const b = await FM.audio.addFiles(Array.from(file.files||[])) || {};
+      if (b.ajoutes) toast(`${b.ajoutes} ${_t("musique(s) ajoutée(s).")}`);
+      if (b.ignores) toast(`${b.ignores} ${_t("fichier(s) ignoré(s) : format non reconnu.")}`);
+      else if (!b.ajoutes && n) toast(_t("Aucun fichier n'a pu être ajouté."));
+      file.value = "";                 /* réimporter le même fichier reste possible */
+    };
     bar.appendChild(file);
     mk("upload","",_t("Ajouter mes propres musiques"), ()=>file.click());
     if (FM.audio.hasOwn()) mk("cross","",_t("Retirer mes musiques"), ()=>FM.audio.clearOwn());
