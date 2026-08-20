@@ -234,6 +234,7 @@ function retirerPisteMorte(){
   S.custom.splice(i, 1);
   if (mort.cle != null) idbDelete(mort.cle);
   if (S.idx >= playlist().length) S.idx = 0;
+  try{ localStorage.setItem(LS_IDX, String(S.idx)); }catch(e){}
   if (S.onPisteMorte) S.onPisteMorte(mort.nom);
   return true;
 }
@@ -324,11 +325,21 @@ function current(){
 }
 function startCurrent(){
   const all = playlist();
-  const cur = all[S.idx % all.length];
+  /* L'index est ramené dans les bornes UNE fois, et c'est lui qui sert ensuite
+     à retrouver le fichier. Le modulo n'était appliqué que pour choisir la
+     piste, jamais pour l'indice du fichier : un index mémorisé de 11 sur une
+     playlist redevenue à 6 pistes désignait bien une piste importée
+     (all[11%6]) mais S.custom[11−5] valait undefined. « Cannot read properties
+     of undefined (reading 'url') » partait AVANT l'armement du séquenceur —
+     aucun son, et le bouton restait sur « Lecture » alors que S.playing valait
+     true. La bande son du jeu était éteinte pour de bon. */
+  S.idx = ((S.idx % all.length) + all.length) % all.length;
+  const cur = all[S.idx];
   stopEl();
   couperVoix();          /* sinon 1,3 s de l'ancienne piste se superpose */
   if (cur && cur.own){
     const own = S.custom[S.idx - TRACKS.length];
+    if (!own){ retirerPisteMorte(); if (S.onChange) S.onChange(); return; }
     const a = ensureEl();
     a.src = own.url; a.volume = S.vol; a.loop = false;
     a.play().catch(err => {
@@ -370,9 +381,12 @@ FM.audio = {
     stopEl();
     couperVoix();        /* sinon le prochain bruitage réveille le contexte
                             et rejoue la fin de la musique par-dessus */
-    /* Geler seulement APRÈS que les enveloppes se soient refermées : suspendre
-       dans la foulée figeait le fondu au lieu de le rendre. */
-    if (ctx){ const c = ctx; setTimeout(()=>{ if (!S.playing) c.suspend(); }, FONDU*1000 + 30); }
+    /* Le contexte n'est PLUS suspendu. Le gel n'a plus aucun rôle correctif
+       depuis couperVoix(), et le différer de 60 ms le faisait tomber en plein
+       milieu d'un bruitage de menu joué juste après la pause : 9 ms rendus sur
+       119, le reliquat recollé devant le son suivant à 1,45 fois son niveau.
+       Un contexte au repos ne consomme rien de mesurable, et sfx() rappelait
+       de toute façon resume() au premier clic. */
     try{ localStorage.setItem(LS_ON,"0"); }catch(e){}
     if (S.onChange) S.onChange();
   },
@@ -443,7 +457,10 @@ FM.audio = {
     S.custom.forEach(c=>URL.revokeObjectURL(c.url));
     S.custom = [];
     await idbClear();
+    /* L'index mémorisé sur disque doit suivre, sinon la session suivante
+       repart sur une piste qui n'existe plus. */
     if (S.idx >= playlist().length) S.idx = 0;
+    try{ localStorage.setItem(LS_IDX, String(S.idx)); }catch(e){}
     if (S.playing) startCurrent(); else if (S.onChange) S.onChange();
   },
 
@@ -453,6 +470,11 @@ FM.audio = {
     const recs = await idbAll();
     const cles = await idbAllKeys();
     S.custom = recs.map((r,i)=>({ nom:r.nom, blob:r.blob, url:URL.createObjectURL(r.blob), cle:cles[i] }));
+    /* L'index persisté peut désigner une piste disparue depuis : on le ramène
+       dans les bornes MAINTENANT, une fois la bibliothèque chargée, pour que
+       l'affichage soit d'accord avec ce qui sera joué. */
+    const n = playlist().length;
+    S.idx = n ? (((S.idx % n) + n) % n) : 0;
     if (S.onChange) S.onChange();
     /* reprise automatique après un geste du joueur (politique des navigateurs) */
     let wanted=false;

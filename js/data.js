@@ -553,10 +553,18 @@ const ML_ICONS = [
   "Burchet","Kruse","Lettieri",              // AD, AG, AD
   "Castolo","Espimas","Bergman"              // BU x3 (Castolo en pointe !)
 ];
+/* Masse salariale annuelle visée pour l'effectif fondateur, en M€. Le club
+   créé démarre en réputation 1, dont le barème de recettes vaut 21,5 M€ par
+   saison, modulé de −15 % à +15 % par le classement : 18 tient même à la
+   dernière place, dont la recette tombe à 18,3 M€. L'effectif sortait à
+   24,3 M€, soit 2,8 M€ de déficit structurel avant le moindre recrutement —
+   en contradiction avec la règle de calibrage du jeu, qui veut qu'un effectif
+   conforme au rang de son club équilibre ses comptes. */
+const ML_MASSE_CIBLE = 18;
 FM.makeMasterSquad = function(country, iconic){
   const plan = ["GB","GB","DD","DD","DG","DG","DC","DC","DC","DC",
                 "MDC","MDC","MC","MC","MC","MO","MO","AD","AG","AD","BU","BU","BU"];
-  return plan.map((pos,i) => {
+  const effectif = plan.map((pos,i) => {
     const p = makePlayer(1, pos, country || "FRA");
     if (iconic && ML_ICONS[i]) p.nom = ML_ICONS[i];   // noms iconiques (club créé par le joueur)
     // Note volontairement basse ; un ou deux "espoirs" avec du potentiel
@@ -571,6 +579,14 @@ FM.makeMasterSquad = function(country, iconic){
     p.salaire = Math.round((p.valeur*2.2 + p.note*0.3) * 10) / 10;
     return p;
   });
+  /* Calage sur le barème, en conservant la hiérarchie interne des salaires. */
+  const semaines = FM.SEMAINES_PAR_SAISON || 38;
+  const annuel = effectif.reduce((a,p)=>a+p.salaire, 0) / 1000 * semaines;
+  if (annuel > 0){
+    const k = ML_MASSE_CIBLE / annuel;
+    effectif.forEach(p => { p.salaire = Math.round(p.salaire * k * 10) / 10; });
+  }
+  return effectif;
 };
 FM.ML_ICONS = ML_ICONS;
 

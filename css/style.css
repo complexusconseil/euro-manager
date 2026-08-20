@@ -99,9 +99,14 @@ h3{font-size:18px;font-weight:700}
 /* Cibles tactiles. « Vendre » et « Prêter » se suivent dans la même cellule
    avec 4 px d'espace mort entre deux boutons de 24 px de haut : c'est moins
    que la tolérance d'ajustement du navigateur, qui rabattait donc un appui
-   14 px trop bas sur le mauvais bouton et expédiait le joueur en prêt. */
+   14 px trop bas sur le mauvais bouton et expédiait le joueur en prêt.
+   La marge ne porte QUE sur deux boutons qui se suivent : posée sur tous, elle
+   s'ajoutait aussi au-dessus du premier et sous le dernier, et les lignes de
+   l'Effectif passaient de 69 à 117 px — un tiers de joueurs visibles en moins
+   sur mobile pour un espacement qui ne séparait rien. */
 @media(pointer:coarse){
-  .btn.tiny,.btn.small{min-height:44px;margin-top:8px}
+  .btn.tiny,.btn.small{min-height:44px}
+  .btn.tiny+.btn.tiny,.btn.small+.btn.small{margin-top:8px}
 }
 .btn svg{width:15px;height:15px;flex-shrink:0}
 

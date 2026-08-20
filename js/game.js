@@ -379,6 +379,7 @@ const REV_BY_REP = { 1:21.5, 2:29.5, 3:42.5, 4:66, 5:128 };
    salaire pour une année pleine de recettes, et le Celtic encaissait
    9 621 M€ pour 5 776 M€ de salaires. */
 const SEMAINES_PAR_SAISON = 38;
+FM.SEMAINES_PAR_SAISON = SEMAINES_PAR_SAISON;   /* data.js s'y cale aussi */
 
 /* ---------- CIRCUIT MONÉTAIRE ----------
    Règle : tout euro qui quitte la trésorerie d'un club arrive dans celle d'un
@@ -599,7 +600,7 @@ FM.playMatchday = function(forcedMy){
       delete dom._red; delete ext._red;
     }
     applyResult(dom, ext, res);
-    accumulateStats(dom, ext, res);
+    accumulateStats(dom, ext, res, true);
     const r = { dom:dom.id, ext:ext.id, ds:res.domScore, es:res.extScore, events:res.events };
     dayResults.push(r);
     if (dom.id===FM.state.managedClubId || ext.id===FM.state.managedClubId) myResult = r;
@@ -665,7 +666,7 @@ FM.backgroundLeagues = function(){
 function simulateBackground(dom, ext){
   const res = FM.simulateMatch(dom, ext);
   applyResult(dom, ext, res);
-  accumulateStats(dom, ext, res);
+  accumulateStats(dom, ext, res, true);
 }
 
 /* Fait avancer les championnats étrangers pour qu'ils bouclent leur saison
@@ -743,11 +744,19 @@ FM.accumulateStats = (dom, ext, res) => accumulateStats(dom, ext, res);
    accumulateStats. Le club du joueur — le seul à jouer ses matchs à l'écran —
    ne recevait donc AUCUNE statistique de coupe : 26 % de matchs en moins sur
    une saison, et un titre de meilleur buteur attribué au mauvais joueur. */
-FM.creditLiveMatch = function(dom, ext, hs, as, events){
+/* `ligue` : ce même chemin sert aux matchs de CHAMPIONNAT et aux tours de
+   COUPE joués à l'écran. Le marquer championnat sans condition ferait compter
+   un huitième de finale comme une journée, ce que le seuil du trophée doit
+   précisément écarter. L'appelant le sait, pas nous. */
+FM.creditLiveMatch = function(dom, ext, hs, as, events, ligue){
   if (!dom || !ext) return;
-  accumulateStats(dom, ext, { domScore:hs, extScore:as, events:events || [] });
+  accumulateStats(dom, ext, { domScore:hs, extScore:as, events:events || [] }, ligue === true);
 };
-function accumulateStats(dom, ext, res){
+/* `ligue` distingue le championnat des coupes. Le seuil du trophée de joueur
+   de la saison porte sur une part de CHAMPIONNAT — il s'appliquait à
+   noteMatchs, qui agrège coupe nationale et Europe : 20 % des lauréats
+   avaient moins des deux tiers des journées (16 sur 34 + 12 de coupe). */
+function accumulateStats(dom, ext, res, ligue){
   // Buteurs + regroupement des buts par club
   const goalsBy = {};
   for (const e of res.events){
@@ -861,6 +870,7 @@ function accumulateStats(dom, ext, res){
       note = Math.max(4.5, Math.min(10, note));
       p.noteTotale = (p.noteTotale||0) + note;
       p.noteMatchs = (p.noteMatchs||0) + 1;
+      if (ligue) p.ligueMatchs = (p.ligueMatchs||0) + 1;
     }
   }
 }
@@ -881,7 +891,8 @@ FM.leaderboards = function(ligueId, minMatchs){
   }
   const buteurs = players.filter(p=>p.buts>0).sort((a,b)=>b.buts-a.buts || b.passes-a.passes).slice(0,15);
   const passeurs = players.filter(p=>(p.passes||0)>0).sort((a,b)=>(b.passes||0)-(a.passes||0)).slice(0,15);
-  const notes = players.filter(p=>(p.noteMatchs||0)>=minMatchs)
+  /* Sur les JOURNÉES de championnat, pas sur tous les matchs joués. */
+  const notes = players.filter(p=>(p.ligueMatchs||0)>=minMatchs)
     .map(p=>({ ...p, avg:FM.playerAvgNote(p) }))
     .sort((a,b)=>b.avg-a.avg).slice(0,15);
   return { buteurs, passeurs, notes };
@@ -1730,7 +1741,9 @@ FM.endSeason = function(){
   const passeur = lb.passeurs[0];           // Meilleur passeur
   const trophies = {
     joueur:   potm ? { nom:potm.nom, club:potm.clubNom, avg:+FM.playerAvgNote(potm).toFixed(2),
-                      matchs:potm.noteMatchs||0 } : null,
+                      /* le nombre inscrit sur le trophée est celui qui a servi
+                         de seuil : des journées de championnat */
+                      matchs:potm.ligueMatchs||0 } : null,
     buteur:   pichichi ? { nom:pichichi.nom, club:pichichi.clubNom, buts:pichichi.buts } : null,
     passeur:  passeur ? { nom:passeur.nom, club:passeur.clubNom, passes:passeur.passes||0 } : null
   };
@@ -1896,7 +1909,8 @@ FM.endSeason = function(){
       // partie : sans cette remise à zéro, la fiche affichait un cumul de
       // carrière sous le libellé « cette saison », et le seuil de suspension
       // finissait par tomber tous les cinq matchs.
-      p.matchs=0; p.buts=0; p.passes=0; p.noteTotale=0; p.noteMatchs=0; p.selJeunes=null;
+      p.matchs=0; p.buts=0; p.passes=0; p.noteTotale=0; p.noteMatchs=0;
+      p.ligueMatchs=0; p.selJeunes=null;
       p.cartons=0; p.suspension=0;
       delete p.signeFenetre;
       /* loanCooldown n'est PAS effacé ici : il l'était quelques lignes après
@@ -2300,7 +2314,7 @@ FM.addNews = addNews;
    Une carrière longue doit tenir sous le quota du navigateur (5 Mo).
    Deux leviers : les champs qui valent leur valeur par défaut ne sont pas
    écrits, et l'historique de carrière est borné (voir endSeason).        */
-const SAVE_DEFAULTS = { buts:0, passes:0, matchs:0, noteTotale:0, noteMatchs:0,
+const SAVE_DEFAULTS = { buts:0, passes:0, matchs:0, noteTotale:0, noteMatchs:0, ligueMatchs:0,
                         transferListe:false, selJeunes:null, blessure:0,
                         suspension:0, cartons:0 };
 /* fonction classique et non fléchée : « this » est l'objet qui porte la clé,
@@ -2330,7 +2344,14 @@ FM.migrateState = function(){
     if (!nombreSain(p.note)) p.note = PLANCHER.note;
     if (!nombreSain(p.potentiel)) p.potentiel = Math.max(p.note, PLANCHER.potentiel);
   };
-  const fix = p => { for (const k in SAVE_DEFAULTS) if (p[k] === undefined) p[k] = SAVE_DEFAULTS[k]; redresse(p); };
+  const fix = p => {
+    /* Partie antérieure au compteur de journées : on l'amorce sur noteMatchs
+       plutôt que sur zéro, sinon la saison en cours ne désignerait aucun
+       joueur de la saison. */
+    if (p.ligueMatchs === undefined && (p.noteMatchs||0) > 0) p.ligueMatchs = p.noteMatchs;
+    for (const k in SAVE_DEFAULTS) if (p[k] === undefined) p[k] = SAVE_DEFAULTS[k];
+    redresse(p);
+  };
   ((s.db && s.db.clubs) || []).forEach(c => (c.joueurs || []).forEach(fix));
   (s.freeAgents || []).forEach(fix);
   (s.news || []).forEach(n => { if (!n.kind) n.kind = "info"; });
@@ -2367,6 +2388,20 @@ FM.migrateState = function(){
     for (const c of s.db.clubs) (c.joueurs || []).forEach(passer);
     (s.freeAgents || []).forEach(passer);
     if (aRenumeroter.length){
+      /* Les prêts se résolvent par RÉFÉRENCE, pas par identifiant. Un prêt
+         désigne le joueur physiquement présent chez son emprunteur : c'est le
+         seul critère qui lève l'ambiguïté quand deux joueurs partagent un
+         identifiant. Remapper à l'aveugle détournait le prêt vers le sosie
+         renuméroté — le joueur prêté ne rentrait plus jamais, restait chez
+         l'emprunteur avec `loan` posé, et disparaissait de l'effectif de son
+         club parent, saison après saison. */
+      const parClub = new Map(s.db.clubs.map(c => [c.id, c]));
+      const refPret = new Map();
+      for (const pr of (s.prets || [])){
+        const chez = parClub.get(pr.borrowerId);
+        const j = chez && (chez.joueurs || []).find(x => x && x.id === pr.playerId && x.loan);
+        if (j) refPret.set(pr, j);
+      }
       const finis = [...vus].filter(sain);
       let suivant = (finis.length ? Math.max(...finis) : 0) + 1;
       /* On mémorise l'ancien identifiant pour remapper tout ce qui y renvoie */
@@ -2389,11 +2424,22 @@ FM.migrateState = function(){
           if (!ids.has(sl.id)) sl.id = null;
         });
       }
+      /* Un identifiant qui reste ATTRIBUÉ après renumérotation ne doit pas
+         être remapté : c'est le premier vu qui l'a gardé, et le réécrire
+         pointerait sur quelqu'un d'autre. Même garde que pour `c.onze`. */
+      const attribues = new Set();
+      for (const c of s.db.clubs) (c.joueurs || []).forEach(x => { if (x) attribues.add(x.id); });
+      (s.freeAgents || []).forEach(x => { if (x) attribues.add(x.id); });
       const suivre = (obj, cle) => {
         if (!obj || obj[cle] == null) return;
+        if (attribues.has(obj[cle])) return;
         if (remap.has(obj[cle])) obj[cle] = remap.get(obj[cle]);
       };
-      (s.prets || []).forEach(pr => suivre(pr, "playerId"));
+      /* Les prêts d'abord, par la référence retenue avant renumérotation. */
+      for (const pr of (s.prets || [])){
+        const j = refPret.get(pr);
+        if (j) pr.playerId = j.id; else suivre(pr, "playerId");
+      }
       (s.offres || []).forEach(o => suivre(o, "joueurId"));
       (s.jeunesSaison || []).forEach(j => suivre(j, "id"));
     }

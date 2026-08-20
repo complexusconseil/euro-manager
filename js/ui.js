@@ -1110,7 +1110,7 @@ function openPlayerCard(p, clubNom){
       <div><small>Contrat</small><b>${p.contrat} an${p.contrat>1?'s':''}</b></div>
     </div>
     <div class="pc-season">
-      <h4>Saison en cours</h4>
+      <h4>${_t("Saison en cours")}</h4>
       <span>${p.buts||0} ${_t("buts")}</span><span>${p.passes||0} ${_t("passes")}</span>
       <span>${p.matchs||0} ${_t("matchs")}</span><span>${p.noteMatchs?avg.toFixed(2):'—'} ${_t("moy")}</span>
     </div>
@@ -1118,11 +1118,11 @@ function openPlayerCard(p, clubNom){
     ${(p.cartons||0)?`<p class="hint">${_t("Avertissements cette saison")} : <b>${p.cartons}</b>${(p.cartons%5===4)?" — prochain carton = suspension":""}</p>`:''}
     ${p.selJeunes?`<p class="pc-youth">${_t("Convoqué en")} <b>${p.selJeunes.equipe}</b> (${p.selJeunes.matchs} matchs, ${p.selJeunes.buts} buts).</p>`:''}
     <div class="pc-career">
-      <h4>Carrière — totaux : ${totMatch} matchs · ${totButs} buts · ${totPasses} passes</h4>
+      <h4>${_t("Carrière — totaux")} : ${totMatch} ${_t("matchs")} · ${totButs} ${_t("buts")} · ${totPasses} ${_t("passes")}</h4>
       ${carr.length?`<div class="table-scroll"><table class="squad-table"><thead><tr>
-        <th>${_t("Saison")}</th><th>Club</th><th>M</th><th>B</th><th>PD</th><th>${_t("Moy")}</th><th>${_t("Note")}</th><th>${_t("Sélection")}</th>
+        <th>${_t("Saison")}</th><th>${_t("Club")}</th><th>M</th><th>B</th><th>PD</th><th>${_t("Moy")}</th><th>${_t("Note")}</th><th>${_t("Sélection")}</th>
         </tr></thead><tbody>${carrRows}</tbody></table></div>`
-        :`<p class="hint">Première saison en cours — l'historique se construira au fil des saisons.</p>`}
+        :`<p class="hint">${_t("Première saison en cours — l'historique se construira au fil des saisons.")}</p>`}
     </div>`;
   const close = el("button","btn ghost",_t("Fermer"));
   close.onclick=()=>overlay.remove();
@@ -1337,7 +1337,7 @@ function renderEurope(body){
 
   if (!e.playerComp){
     const c = el("div","card");
-    c.innerHTML = `<h3>${icon("cup")}${_t("Coupes d'Europe")}</h3><p>Votre club n'est pas qualifié cette saison. Qualifiez-vous via le classement de votre championnat (places attribuées selon le coefficient UEFA de votre pays).</p>
+    c.innerHTML = `<h3>${icon("cup")}${_t("Coupes d'Europe")}</h3><p>${_t("Votre club n'est pas qualifié cette saison.")} ${_t("Qualifiez-vous via le classement de votre championnat (places attribuées selon le coefficient UEFA de votre pays).")}</p>
       <p>${icon("cup")} <b>${FM.compChampionTeam(e.UCL)?FM.compChampionTeam(e.UCL).nom:'—'}</b> remporte la Ligue des Champions.</p>`;
     body.appendChild(c);
     if (e.UCL.ko) renderCupHistory(body, e.UCL.ko);
@@ -1419,7 +1419,7 @@ function renderDomesticCup(body){
       card.appendChild(sim);
     }
   } else {
-    card.appendChild(el("p","round-name","Vous avez été éliminé de la coupe."));
+    card.appendChild(el("p","round-name",_t("Vous avez été éliminé de la coupe.")));
     const b = el("button","btn ghost",_t("Voir le vainqueur"));
     b.onclick=()=>{ FM.autoCompleteCup(cup); FM.save(); renderGame(); };
     card.appendChild(b);
@@ -1485,7 +1485,7 @@ function playLeagueMatch(comp){
   const dom = FM.clubById(homeT.ref), ext = FM.clubById(awayT.ref);
   const cfg = clubMatchCfg(dom, ext, comp.nom+" · phase de ligue", FM.myClub());
   cfg.done = (hs,as,goals)=>{ cfg.cleanup();
-    FM.creditLiveMatch(dom, ext, hs, as, goals);      // les stats comptent aussi en direct
+    FM.creditLiveMatch(dom, ext, hs, as, goals, true);   // championnat : compte comme journée
     FM.lpResolveRound(comp,{hs,as}); FM.save(); renderGame(); };
   playLiveMatch(cfg);
 }
@@ -2286,7 +2286,16 @@ function importSaveFile(onDone){
     const r = new FileReader();
     r.onload = ()=>{
       const err = FM.importSave(String(r.result));
-      if (err) toast(_t("Fichier de partie invalide")+" — "+err);
+      /* « quota » et « écriture » ne sont PAS des motifs d'invalidité : la
+         partie a été acceptée et remplace déjà celle en mémoire, seul
+         l'enregistrement a échoué. L'annoncer comme un fichier invalide
+         laissait l'écran sur l'ancienne partie tandis que FM.state portait la
+         nouvelle — les deux divergeaient en silence jusqu'au rechargement. */
+      if (err === "quota" || err === "écriture"){
+        toast(_t("Partie importée, mais le navigateur n'a pas pu l'enregistrer — exportez-la."));
+        onDone && onDone();
+      }
+      else if (err) toast(_t("Fichier de partie invalide")+" — "+err);
       else { toast(_t("Partie importée.")); onDone && onDone(); }
     };
     r.readAsText(file);

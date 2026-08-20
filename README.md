@@ -49,7 +49,7 @@ La partie est **sauvegardée automatiquement** dans le navigateur (localStorage)
 ## 🎯 Modes de jeu
 
 - **Mode Carrière** — prenez les rênes d'un vrai club et menez-le vers ses objectifs, saison après saison.
-- **Mode Master League** (esprit PES 5/6) — créez votre propre club **dans le championnat de votre choix**, choisissez ses couleurs, démarrez avec l'effectif « maison » aux **noms iconiques (Castolo, Espimas, Minanda, Valeny, Hamsun…)** et un petit budget (à la place du club le plus faible), puis bâtissez une grande équipe au fil des saisons via le mercato et les agents libres.
+- **Mode Master League** (esprit PES 5/6) — créez votre propre club **dans le championnat de votre choix**, choisissez ses couleurs, démarrez avec l'effectif « maison » aux **noms iconiques (Castolo, Espimas, Minanda, Valeny, Hamsun…)** et un petit budget (à la place du club le plus faible), puis bâtissez une grande équipe au fil des saisons via le mercato et les agents libres. La masse salariale de cet effectif fondateur est calée sur le barème de recettes de sa réputation — elle sortait à 24,3 M€ par an contre 21,5 M€ de recettes, soit un déficit structurel avant le moindre recrutement.
 - **Mode International** — disputez le **Championnat d'Europe** (16 nations) ou la **Coupe du Monde** (32 nations) avec la sélection de votre choix, en élimination directe.
 
 ## 🌍 Championnats (15 pays)
@@ -220,7 +220,7 @@ Le trophée de **meilleur buteur** annonçait par ailleurs un total faux dans hu
 
 Chaque ligne retient enfin **le club et la division de sa saison**. Le palmarès relisait le club dirigé *aujourd'hui* : quatre saisons du Havre s'affichaient au nom de Malaga après un changement d'employeur, dont un parcours en Coupe de France, et une saison de D2 s'annonçait « 16e » sans mentionner la division.
 
-Et le trophée de **joueur de la saison** exige bien les deux tiers des journées : le code en appliquait 60 %, en contradiction avec sa propre documentation, et le titre revenait encore à des joueurs à 18 matchs sur 30.
+Et le trophée de **joueur de la saison** exige bien les deux tiers des **journées de championnat** : le code en appliquait 60 %, et il comptait de surcroît les matchs de coupe et d'Europe, si bien qu'un joueur à 16 journées sur 34 pouvait l'emporter grâce à 12 matchs de coupe. Mesuré sur 36 saisons et trois graines : **0 lauréat** sous le seuil, contre 20 % auparavant.
 
 ### Les places européennes se gagnent sur le terrain
 

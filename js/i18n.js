@@ -100,6 +100,8 @@ const EN = {
   "Mercato d'hiver":"Winter transfer window",
   "Aucun achat, vente ou prêt possible pour vous comme pour les clubs IA.":"No buying, selling or loans — for you or the AI clubs.",
   "Hors période de mercato":"Outside the transfer window",
+  "Qualifiez-vous via le classement de votre championnat (places attribuées selon le coefficient UEFA de votre pays).":"Qualify through your league table (berths allocated by your country's UEFA coefficient).",
+  "Partie importée, mais le navigateur n'a pas pu l'enregistrer — exportez-la.":"Game imported, but the browser could not save it — export it.",
   "musique(s) ajoutée(s).":"track(s) added.",
   "fichier(s) ignoré(s) : format non reconnu.":"file(s) ignored: unrecognised format.",
   "Aucun fichier n'a pu être ajouté.":"No file could be added.",
